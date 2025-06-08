@@ -1,4 +1,4 @@
-  repeat task.wait(0.1) until game:IsLoaded()
+   repeat task.wait(0.1) until game:IsLoaded()
 
 local repo = 'https://raw.githubusercontent.com/bocaj111004/Linora/refs/heads/main/'
 local Library      = loadstring(game:HttpGet(repo..'Library.lua'))()
@@ -4032,3 +4032,93 @@ BypassBox:AddToggle("AntiCheat Bypass (Ladder Method)", {
         end
         end
         })
+      
+-- 6) Toggle registration
+-- Services & GUI refs
+local Players      = game:GetService("Players")
+local CurrentRooms = workspace:WaitForChild("CurrentRooms")
+local LocalPlayer  = Players.LocalPlayer
+local PlayerGui    = LocalPlayer:WaitForChild("PlayerGui")
+local CodeLabel    = PlayerGui.MainUI.AnchorHintFrame:WaitForChild("Code")
+
+-- Control flags
+local runLoop    = false
+local lastNotify = 0
+
+-- Right-to-left digit shift helper (string in → string out)
+local function shiftCodeRTL(code, op, n)
+    local len, out = #code, {}
+    for rev = 1, len do
+        local i = len - rev + 1
+        local ch = code:sub(i, i)
+        local d = tonumber(ch)
+        if d then
+            if op == "+" then
+                d = (d + n) % 10
+            else
+                d = (d - n) % 10
+                if d < 0 then d += 10 end
+            end
+            out[i] = tostring(d)
+        else
+            out[i] = ch
+        end
+    end
+    return table.concat(out)
+end
+
+-- Main toggle
+AutoBox:AddToggle("Auto Anchor Solver", {
+    Text    = "Auto Anchor Solver",
+    Default = false,
+    Callback = function(enabled)
+        runLoop = enabled
+        if enabled then
+            task.spawn(function()
+                while runLoop do
+                    task.wait(0.1)
+
+                    local code      = CodeLabel.Text or ""
+                    local finalCode = code
+                    local rooms     = CurrentRooms:GetDescendants()
+
+                    for i = 1, #rooms do
+                        local inst = rooms[i]
+                        if inst.Name == "MinesAnchor" then
+                            local remote = inst:FindFirstChild("AnchorRemote")
+                            if not remote then
+                                continue
+                            end
+
+                            local note = inst:FindFirstChild("Note")
+                            if note then
+                                local gui   = note:FindFirstChild("SurfaceGui")
+                                local label = gui and gui:FindFirstChild("TextLabel")
+                                if label then
+                                    local op  = label.Text:sub(1,1)
+                                    local val = tonumber(label.Text:sub(2))
+                                    if (op == "+" or op == "-") and val then
+                                        finalCode = shiftCodeRTL(code, op, val)
+                                    end
+                                end
+                            end
+
+                            finalCode = tostring(finalCode)
+
+                            -- Throttled notify (once per 0.4s)
+                            local now = tick()
+                            if now - lastNotify >= 0.4 then
+                                Library:Notify("Solving the Anchor Code Is " .. finalCode)
+                                lastNotify = now
+                            end
+
+                            -- Invoke the RemoteFunction with only the code string
+                            remote:InvokeServer(finalCode)
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+    end,
+})
