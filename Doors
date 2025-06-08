@@ -141,7 +141,7 @@ TrollBox:AddToggle('Stunned',{
 })
 
 
-local lastSpeed = 16
+local lastSpeed = 15
 local humanoid = Humanoid
 local currentSpeed = lastSpeed
 
@@ -152,17 +152,28 @@ local SpeedSlider = PlayerBox:AddSlider('WalkSpeed', {
 	Rounding = 0,
 	Callback = function(v)
 		lastSpeed = v
-		humanoid.WalkSpeed = v
+		
 	end
 })
-
--- Detect external change to WalkSpeed
-humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-	currentSpeed = humanoid.WalkSpeed
-	if currentSpeed ~= lastSpeed then
-		humanoid.WalkSpeed = lastSpeed
-	end
+local con
+local oldspeed = humanoid.WalkSpeed
+PlayerBox:AddToggle('Enable WalkSpeed',{
+	Text = "Enable WalkSpeed",
+	Default = false,
+	Callback = function(Value)
+if Value then
+con = RunService.RenderStepped:Connect(function()
+humanoid.WalkSpeed = lastSpeed
 end)
+else
+if con then
+con:Disconnect()
+con = nil
+humanoid.WalkSpeed = oldspeed
+end
+end
+end
+})
 
 MiscBox:AddButton({
 	Text    = "Revive",
@@ -2398,8 +2409,14 @@ do
             end
 
             -- Once owned, clear all children and notify
-            model.Root.CFrame = CFrame.new(0, 0, 0)
+             for _, v in pairs(model:GetDescendants()) do
+ if v:IsA("BasePart") then
+ v.CanCollide = false
+
+v.CFrame = CFrame.new(0, 0, 0)
             notify(model.Name .. " has been cleared!")
+            end
+            end
         end)
     end
 
