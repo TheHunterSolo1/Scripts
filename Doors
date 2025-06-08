@@ -9,10 +9,10 @@ local Toggles = Library.Toggles
 
 local ESPLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/ESPLibrary/refs/heads/main/main.lua"))() 
 ESPLibrary:SetFadeTime(0.5)
-local Window = Library:CreateWindow({Title='MsDoors',Center=true,AutoShow=true})
+local Window = Library:CreateWindow({Title='ProHax V2',Center=true,AutoShow=true})
 local Tabs = {
 	Player     = Window:AddTab('Player'),
-	Anti       = Window:AddTab('Anti'),
+	Anti       = Window:AddTab('Remove'),
 	Auto       = Window:AddTab('Auto'),
 	ESP        = Window:AddTab('ESP'),
 	Bypass     = Window:AddTab('Bypass'),
@@ -32,8 +32,8 @@ local RetroBox = Tabs.Floors:AddRightGroupbox('Retro')
 local RoomsBox = Tabs.Floors:AddRightGroupbox('Rooms')
 local SettingsBox = Tabs.UISettings:AddLeftGroupbox('Themes & Keybinds')
 local MiscBox = Tabs.Player:AddRightGroupbox('Remotes & More')
-local FunBox = Tabs.Fun:AddRightGroupbox('Fun Items')
-local TrollBox = Tabs.Fun:AddLeftGroupbox('Troll Features')
+
+local TrollBox = Tabs.Fun:AddRightGroupbox('Troll Features')
 -- Services & References
 Players           = game:GetService("Players")
 PathfindingService = game:GetService("PathfindingService")
@@ -104,7 +104,7 @@ BreakDoorsFE:OnChanged(function(enabled)
 		if accumulator < INTERVAL then return end
 		accumulator = 0
 
-		if tonumber(ReplicatedDS.LatestRoom.Value) == 98 then
+		if tonumber(ReplicatedDS.LatestRoom.Value) >= 98 then
 			BreakDoorsFE:SetValue(false)
 			return
 		end
@@ -148,7 +148,7 @@ local currentSpeed = lastSpeed
 -- Slider
 local SpeedSlider = PlayerBox:AddSlider('WalkSpeed', {
 	Text = 'WalkSpeed',
-	Min = 16, Max = 21, Default = 16,
+	Min = 15, Max = 21, Default = 15,
 	Rounding = 0,
 	Callback = function(v)
 		lastSpeed = v
@@ -412,11 +412,50 @@ PlayerBox:AddToggle('ToolOffset', {
 })
 
 -- ANTI -----
-AntiBox:AddToggle('AntiScreech',{Text='Anti Screech',Default=false,Callback=function(s)
-	local mod=LocalPlayer.PlayerGui.MainUI.Initiator.Main_Game.RemoteListener.Modules
-	local c=mod:FindFirstChild('Screech') or mod:FindFirstChild('_Screech')
-	if c then c.Name = s and '_Screech' or 'Screech' end
-end})
+-- Persistent connection handle
+screechConnection = nil
+
+AntiBox:AddToggle("AntiScreech", {
+    Text    = "Remove Screech",
+    Default = false,
+    Callback = function(enabled)
+        -- Disconnect any existing listener
+        if screechConnection then
+            screechConnection:Disconnect()
+            screechConnection = nil
+        end
+
+        if enabled then
+            -- Destroy existing GlitchedScreech objects
+            for _, child in ipairs(Workspace.CurrentCamera:GetChildren()) do
+                if child.Name == "GlitchedScreech" then
+                    child:Destroy()
+                end
+            end
+
+            -- Listen for new ones and destroy them immediately
+            screechConnection = Workspace.CurrentCamera.ChildAdded:Connect(function(child)
+                if child.Name == "GlitchedScreech" then
+                    child:Destroy()
+                end
+            end)  -- 0
+        end
+
+        -- Toggle the module name so remote events stop firing
+        local modulesFolder = LocalPlayer.PlayerGui
+                                    :WaitForChild("MainUI")
+                                    :WaitForChild("Initiator")
+                                    :WaitForChild("Main_Game")
+                                    :WaitForChild("RemoteListener")
+                                    :WaitForChild("Modules")
+        local screechModule = modulesFolder:FindFirstChild("Screech")
+                            or modulesFolder:FindFirstChild("_Screech")
+
+        if screechModule then
+            screechModule.Name = enabled and "_Screech" or "Screech"
+        end
+    end
+})
 -- Cache services
  Players = game:GetService("Players")
  ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -432,7 +471,7 @@ local camShakeParents = {}
 
 -- Anti Dread Toggle
 AntiBox:AddToggle("AntiDread", {
-	Text = "Anti Dread",
+	Text = "Remove Dread",
 	Default = false,
 	Callback = function(state)
 		if remoteDread then
@@ -447,7 +486,7 @@ local antiCon
 throttleAcc = 0
 THROTTLE    = 0.1
 
-local AntiHearing  = AntiBox:AddToggle("AntiFigureHearing", {
+local AntiHearing  = AntiBox:AddToggle("Anti FigureHearing", {
 	Text     = "Anti Figure Hearing",
 	Default  = false,
 	Callback = function(enabled)
@@ -483,7 +522,7 @@ local AntiHearing  = AntiBox:AddToggle("AntiFigureHearing", {
 
 
 
-RoomsBox:AddToggle('AntiA90',{Text='Anti A90',Default=false,Callback=function(s)
+RoomsBox:AddToggle('AntiA90',{Text='Remove A90',Default=false,Callback=function(s)
 	local mod=LocalPlayer.PlayerGui.MainUI.Initiator.Main_Game.RemoteListener.Modules
 	local c=mod:FindFirstChild('A90') or mod:FindFirstChild('_A90')
 	if c then c.Name = s and '_A90' or 'A90' end
@@ -615,10 +654,10 @@ PlayerBox:AddToggle("Noclip", {
  Workspace      = game:GetService("Workspace")  Replicated     = game:GetService("ReplicatedStorage")  GameData       = Replicated:WaitForChild("GameData")  LatestRoomVal  = GameData:WaitForChild("LatestRoom")
 
   settings = {
-    ["Anti-Snare"]     = { "Snare", "room" },
-    ["Anti-Dupe"]      = { "SideroomDupe", "room" },
-    ["Anti-SeekArm"]   = { "Seek_Arm", "room" },
-    ["Anti-SeekFire"]  = { "ChandelierObstruction", "room" }
+    ["Remove-Snare"]     = { "Snare", "room" },
+    ["Remove-Dupe"]      = { "SideroomDupe", "room" },
+    ["Remove-SeekArm"]   = { "Seek_Arm", "room" },
+    ["Remove-SeekFire"]  = { "ChandelierObstruction", "room" }
 }
 
 local listeners = {}
@@ -669,15 +708,11 @@ for _, root in ipairs(roots) do
     end)
     table.insert(listeners[id], conn)
 end
-
-print(("[AntiToggle] %s ON → '%s' (%s scope)")
-      :format(id, targetName, scope))
-
 end
 
-  function deactivate(id) local conns = listeners[id] if conns then for _, c in ipairs(conns) do c:Disconnect() end listeners[id] = nil end print(("[AntiToggle] %s OFF"):format(id)) end
+  function deactivate(id) local conns = listeners[id] if conns then for _, c in ipairs(conns) do c:Disconnect() end listeners[id] = nil end end
 
- LatestRoomVal:GetPropertyChangedSignal("Value"):Connect(function() for id, spec in pairs(settings) do local _, scope = unpack(spec) if listeners[id] then activate(id, spec[1], scope) print(("[AntiToggle] %s re-scanned on new room '%s'") :format(id, tostring(LatestRoomVal.Value))) end end end)
+ LatestRoomVal:GetPropertyChangedSignal("Value"):Connect(function() for id, spec in pairs(settings) do local _, scope = unpack(spec) if listeners[id] then activate(id, spec[1], scope) end end end)
 
  for id, spec in pairs(settings) do local targetName, scope = unpack(spec) AntiBox:AddToggle(id, { Text    = id, Default = false, Callback = function(on) if on then activate(id, targetName, scope) else deactivate(id) end end, }) end
 
@@ -930,7 +965,7 @@ AutoBox:AddToggle("AutoInteract", {
         -- 2) every 0.1s, check distance & interact
         heartbeatConn = RunService.Heartbeat:Connect(function(dt)
             throttleAccum = throttleAccum + dt
-            if throttleAccum < 0.1 then return end
+            if throttleAccum < 0.02 then return end
             throttleAccum = 0
 
             local hrp = LocalPlayer.Character and LocalPlayer.Character.PrimaryPart
@@ -1089,7 +1124,7 @@ AutoBox:AddToggle('FullBright', {
         if on then
             local function apply()
                 Lighting.GlobalShadows        = false
-                Lighting.Brightness           = 3
+                Lighting.Brightness           = 5
                 Lighting.ClockTime            = 14
                 Lighting.FogEnd               = 1e6
                 Lighting.OutdoorAmbient       = Color3.fromRGB(192,192,192)
@@ -1156,7 +1191,7 @@ end
 		fake.Name = "fakecollision"
 		fake.Massless = false
 		fake.Parent = character
-		fake.CanCollide = true
+		fake.CanCollide = false 
 		fake.Size = Vector3.new(9,9,9)
 		
 		lastToggle = tick()
@@ -1565,18 +1600,22 @@ Workspace = game:GetService("Workspace")
 local antiSeekConn
 
 -- Global helper (no locals)
-function clearTriggerCollision()
+function clearTriggerCollision(obj)
     -- Destroy all direct children via indexed for-loop
+    if obj.Name == "TriggerSeek" then
+    obj:Destroy()
+    else
     local children = obj:GetChildren()
     for i = 1, #children do
         children[i]:Destroy()
+    end
     end
     Library:Notify("Deleted Seek (FE) Successfully", 3)
 end
 
 -- Add the toggle
 FoolsBox:AddToggle("DeleteSeekFE", {
-    Text    = "Delete Seek (FE)",
+    Text    = "Delete Seek (FE) Old Bulit",
     Default = false,
     Tooltip = "Makes Seek Never Appears",
     Callback = function(isOn)
@@ -1587,10 +1626,8 @@ FoolsBox:AddToggle("DeleteSeekFE", {
 
         if isOn then
             -- 1) Initial sweep
-            local allDesc = Workspace.CurrentRooms:GetDescendants()
-            for i = 1, #allDesc do
-                if allDesc[i].Name == "TriggerEventCollision" then
-                    clearTriggerCollision(allDesc[i])
+            for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
+            if v.Name == "TriggerSeek" or v.Name == "TriggerEventCollision" then                   clearTriggerCollision(v)
                 end
             end
 
@@ -1892,12 +1929,28 @@ do
             end,
         })
     end
+ 
+-- Table to remember which door got which index
+local DoorIndices = {}
+-- Counter for assigning new indices
+local DoorCount = 0
 
-    makeRoomESP("DoorESP",
-        function(o) return o:IsA("Model") and o.Name == "Door" end,
-        function(o) return "Door ["..(o.Parent and o.Parent.Name or "?").."]" end,
-        Color3.fromRGB(0,255,0)
-    )
+makeRoomESP("DoorESP",
+    -- Filter: only Models named "Door"
+    function(o)
+        return o:IsA("Model") and o.Name == "Door"
+    end,
+    -- Label: assign an index the first time we see this door,
+    -- then always return "Door <index>"
+    function(o)
+        if not DoorIndices[o] then
+            DoorCount = DoorCount + 1
+            DoorIndices[o] = DoorCount
+        end
+        return "Door " .. DoorIndices[o]
+    end,
+    Color3.fromRGB(0, 255, 0)
+)
     makeRoomESP("KeyESP",
         function(o) return o.Name == "KeyObtain" end,
         "Key",
@@ -2337,7 +2390,7 @@ do
             end
 
             -- Once owned, clear all children and notify
-            model:ClearAllChildren()
+            model.Root.CFrame = CFrame.new(0, 0, 0)
             notify(model.Name .. " has been cleared!")
         end)
     end
@@ -2921,7 +2974,7 @@ local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(
 		FrameCounter = 0;
 	end;
 
-	Library:SetWatermark(('MsDoors | %s fps | %s ms'):format(
+	Library:SetWatermark(('ProHax V2 | %s fps | %s ms'):format(
 		math.floor(FPS),
 		math.floor(game:GetService('Stats').Network.ServerStatsItem['Data Ping']:GetValue())
 		));
@@ -2998,7 +3051,7 @@ SaveManager:IgnoreThemeSettings()
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(Tabs.UISettings)
-SaveManager:SetFolder('MsDoors')
+SaveManager:SetFolder('ProHax')
 SaveManager:SetIgnoreIndexes({'MenuKeybind'})
 SaveManager:BuildConfigSection(Tabs.UISettings)
 -- SERVICES (globals only for late-binding patterns)
@@ -3094,7 +3147,7 @@ function enlargeKeyObtainParts()
     rooms = workspace:WaitForChild("CurrentRooms")
     function proc(v)
         if v.Name=="KeyObtain" and v.PrimaryPart then
-            v.PrimaryPart.Size = v.PrimaryPart.Size*3
+            v.PrimaryPart.Size = v.PrimaryPart.Size* 6
         end
     end
     for _,v in ipairs(rooms:GetDescendants()) do proc(v) end
@@ -3211,7 +3264,7 @@ PlayerBox:AddToggle("SecondLive", {
                     hum.AutomaticScalingEnabled = true
 
                     -- 3) Clear stunned flag
-                    if char:GetAttribute("Stunned") then
+                    if char:GetAttribute("Stunned") == true  then
                         char:SetAttribute("Stunned", false)
                     end
 
@@ -3287,73 +3340,65 @@ AutoBox:AddToggle("AutoEatCandies", {
         end
     end,
 })
- Workspace = game:GetService("Workspace")
+ Workspace         = game:GetService("Workspace")
 ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-GameData = ReplicatedStorage:WaitForChild("GameData")
-LatestRoom = GameData:WaitForChild("LatestRoom")
-RemotesFolder = ReplicatedStorage:FindFirstChild("FloorReplicated") and ReplicatedStorage.FloorReplicated:FindFirstChild("ClientRemote") or nil
+GameData      = ReplicatedStorage:WaitForChild("GameData")
+LatestRoom    = GameData:WaitForChild("LatestRoom")
+RemotesFolder = ReplicatedStorage:FindFirstChild("FloorReplicated")
+              and ReplicatedStorage.FloorReplicated:FindFirstChild("ClientRemote")
+              or nil
 
-Conn = {}
+-- Global set of names to destroy on spawn
+RemoveList = {}
 
-function disableParts(inst)
-	desc = inst:GetDescendants()
-	for i = 1, #desc do
-		part = desc[i]
-		if part:IsA("BasePart") then
-			part.CanTouch = false
-		end
-	end
+-- Single listener for all new descendants
+DescendantListener = Workspace.DescendantAdded:Connect(function(inst)
+    if RemoveList[inst.Name] then
+        inst:Destroy()
+    end
+end)
+
+-- Destroys all existing instances whose names are in RemoveList
+function RemoveExisting()
+    local all = Workspace:GetDescendants()
+    for i = 1, #all do
+        local inst = all[i]
+        if RemoveList[inst.Name] then
+            inst:Destroy()
+        end
+    end
 end
 
-function bindName(name, useDesc, connKey)
-	if Conn[connKey] then
-		Conn[connKey]:Disconnect()
-		Conn[connKey] = nil
-	end
-
-	all = Workspace:GetDescendants()
-	for i = 1, #all do
-		v = all[i]
-		if v.Name == name then
-			if useDesc then
-				v:Destroy()
-			end
-		end
-	end
-
-	Conn[connKey] = Workspace.DescendantAdded:Connect(function(v)
-		if v.Name == name then
-			if useDesc then
-			v:Destroy()
-				
-			end
-		end
-	end)
+-- Helper to wire up a toggle
+function setupToggle(uiBox, key, targetName, useDesc)
+    uiBox:AddToggle(key, {
+        Text    = key,
+        Default = false,
+        Callback = function(enabled)
+            if enabled then
+                -- Register name for removal
+                RemoveList[targetName] = true
+                -- Immediately clear existing instances if requested
+                if useDesc then
+                    RemoveExisting()
+                end
+            else
+                -- Unregister name
+                RemoveList[targetName] = nil
+            end
+        end
+    })
 end
 
-function makeToggle(uiBox, key, name, useDesc)
-	uiBox:AddToggle(key, {
-		Text = key,
-		Default = false,
-		Callback = function(on)
-			if on then
-				bindName(name, useDesc, key)
-			elseif Conn[key] then
-				Conn[key]:Disconnect()
-				Conn[key] = nil
-			end
-		end
-	})
-end
-
-makeToggle(FoolsBox,  "Anti-Banana",      "BananaPeel",    false)
-makeToggle(FoolsBox,  "Anti-JeffClient",  "JeffTheKiller", true )
-makeToggle(BackBox,   "Anti-Vacuum",      "SideroomSpace", true )
-makeToggle(MinesBox,  "Anti-Giggle",      "GiggleCeiling", true )
-makeToggle(MinesBox,  "Anti-GloomPile",   "GloomPile",     true )
-makeToggle(RetroBox,  "Anti-Lava",   "Lava",     false )
-makeToggle(RetroBox,  "Anti-ScaryWall",   "ScaryWall",     true )
+-- Instantiate your toggles:
+setupToggle(FoolsBox,  "Remove-Banana",     "BananaPeel",    false)
+setupToggle(FoolsBox,  "Remove-JeffClient", "JeffTheKiller", true )
+setupToggle(BackBox,   "Remove-Vacuum",     "SideroomSpace", true )
+setupToggle(MinesBox,  "Remove-Giggle",     "GiggleCeiling", true )
+setupToggle(MinesBox,  "Remove-GloomPile",  "GloomPile",     true )
+setupToggle(RetroBox,  "Remove-Lava",       "Lava",          false)
+setupToggle(RetroBox,  "Remove-ScaryWall",  "ScaryWall",     true )
 
 
 
