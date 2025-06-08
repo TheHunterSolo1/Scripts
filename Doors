@@ -1,4 +1,4 @@
-repeat task.wait(0.1) until game:IsLoaded()
+  repeat task.wait(0.1) until game:IsLoaded()
 
 local repo = 'https://raw.githubusercontent.com/bocaj111004/Linora/refs/heads/main/'
 local Library      = loadstring(game:HttpGet(repo..'Library.lua'))()
@@ -716,134 +716,140 @@ end
 
  for id, spec in pairs(settings) do local targetName, scope = unpack(spec) AntiBox:AddToggle(id, { Text    = id, Default = false, Callback = function(on) if on then activate(id, targetName, scope) else deactivate(id) end end, }) end
 
-local RepStore               = game:GetService("ReplicatedStorage")
-local PS                     = game:GetService("Players")
-local RunService             = game:GetService("RunService")
-local LocalPlayer            = PS.LocalPlayer
-local PlayerGui              = LocalPlayer:WaitForChild("PlayerGui")
+-- Services
+RepStore = game:GetService("ReplicatedStorage")
+PS       = game:GetService("Players")
+RunSvc   = game:GetService("RunService")
 
--- Find the PL event/function once
+-- Player and GUI
+LocalPlayer = PS.LocalPlayer
+PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Locate PL event/function
 function findPL()
     local desc = RepStore:GetDescendants()
     for i = 1, #desc do
-        local x = desc[i]
-        if x.Name == "PL" and (x:IsA("RemoteEvent") or x:IsA("RemoteFunction")) then
-            return x
+        local inst = desc[i]
+        if inst.Name == "PL" and (inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction")) then
+            return inst, inst:IsA("RemoteFunction")
         end
     end
 end
-PL = findPL()
 
--- Optimized parse function
-function parse(pap, hintsContainer)
-    local uiChildren = pap.UI:GetChildren()
-    local map, order  = {}, {}
+PL, isFunction = findPL()
 
-    for i = 1, #uiChildren do
-        local c = uiChildren[i]
-        local n = tonumber(c.Name)
-        if n then
+-- Parse UI paper into code string
+function parsePaper(paper, hintsContainer)
+    local children = paper.UI:GetChildren()
+    local map, order = {}, {}
+
+    for i = 1, #children do
+        local c = children[i]
+        local idx = tonumber(c.Name)
+        if idx then
             local key = c.ImageRectOffset.X .. "_" .. c.ImageRectOffset.Y
-            map[key]  = { n, "" }
-            order[n]  = key
+            map[key] = { idx, "" }
+            order[idx] = key
         end
     end
 
     if hintsContainer then
-        local hintKids = hintsContainer:GetChildren()
-        for i = 1, #hintKids do
-            local ic = hintKids[i]
+        local hints = hintsContainer:GetChildren()
+        for i = 1, #hints do
+            local ic = hints[i]
             if ic.Name == "Icon" then
                 local key = ic.ImageRectOffset.X .. "_" .. ic.ImageRectOffset.Y
-                local t   = map[key]
-                if t then
+                local entry = map[key]
+                if entry then
                     local lbl = ic:FindFirstChildWhichIsA("TextLabel")
-                    if lbl then t[2] = lbl.Text end
+                    if lbl then entry[2] = lbl.Text end
                 end
             end
         end
     end
 
-    local res = {}
+    local parts = {}
     for i = 1, #order do
-        res[i] = map[ order[i] ][2]
+        parts[i] = map[ order[i] ][2]
     end
-    return table.concat(res)
+    return table.concat(parts)
 end
 
--- Generic manager using Heartbeat polling every 0.3s
+-- Generic auto-code manager
 function manageToggle(toggleName, mode)
-    local conns        = {}
     local heartbeatConn
-    local throttleAccum = 0
-    local storedPapers  = {}  -- [paper] = true
-    local lastCodes     = {}  -- [paper] = last sent code
+    local throttle = 0
+    local seenPapers = {}
+    local lastCodes   = {}
 
-    local function cleanup()
+    local function stopAll()
         if heartbeatConn then
             heartbeatConn:Disconnect()
             heartbeatConn = nil
         end
-        for _, c in ipairs(conns) do c:Disconnect() end
-        conns = {}
-        table.clear(storedPapers)
+        throttle = 0
+        table.clear(seenPapers)
         table.clear(lastCodes)
-        throttleAccum = 0
     end
 
     AutoBox:AddToggle(toggleName, {
-        Text    = mode == "Fire" and "Auto Library Code (Fire)" or "Auto Library Code (Notify)",
+        Text    = (mode == "Fire") and "Auto Library Code " or "Notify Library Code",
         Default = false,
-        Tooltip = mode == "Fire"
-            and "Automatically sends code to server"
-            or "Shows you the code string in a notification",
+        Tooltip = (mode == "Fire")
+                  and "Automatically  Solve Padlock"
+                  or "Sent Library Code At Notification",
         Callback = function(enabled)
-            cleanup()
+            stopAll()
             if not enabled then return end
 
-            local char      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            local hintsCont = PlayerGui:FindFirstChild("PermUI")
+            local function onHeartbeat(dt)
+                throttle = throttle + dt
+                if throttle < 0.3 then return end
+                throttle = 0
+
+                local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                local hints = PlayerGui:FindFirstChild("PermUI")
                               and PlayerGui.PermUI:FindFirstChild("Hints")
 
-            -- Heartbeat poll
-            heartbeatConn = RunService.Heartbeat:Connect(function(dt)
-                throttleAccum = throttleAccum + dt
-                if throttleAccum < 0.3 then return end
-                throttleAccum = 0
-
-                -- scan for new papers
+                -- collect new papers
                 local desc = char:GetDescendants()
                 for i = 1, #desc do
                     local d = desc[i]
                     if (d.Name == "LibraryHintPaper" or d.Name == "LibraryHintPaperHard")
-                       and not storedPapers[d] then
-                        storedPapers[d] = true
+                       and not seenPapers[d] then
+                        seenPapers[d] = true
                     end
                 end
 
-                -- process stored papers
-                for pap in pairs(storedPapers) do
-                    if not pap.Parent then
-                        storedPapers[pap] = nil
-                        lastCodes[pap]    = nil
+                -- process each paper
+                for paper in pairs(seenPapers) do
+                    if not paper.Parent then
+                        seenPapers[paper] = nil
+                        lastCodes[paper]   = nil
                     else
-                        local code = parse(pap, hintsCont)
-                        if code ~= lastCodes[pap] then
-                            lastCodes[pap] = code
+                        local code = parsePaper(paper, hints)
+                        if code ~= lastCodes[paper] then
+                            lastCodes[paper] = code
                             if mode == "Fire" then
-                                PL:FireServer(code)
+                                if isFunction then
+                                    PL:InvokeServer(code)
+                                else
+                                    PL:FireServer(code)  -- 0
+                                end
                             else
                                 Library:Notify("Code is "..code, 3)
                             end
                         end
                     end
                 end
-            end)
+            end
+
+            heartbeatConn = RunSvc.Heartbeat:Connect(onHeartbeat)
         end,
     })
 end
 
--- Create both toggles
+-- Initialize toggles
 manageToggle("AutoCodeFire",   "Fire")
 manageToggle("AutoCodeNotify", "Notify")
  
@@ -976,7 +982,7 @@ AutoBox:AddToggle("AutoInteract", {
                     storedPrompts[prompt] = nil
                 else
                     -- interact at ≤7 studs
-                    if (hrp.Position - part.Position).Magnitude <= 7 then
+                    if (hrp.Position - part.Position).Magnitude <= 13 then
                         doPrompt(prompt)
                         storedPrompts[prompt] = nil
                     end
@@ -1725,6 +1731,8 @@ local EntityNames = {
 	BackdoorLookman = true,
 	Eyes = true,
 	GlitchAmbush = true,
+	Screech = true,
+	GlitchedScreech = true,
 }
 
 ESPBox:AddToggle("EntityNotify", {
@@ -1786,7 +1794,7 @@ do
         GrumbleRig = true, GiggleCeiling = true, Snare = true, FigureRig = true,
         FigureRagdoll = true, BananaPeel = true, SeekMovingNewClone = true,
         SeekMoving = true, GlitchRush = true, Eyes = true, GlitchAmbush = true,
-        BackdoorLookman = true,
+        BackdoorLookman = true,Screech = true,GlitchedScreech = true,
     }
 
     local tracked = {}    -- [Model] = true when ESP added
@@ -1812,10 +1820,10 @@ do
 
         if model.PrimaryPart then
             model.PrimaryPart.Transparency = 0.99
-            model.PrimaryPart.Size = model.PrimaryPart.Size * 1.8
+            model.PrimaryPart.Size = model.PrimaryPart.Size * 1
 
             ESPLibrary:AddESP({
-                Object = model.PrimaryPart,
+                Object = model,
                 Text   = model.Name,
                 Color  = Color3.fromRGB(255, 0, 0),
             })
@@ -2563,6 +2571,7 @@ do
 					for _, obj in ipairs(damHandler:GetDescendants()) do
 						if obj.Name == "SeekFloodline" and obj:IsA("BasePart") then
 							obj.CanCollide = false
+							obj.CanTouch = false
 						end
 					end
 				end
@@ -3960,3 +3969,49 @@ StarJug.Activated:Connect(function()
 end)
 	end
 })
+ESPBox:AddToggle("Ladder ESP", {
+    Text    = "Ladder ESP",
+    Default = false,
+    Callback = function(enabled)
+        if enabled then
+            LadderESPList = {}  -- table of all ESP’d ladder Instances
+            LadderESPConnection = workspace.CurrentRooms.DescendantAdded:Connect(function(desc)
+                if desc.Name == "Ladder" then
+                    ESPLibrary:AddESP({ Object = desc, Text = "Ladder", Color = Color3.fromRGB(0, 0, 255)})
+                    table.insert(LadderESPList, desc)
+                end
+            end)  -- 0
+
+            for i, obj in ipairs(workspace.CurrentRooms:GetDescendants()) do
+                if obj.Name == "Ladder" then
+                    ESPLibrary:AddESP({ Object = obj, Text = "Ladder", Color = Color3.fromRGB(0, 0, 255) })
+                    table.insert(LadderESPList, obj)
+                end
+            end  -- 1
+
+        else
+            if LadderESPConnection then
+                LadderESPConnection:Disconnect()
+                LadderESPConnection = nil
+            end
+
+            for _, obj in ipairs(LadderESPList) do
+                ESPLibrary:RemoveESP(obj)
+            end
+
+            LadderESPList = nil
+        end
+    end
+})
+BypassBox:AddToggle("AntiCheat Bypass (Ladder Method)", {
+    Text    = "AntiCheat Bypass (Ladder Method)",
+    Default = false,
+    Callback = function(enabled)
+        if enabled then
+        while enabled do
+        task.wait(0.5)
+        Character:SetAttribute("Climbing",false)
+        end
+        end
+        end
+        })
