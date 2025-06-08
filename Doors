@@ -4035,11 +4035,7 @@ BypassBox:AddToggle("AntiCheat Bypass (Ladder Method)", {
       
 -- 6) Toggle registration
 -- Services & GUI refs
-local Players      = game:GetService("Players")
-local CurrentRooms = workspace:WaitForChild("CurrentRooms")
-local LocalPlayer  = Players.LocalPlayer
-local PlayerGui    = LocalPlayer:WaitForChild("PlayerGui")
-local CodeLabel    = PlayerGui.MainUI.AnchorHintFrame:WaitForChild("Code")
+
 
 -- Control flags
 local runLoop    = false
@@ -4072,7 +4068,15 @@ AutoBox:AddToggle("Auto Anchor Solver", {
     Text    = "Auto Anchor Solver",
     Default = false,
     Callback = function(enabled)
+if game:GetService("ReplicatedStorage"):WaitForChild("GameData"):WaitForChild("LatestRoom").Value ~= 50 then
+	repeat task.wait(0.3) until game.ReplicatedStorage.GameData.LatestRoom.Value == 50
+end
         runLoop = enabled
+        local Players      = game:GetService("Players")
+local CurrentRooms = workspace:WaitForChild("CurrentRooms")
+local LocalPlayer  = Players.LocalPlayer
+local PlayerGui    = LocalPlayer:WaitForChild("PlayerGui")
+local CodeLabel    = PlayerGui.MainUI.AnchorHintFrame:WaitForChild("Code")
         if enabled then
             task.spawn(function()
                 while runLoop do
@@ -4108,7 +4112,7 @@ AutoBox:AddToggle("Auto Anchor Solver", {
                             -- Throttled notify (once per 0.4s)
                             local now = tick()
                             if now - lastNotify >= 0.4 then
-                                Library:Notify("Solving the Anchor Code Is " .. finalCode)
+                                Library:Notify("Solving the Anchor, Code Is " .. finalCode)
                                 lastNotify = now
                             end
 
