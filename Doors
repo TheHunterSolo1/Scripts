@@ -1225,21 +1225,7 @@ godmodeOffset = 2.05
 originalCollisionPos = {}
 inGodmode = false
 
--- Table to track active entities by instance
-activeEntities = {}
-autoAvoidEnabled = false
-entityNames = {
-    A60 = true,
-    RushMoving = true,
-    AmbushMoving = true,
-    BackdoorRush = true,
-    GlitchRush = true,
-    GlitchAmbush = true,
-}
-distanceThreshold = 190
-
--- Modified toggleGodmode: adds skipOffset parameter. When skipOffset == true, we only flip the inGodmode flag and notifications,
--- without moving or resizing the collision part.
+-- toggleGodmode: skipOffset controls whether we move/resize collision part.
 function toggleGodmode(state, notify, skipOffset)
     if not char then return end
     collision = char:FindFirstChild("Collision")
@@ -1256,7 +1242,7 @@ function toggleGodmode(state, notify, skipOffset)
         end
         inGodmode = true
         print("Godmode ON")
-         Library:Notify("Godmode Activated Wont Work On A-120", 3) 
+        if notify then Library:Notify("Godmode Activated Wont Work On A-120", 3) end
     elseif not state and inGodmode then
         if not skipOffset and originalCollisionPos[char] then
             collision.Position = originalCollisionPos[char]
@@ -1270,51 +1256,18 @@ function toggleGodmode(state, notify, skipOffset)
     end
 end
 
--- Called when a matching entity appears
-function onEntityAdded(entity)
-    if not autoAvoidEnabled then return end
-    if not entity:IsA("Model") then return end
-    -- Track
-    activeEntities[entity] = true
-    print("Entity added, enabling Godmode:", entity:GetFullName())
-    toggleGodmode(true, false, true)
-end
+-- Remove entity-tracking logic since toggle no longer depends on entities.
+-- If you want to keep the tables, they are unused now:
+-- activeEntities = {}
+-- autoAvoidEnabled = false
+-- entityNames = { A60 = true, RushMoving = true, AmbushMoving = true, BackdoorRush = true, GlitchRush = true, GlitchAmbush = true, }
+-- distanceThreshold = 190
 
--- Called when a matching entity is removed
-function onEntityRemoved(entity)
-    if activeEntities[entity] then
-        activeEntities[entity] = nil
-        print("Entity removed:", entity:GetFullName())
-        -- If no more activeEntities, disable godmode
-        local anyLeft = false
-        for _ in pairs(activeEntities) do
-            anyLeft = true
-            break
-        end
-        if not anyLeft then
-            print("No more tracked entities; disabling Godmode")
-            toggleGodmode(false, false, true)
-        end
-    end
-end
-
--- Connect Workspace.ChildAdded and ChildRemoved
-Workspace.ChildAdded:Connect(function(child)
-    if entityNames[child.Name] then
-        onEntityAdded(child)
-    end
-end)
-Workspace.ChildRemoved:Connect(function(child)
-    if entityNames[child.Name] then
-        onEntityRemoved(child)
-    end
-end)
-
--- The UI toggle callback for enabling/disabling autoAvoid behavior
-Godmode = BypassBox:AddToggle("Avoid Entities", {
-    Text = "Auto Godmode",
+-- The UI toggle callback for direct Godmode enabling/disabling
+Godmode = BypassBox:AddToggle("Godmode", {
+    Text = "Godmode",
     Default = false,
-    Tooltip = "Automatically Enable Godmode When Entities Appear",
+    Tooltip = "Makes you invincible to entityes",
     Callback = function(enabled)
         if not char then return end
         if not Toggles.AntiFigureHearing.Value then
@@ -1325,26 +1278,12 @@ Godmode = BypassBox:AddToggle("Avoid Entities", {
             Library:Notify("Collision part not found!", 3)
             return
         end
-        autoAvoidEnabled = enabled
-        print("AutoAvoidEnabled set to", enabled)
-        if not enabled and inGodmode then
-            toggleGodmode(false, true, true)
-        end
         if enabled then
-            -- Scan existing children
-            local children = Workspace:GetChildren()
-            for i = 1, #children do
-                local existing = children[i]
-                if entityNames[existing.Name] and existing:IsA("Model") then
-                    onEntityAdded(existing)
-                end
-            end
+            -- Enable godmode immediately, applying offset/resize
+            toggleGodmode(true, true, false)
         else
-            -- Disabled: clear tracking
-            for entity in pairs(activeEntities) do
-                -- disable godmode once; after loop, activeEntities cleared
-                activeEntities[entity] = nil
-            end
+            -- Disable godmode immediately, restoring collision
+            toggleGodmode(false, true, false)
         end
     end,
 }):AddKeyPicker('Avoid Entities Keybind', {
