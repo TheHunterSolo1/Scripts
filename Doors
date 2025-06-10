@@ -1245,7 +1245,7 @@ function toggleGodmode(state, notify, skipOffset)
         if notify then Library:Notify("Godmode Activated Wont Work On A-120", 3) end
     elseif not state and inGodmode then
         if not skipOffset and originalCollisionPos[char] then
-            collision.Position = originalCollisionPos[char]
+            collision.Position = collision.Position + Vector3.new(0,godmodeOffset,0)
             collision.Size = Vector3.new(5, 5.5, 3.3)
             collision.RootPriority = 0
             originalCollisionPos[char] = nil
@@ -1296,7 +1296,7 @@ Godmode = BypassBox:AddToggle("Godmode", {
             -- You can define custom Modes but I have never had a use for it.
             Mode = 'Toggle', -- Modes: Always, Toggle, Hold
 
-            Text = 'Auto Godmode', -- Text to display in the keybind menu
+            Text = 'Godmode', -- Text to display in the keybind menu
             NoUI = false, -- Set to true if you want to hide from the Keybind menu,
 
             -- Occurs when the keybind is clicked, Value is `true`/`false`
