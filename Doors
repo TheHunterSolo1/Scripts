@@ -1,43 +1,35 @@
---- native+++
--- Optimized+++
-
-
-
-
 repo = 'https://raw.githubusercontent.com/bocaj111004/Linora/refs/heads/main/'
-local Library      = loadstring(game:HttpGet(repo..'Library.lua'))()
-local ThemeManager = loadstring(game:HttpGet(repo..'addons/ThemeManager.lua'))()
-local SaveManager  = loadstring(game:HttpGet(repo..'addons/SaveManager.lua'))()
-local Options = Library.Options
-local Toggles = Library.Toggles
+ Library      = loadstring(game:HttpGet(repo..'Library.lua'))()
+ ThemeManager = loadstring(game:HttpGet(repo..'addons/ThemeManager.lua'))()
+ SaveManager  = loadstring(game:HttpGet(repo..'addons/SaveManager.lua'))()
+ Options = Library.Options
+ Toggles = Library.Toggles
 
-local ESPLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/ESPLibrary/refs/heads/main/main.lua"))() 
+ ESPLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/ESPLibrary/refs/heads/main/main.lua"))() 
 ESPLibrary:SetFadeTime(0.5)
-local Window = Library:CreateWindow({Title='ProHax V2',Center=true,AutoShow=true})
-local Tabs = {
-	Player     = Window:AddTab('Player'),
-	Anti       = Window:AddTab('Remove'),
-	Auto       = Window:AddTab('Auto'),
-	ESP        = Window:AddTab('ESP'),
-	Bypass     = Window:AddTab('Bypass'),
+ Window = Library:CreateWindow({Title='ProHax V2',Center=true,AutoShow=true})
+ Tabs = {
+	Player     = Window:AddTab('Main'),
+	Anti       = Window:AddTab('Exploits'),
+	Auto       = Window:AddTab('Visuals'),
 	Floors     = Window:AddTab('Floors'),
-	Fun = Window:AddTab('Fun & Troll'),    UISettings = Window:AddTab('UI Settings'),
+	Fun = Window:AddTab('Trolling'),    UISettings = Window:AddTab('UI Settings'),
 }
-local PlayerBox = Tabs.Player:AddLeftGroupbox('Player Mods')
-local AntiBox   = Tabs.Anti:AddLeftGroupbox('Anti Features')
-local AutoBox   = Tabs.Auto:AddLeftGroupbox('Auto Features')
-local ESPBox    = Tabs.ESP:AddLeftGroupbox('ESP Options')
-local ESPSettings    = Tabs.ESP:AddRightGroupbox('ESP Customization')
-local BypassBox = Tabs.Bypass:AddLeftGroupbox('Bypass')
-local FoolsBox = Tabs.Floors:AddLeftGroupbox('Super Hard Mode 2023')
-local BackBox = Tabs.Floors:AddLeftGroupbox('Backdoor')
-local MinesBox = Tabs.Floors:AddLeftGroupbox('Mines')
-local RetroBox = Tabs.Floors:AddRightGroupbox('Retro')
-local RoomsBox = Tabs.Floors:AddRightGroupbox('Rooms')
-local SettingsBox = Tabs.UISettings:AddLeftGroupbox('Themes & Keybinds')
-local MiscBox = Tabs.Player:AddRightGroupbox('Remotes & More')
+ PlayerBox = Tabs.Player:AddLeftGroupbox('LocalPlayer')
+ AntiBox   = Tabs.Anti:AddLeftGroupbox('Anti Features')
+ AutoBox   = Tabs.Player:AddRightGroupbox('Automatically')
+ ESPBox    = Tabs.Auto:AddLeftGroupbox('ESP')
+ ESPSettings    = Tabs.Auto:AddRightGroupbox('Visuals')
+ BypassBox = Tabs.Anti:AddRightGroupbox('Bypass')
+ FoolsBox = Tabs.Floors:AddLeftGroupbox('Super Hard Mode 2023')
+ BackBox = Tabs.Floors:AddLeftGroupbox('Backdoor')
+ MinesBox = Tabs.Floors:AddLeftGroupbox('Mines')
+ RetroBox = Tabs.Floors:AddRightGroupbox('Retro')
+ RoomsBox = Tabs.Floors:AddRightGroupbox('Rooms')
+ SettingsBox = Tabs.UISettings:AddLeftGroupbox('Themes & Keybinds')
+ MiscBox = Tabs.Player:AddRightGroupbox('Remotes')
 
-local TrollBox = Tabs.Fun:AddRightGroupbox('Troll Features')
+ TrollBox = Tabs.Fun:AddLeftGroupbox('Troll')
 -- Services & References
 Players           = game:GetService("Players")
 PathfindingService = game:GetService("PathfindingService")
@@ -102,7 +94,7 @@ BreakDoorsFE:OnChanged(function(enabled)
 	roomConn = workspace.CurrentRooms.ChildAdded:Connect(function()
 		cacheDoorParts()
 	end)
-	local accumulator = 0
+	 accumulator = 0
 	heartConn = RunService.Heartbeat:Connect(function(dt)
 		accumulator = accumulator + dt
 		if accumulator < INTERVAL then return end
@@ -114,7 +106,7 @@ BreakDoorsFE:OnChanged(function(enabled)
 		end
 
 		for i = 1, #cachedDoorParts do
-			local part = cachedDoorParts[i]
+			 part = cachedDoorParts[i]
 			if isnetworkowner(part) then
 				if not doorVelTable[part] then
 					local bv = Instance.new("BodyPosition")
@@ -145,12 +137,12 @@ TrollBox:AddToggle('Stunned',{
 })
 
 
-local lastSpeed = 15
-local humanoid = Humanoid
-local currentSpeed = lastSpeed
+ lastSpeed = 15
+ humanoid = Humanoid
+ currentSpeed = lastSpeed
 
 -- Slider
-local SpeedSlider = PlayerBox:AddSlider('WalkSpeed', {
+ SpeedSlider = PlayerBox:AddSlider('WalkSpeed', {
 	Text = 'WalkSpeed',
 	Min = 15, Max = 21, Default = 15,
 	Rounding = 0,
@@ -160,7 +152,7 @@ local SpeedSlider = PlayerBox:AddSlider('WalkSpeed', {
 	end
 })
 local con
-local oldspeed = humanoid.WalkSpeed
+ oldspeed = humanoid.WalkSpeed
 PlayerBox:AddToggle('Enable WalkSpeed',{
 	Text = "Enable WalkSpeed",
 	Default = false,
@@ -326,54 +318,30 @@ TrollBox:AddToggle("SpamOthersTools", {
             end)
         end
     end
-})
-RunService      = game:GetService("RunService")
-ReplicatedDS    = game:GetService("ReplicatedStorage").GameData
+}):AddKeyPicker('Spam Others Tools Keybind', {
 
-local doorReachConn
-throttleTimer     = 0
-THROTTLE_INTERVAL = 0.05
 
--- create the toggle and grab its handle
-local DoorReach = MiscBox:AddToggle("DoorReach", {
-	Text    = "Door Reach",
-	Tooltip = "Makes Door Open From Far"
-})
+            Default = 'X', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
+            SyncToggleState = true,
 
-DoorReach:OnChanged(function(enabled)
-	-- cleanup any previous connection
-	if doorReachConn then
-		doorReachConn:Disconnect()
-		doorReachConn = nil
-		throttleTimer = 0
-	end
 
-	if not enabled then
-		return
-	end
+            -- You can define custom Modes but I have never had a use for it.
+            Mode = Library.IsMobile and 'Toggle' or 'Hold', -- Modes: Always, Toggle, Hold
 
-	-- start a new Heartbeat connection
-	doorReachConn = RunService.Heartbeat:Connect(function(dt)
-		throttleTimer = throttleTimer + dt
-		if throttleTimer < THROTTLE_INTERVAL then
-			return
-		end
-		throttleTimer = throttleTimer - THROTTLE_INTERVAL
+            Text = 'Spam Others Tools (FE)', -- Text to display in the keybind menu
+            NoUI = false, -- Set to true if you want to hide from the Keybind menu,
 
-		-- look up the current room by name
-		local roomName = ReplicatedDS.LatestRoom.Value
-		local room     = CurrentRooms:FindFirstChild(roomName)
-		if not room then
-			return
-		end
+            -- Occurs when the keybind is clicked, Value is `true`/`false`
+            Callback = function(Value)
 
-		-- if the door exists and has the ClientOpen remote, fire it
-		 door = room:FindFirstChild("Door")
-		if door and door:FindFirstChild("ClientOpen") then
-			door.ClientOpen:FireServer()
-		end
-	end)
-end)
+
+
+            end,
+
+            -- Occurs when the keybind itself is changed, `New` is a KeyCode Enum OR a UserInputType Enum
+            ChangedCallback = function(New)
+            end
+        })
 
 PlayerBox:AddToggle('EnableJump',{
 	Text='Enable Jump',Default=false,Callback=function(v)
@@ -410,7 +378,7 @@ if not requireSupported then
 	return
 end
 
-PlayerBox:AddSlider('ToolOffsetX', {
+ESPSettings:AddSlider('ToolOffsetX', {
 	Text     = 'ToolOffset X',
 	Min      = -10,
 	Max      = 10,
@@ -418,7 +386,7 @@ PlayerBox:AddSlider('ToolOffsetX', {
 	Rounding = 2,
 	Callback = function(v) offsetX = v end,
 })
-PlayerBox:AddSlider('ToolOffsetY', {
+ESPSettings:AddSlider('ToolOffsetY', {
 	Text     = 'ToolOffset Y',
 	Min      = -10,
 	Max      = 10,
@@ -426,7 +394,7 @@ PlayerBox:AddSlider('ToolOffsetY', {
 	Rounding = 2,
 	Callback = function(v) offsetY = v end,
 })
-PlayerBox:AddSlider('ToolOffsetZ', {
+ESPSettings:AddSlider('ToolOffsetZ', {
 	Text     = 'ToolOffset Z',
 	Min      = -10,
 	Max      = 10,
@@ -435,7 +403,7 @@ PlayerBox:AddSlider('ToolOffsetZ', {
 	Callback = function(v) offsetZ = v end,
 })
 
-PlayerBox:AddToggle('ToolOffset', {
+ESPSettings:AddToggle('ToolOffset', {
 	Text = 'ToolOffset',
 	Default = false,
 	Callback = function(enabled)
@@ -469,153 +437,10 @@ PlayerBox:AddToggle('ToolOffset', {
 	end,
 })
 
--- ANTI -----
--- Persistent connection handle
-screechConnection = nil
-
-AntiBox:AddToggle("AntiScreech", {
-    Text    = "Remove Screech",
-    Default = false,
-    Callback = function(enabled)
-        -- Disconnect any existing listener
-        if screechConnection then
-            screechConnection:Disconnect()
-            screechConnection = nil
-        end
-
-        if enabled then
-            -- Destroy existing GlitchedScreech objects
-            for _, child in ipairs(Workspace.CurrentCamera:GetChildren()) do
-                if child.Name == "GlitchedScreech" then
-                    child:Destroy()
-                end
-            end
-
-            -- Listen for new ones and destroy them immediately
-            screechConnection = Workspace.CurrentCamera.ChildAdded:Connect(function(child)
-                if child.Name == "GlitchedScreech" then
-                    child:Destroy()
-                end
-            end)  -- 0
-        end
-
-        -- Toggle the module name so remote events stop firing
-        local modulesFolder = LocalPlayer.PlayerGui
-                                    :WaitForChild("MainUI")
-                                    :WaitForChild("Initiator")
-                                    :WaitForChild("Main_Game")
-                                    :WaitForChild("RemoteListener")
-                                    :WaitForChild("Modules")
-        local screechModule = modulesFolder:FindFirstChild("Screech")
-                            or modulesFolder:FindFirstChild("_Screech")
-
-        if screechModule then
-            screechModule.Name = enabled and "_Screech" or "Screech"
-        end
-    end
-})
--- Cache services
- Players = game:GetService("Players")
- ReplicatedStorage = game:GetService("ReplicatedStorage")
- localPlayer = Players.LocalPlayer
-
--- Cache Dread reference
-local remoteDread = localPlayer.PlayerGui
-	.MainUI.Initiator.Main_Game.RemoteListener.Modules
-	:FindFirstChild("Dread")
-
--- Separate parent cache for each remote
-local camShakeParents = {}
-
--- Anti Dread Toggle
-AntiBox:AddToggle("AntiDread", {
-	Text = "Remove Dread",
-	Default = false,
-	Callback = function(state)
-		if remoteDread then
-			remoteDread.Name = state and "_Dread" or "Dread"
-		end
-	end
-})
-
--- Anti CamShake Toggle
-
-local antiCon
-throttleAcc = 0
-THROTTLE    = 0.1
-
-local AntiHearing  = AntiBox:AddToggle("Anti FigureHearing", {
-	Text     = "Anti Figure Hearing",
-	Default  = false,
-	Callback = function(enabled)
-		if enabled then
-			if antiCon then return end
-			throttleAcc = 0
-
-			antiCon = RunService.Heartbeat:Connect(function(dt)
-				throttleAcc = throttleAcc + dt
-				if throttleAcc < THROTTLE then return end
-				throttleAcc = 0
-
-				Remote = game.ReplicatedStorage:FindFirstChild("RemotesFolder")
-				Remote = Remote and Remote:FindFirstChild("Crouch")
-				if Remote then
-					Remote:FireServer(true)
-				end
-			end)
-		else
-			if antiCon then
-				antiCon:Disconnect()
-				antiCon = nil
-
-				Remote = game.ReplicatedStorage:FindFirstChild("RemotesFolder")
-				Remote = Remote and Remote:FindFirstChild("Crouch")
-				if Remote then
-					Remote:FireServer(false)
-				end
-			end
-		end
-	end,
-})
+Players = game:GetService("Players") RunService = game:GetService("RunService") ReplicatedStorage = game:GetService("ReplicatedStorage") Workspace = game:GetService("Workspace") local LocalPlayer = Players.LocalPlayer local WorkspaceCamera = Workspace.CurrentCamera local screechCon = nil local hearingCon = nil local eyesCon = nil local lookmanCon = nil AntiBox:AddToggle("AntiScreech", { Text    = "Remove Screech", Default = false, Callback = function(enabled) if screechCon then screechCon:Disconnect() screechCon = nil end if enabled then local camKids = WorkspaceCamera:GetChildren() for i = 1, #camKids do if camKids[i].Name == "GlitchedScreech" then camKids[i]:Destroy() end end screechCon = WorkspaceCamera.ChildAdded:Connect(function(child) if child.Name == "GlitchedScreech" then child:Destroy() end end) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("Screech") or mods:FindFirstChild("_Screech") if mod then mod.Name = "_Screech" end else local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("_Screech") or mods:FindFirstChild("Screech") if mod then mod.Name = "Screech" end end end }) AntiBox:AddToggle("AntiDread", { Text    = "Remove Dread", Default = false, Callback = function(enabled) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("Dread") or mods:FindFirstChild("_Dread") if mod then mod.Name = enabled and "_Dread" or "Dread" end end }) local THROTTLE = 0.02 AntiBox:AddToggle("AntiFigureHearing", { Text    = "Anti Figure Hearing", Default = false, Callback = function(enabled) if hearingCon then hearingCon:Disconnect() hearingCon = nil end if enabled then local acc = 0 hearingCon = RunService.Heartbeat:Connect(function(dt) acc = acc + dt if acc < THROTTLE then return end acc = 0 local remotes = ReplicatedStorage:FindFirstChild("RemotesFolder") remotes = remotes and remotes:FindFirstChild("Crouch") if remotes then remotes:FireServer(true) end end) else local remotes = ReplicatedStorage:FindFirstChild("RemotesFolder") remotes = remotes and remotes:FindFirstChild("Crouch") if remotes then remotes:FireServer(false) end end end }) RoomsBox:AddToggle("AntiA90", { Text    = "Remove A90", Default = false, Callback = function(enabled) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("A90") or mods:FindFirstChild("_A90") if mod then mod.Name = enabled and "_A90" or "A90" end end }) local motor local descs = ReplicatedStorage:GetDescendants() for i = 1, #descs do if descs[i].Name == "MotorReplication" then motor = descs[i] break end end if motor then AntiBox:AddToggle("Anti-Eyes", { Text    = "Anti-Eyes", Default = false, Callback = function(enabled) if eyesCon then eyesCon:Disconnect() eyesCon = nil end if enabled then eyesCon = RunService.Heartbeat:Connect(function() if Workspace:FindFirstChild("Eyes") then motor:FireServer(-760) end end) end end }) BackBox:AddToggle("Anti-Lookman", { Text    = "Anti-Lookman", Default = false, Callback = function(enabled) if lookmanCon then lookmanCon:Disconnect() lookmanCon = nil end if enabled then lookmanCon = RunService.Heartbeat:Connect(function() if Workspace:FindFirstChild("BackdoorLookman") then motor:FireServer(-760) end end) end end }) end
 
 
 
-RoomsBox:AddToggle('AntiA90',{Text='Remove A90',Default=false,Callback=function(s)
-	local mod=LocalPlayer.PlayerGui.MainUI.Initiator.Main_Game.RemoteListener.Modules
-	local c=mod:FindFirstChild('A90') or mod:FindFirstChild('_A90')
-	if c then c.Name = s and '_A90' or 'A90' end
-end})
-
-do
-	local motor
-	for _,x in ipairs(ReplicatedStorage:GetDescendants()) do
-		if x.Name=='MotorReplication' then motor=x; break end
-	end
-	if motor then
-		AntiBox:AddToggle('Anti-Eyes',{Text='Anti-Eyes ',Default=false,Callback=function(s)
-			if s then
-				RunService.Heartbeat:Connect(function()
-				if workspace:FindFirstChild("Eyes") then
-motor:FireServer(-760) end
-			end)
-			end
-		end})
-	end
-end
-local motor
-	for _,x in ipairs(ReplicatedStorage:GetDescendants()) do
-		if x.Name=='MotorReplication' then motor=x; break end
-	end
-	if motor then
-		BackBox:AddToggle('Anti-Lookman',{Text='Anti-Lookman ',Default=false,Callback=function(s)
-			if s then
-				RunService.Heartbeat:Connect(function()
-				if workspace:FindFirstChild("BackdoorLookman") then
-motor:FireServer(-760) end
-			end)
-			end
-		end})
-	end
 local Players     = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
@@ -914,7 +739,7 @@ manageToggle("AutoCodeNotify", "Notify")
 local noCamShakeConn
 local mod
 
-AntiBox:AddToggle('No CamShake', {
+ESPSettings:AddToggle('No CamShake', {
     Text    = "No CamShake",
     Tooltip = "Stops Camera Shake",
     Default = false,
@@ -990,7 +815,7 @@ heartbeatConn = nil
 descendantConn = nil
 throttleAccumulator = 0
 
-MAX_PROMPTS_PER_STEP = 15
+MAX_PROMPTS_PER_STEP = 54
 CHECK_DISTANCE = 12
 
 roomsFolder = Workspace:WaitForChild("CurrentRooms")
@@ -1047,7 +872,7 @@ AutoBox:AddToggle("AutoInteract", {
 
         heartbeatConn = RunService.Heartbeat:Connect(function(dt)
             throttleAccumulator += dt
-            if throttleAccumulator < 0.14 then return end
+            if throttleAccumulator < 0.02 then return end
             throttleAccumulator = 0
 
             local char = LocalPlayer.Character
@@ -1198,7 +1023,7 @@ PlayerBox:AddToggle("PromptClip", {
 
 
 -- FullBright
-AutoBox:AddToggle('FullBright', {
+ESPSettings:AddToggle('FullBright', {
     Text    = 'FullBright',
     Default = false,
     Callback = function(on)
@@ -1215,7 +1040,7 @@ AutoBox:AddToggle('FullBright', {
         if on then
             local function apply()
                 Lighting.GlobalShadows        = false
-                Lighting.Brightness           = 5
+                Lighting.Brightness           = 6
                 Lighting.ClockTime            = 14
                 Lighting.FogEnd               = 1e6
                 Lighting.OutdoorAmbient       = Color3.fromRGB(192,192,192)
@@ -1242,102 +1067,84 @@ AutoBox:AddToggle('FullBright', {
 -- Speed Bypass
 -- Speed Bypass
 
- Players     = game:GetService("Players")
- RunService  = game:GetService("RunService")
- StarterGui  = game:GetService("StarterGui")
+ Players = game:GetService("Players")
+RunService = game:GetService("RunService")
+StarterGui = game:GetService("StarterGui")
 
- LocalPlayer = Players.LocalPlayer
- bypassActive = false
- bypassDelay = 0.22
-local fake, hbConn = nil, nil
- lastToggle = 0
+LocalPlayer = Players.LocalPlayer
+bypassActive = false
+bypassDelay = 0.21
+lastToggle = 0
 
- function cleanUp()
-	if hbConn then
-		hbConn:Disconnect()
-		hbConn = nil
-	end
-	if fake then
-		fake:Destroy()
-		fake = nil
-	end
+fakeCollision = nil
+hbConn = nil
+
+local function cleanUp()
+    if hbConn then
+        hbConn:Disconnect()
+        hbConn = nil
+    end
+    if fakeCollision then
+        fakeCollision:Destroy()
+        fakeCollision = nil
+    end
 end
 
- function SetSpeedBypassState(on)
-	if on then
-		SpeedSlider:SetMax(75)
-	else
-		SpeedSlider:SetMax(21) -- Fixed typo from SpeedSlidee to SpeedSlider
-	end
-	cleanUp()
-	bypassActive = on
+function SetSpeedBypassState(on)
+    cleanUp()
+    bypassActive = on
+    SpeedSlider:SetMax(on and 75 or 21)
+if not on then return end
+    
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
-	 character = LocalPlayer.Character
-	if not character then return end
+    local original; local root
+    for _ = 1, 60 do
+        original = character:FindFirstChild("Collision")
+        root = character:FindFirstChild("HumanoidRootPart")
+        if original and root then break end
+        task.wait()
+    end
+    if not (original and root) then return end
+    fakeCollision = original:Clone()
+    fakeCollision.Name = "fakecollision"
+    fakeCollision.Size = Vector3.new(9, 9, 9)
+    fakeCollision.CanCollide = false
+    fakeCollision.Massless = false
+    fakeCollision.Parent = character
 
-	 original = character:FindFirstChild("Collision")
-	 root = character:FindFirstChild("HumanoidRootPart")
-	if on and original and root then
-		fake = original:Clone()
-		fake.Name = "fakecollision"
-		fake.Massless = false
-		fake.Parent = character
-		fake.CanCollide = false 
-		fake.Size = Vector3.new(9,9,9)
-		
-		lastToggle = tick()
+    lastToggle = tick()
 
-		hbConn = RunService.Heartbeat:Connect(function()
-			if not bypassActive or not fake or not fake.Parent then
-				cleanUp()
-				return
-			end
+    hbConn = RunService.Heartbeat:Connect(function()
+        if not bypassActive or not fakeCollision.Parent then
+            return cleanUp()
+        end
 
-			if tick() - lastToggle >= bypassDelay then
-				if root.Anchored then
-fake.CanCollide = false
-					fake.Massless = false
-
-				else
-				fake.CanCollide = false
-					fake.Massless = not fake.Massless
-				end
-				lastToggle = tick()
-			end
-		end)
-	end
-
-	StarterGui:SetCore("SendNotification", {
-		Title    = "Speed Bypass",
-		Text     = on and "Enabled (delay: "..string.format("%.2f", bypassDelay).."s)" or "Disabled",
-		Duration = 3,
-	})
+        local now = tick()
+        if now - lastToggle >= bypassDelay then
+            fakeCollision.Massless = not fakeCollision.Massless
+            lastToggle = now
+        end
+    end)
 end
 
 LocalPlayer.CharacterAdded:Connect(cleanUp)
 
-BypassBox:AddSlider('SpeedBypassDelay', {
-	Text     = 'Speed Bypass Delay',
-	Min      = 0.21,
-	Max      = 0.25,
-	Default  = bypassDelay,
-	Rounding = 2,
-	Callback = function(v)
-		bypassDelay = v
-		if bypassActive then
-			StarterGui:SetCore("SendNotification", {
-				Title    = "Speed Bypass",
-				Text     = "Delay set to "..string.format("%.2f", v).."s",
-				Duration = 2,
-			})
-		end
-	end,
+BypassBox:AddSlider("SpeedBypassDelay", {
+    Text = "Speed Bypass Delay",
+    Min = 0.21,
+    Max = 0.23,
+    Default = bypassDelay,
+    Rounding = 2,
+    Callback = function(v)
+        bypassDelay = v
+    end,
 })
 
-local SpeedBypass = BypassBox:AddToggle('SpeedBypass', {
-	Text    = 'Speed Bypass',
-	Default = false,
-	Callback = SetSpeedBypassState,
+BypassBox:AddToggle("SpeedBypass", {
+    Text = "Speed Bypass",
+    Default = false,
+    Callback = SetSpeedBypassState,
 })
 local lagBackEnabled = false
 local lagBackConn
@@ -1370,13 +1177,14 @@ BypassBox:AddToggle("LagBackDetection", {
 
 					if currentlyAnchored and not wasAnchored then
 						wasAnchored = true
-						SpeedBypass:SetValue(false)
+						Toggles.SpeedBypass:SetValue(false)
 					elseif not currentlyAnchored and wasAnchored then
 						wasAnchored = false
 						debounce = true
-						task.delay(0.34, function()
+						task.delay(0.33, function()
 							if lagBackEnabled and not hrp.Anchored then
-								SpeedBypass:SetValue(true)
+							
+	Toggles.SpeedBypass:SetValue(true)
 							end
 							debounce = false
 						end)
@@ -1394,76 +1202,152 @@ BypassBox:AddToggle("LagBackDetection", {
 -- Services
 
 -- SERVICES
-local RepStorage  = game:GetService("ReplicatedStorage")
-local StarterGui  = game:GetService("StarterGui")
-local Players     = game:GetService("Players")
+RepStorage = game:GetService("ReplicatedStorage")
+Players = game:GetService("Players")
+Workspace = game:GetService("Workspace")
 
--- PLAYER REFERENCE
-local player = Players.LocalPlayer
+player = Players.LocalPlayer
+char = player.Character or player.CharacterAdded:Wait()
+collision = nil
 
--- FLOOR CHECK
-local IsFools = (RepStorage.GameData.Floor.Value == "Fools")
-local godmodeOffset = IsFools and 8 or 2.15
+function onCharacterAdded(newChar)
+    char = newChar
+    collision = nil
+    char:WaitForChild("HumanoidRootPart", 3)
+    collision = char:FindFirstChild("Collision")
+end
 
--- Store original position
-local originalCollisionPos = {}
+player.CharacterAdded:Connect(onCharacterAdded)
+if char then onCharacterAdded(char) end
 
-local Godmode = PlayerBox:AddToggle("GodMode", {
-	Text    = "Godmode",
-	Default = false,
-	Callback = function(enabled)
-		local char = player.Character
-		if not char then return end
+IsFools = (RepStorage.GameData.Floor.Value == "Fools")
+godmodeOffset = 2.05
+originalCollisionPos = {}
+inGodmode = false
 
-		local collision = char:FindFirstChild("Collision")
-		if not (collision and collision:IsA("BasePart")) then
-			StarterGui:SetCore("SendNotification", {
-				Title = "Godmode",
-				Text = "Collision part not found!",
-				Duration = 3,
-			})
-			return
-		end
+-- Table to track active entities by instance
+activeEntities = {}
+autoAvoidEnabled = false
+entityNames = {
+    A60 = true,
+    RushMoving = true,
+    AmbushMoving = true,
+    BackdoorRush = true,
+    GlitchRush = true,
+    GlitchAmbush = true,
+}
+distanceThreshold = 190
 
-		if enabled then
-			-- Store original position
-			if not originalCollisionPos[char] then
-				originalCollisionPos[char] = collision.Position
-			end
+-- Modified toggleGodmode: adds skipOffset parameter. When skipOffset == true, we only flip the inGodmode flag and notifications,
+-- without moving or resizing the collision part.
+function toggleGodmode(state, notify, skipOffset)
+    if not char then return end
+    collision = char:FindFirstChild("Collision")
+    if not (collision and collision:IsA("BasePart")) then return end
 
-			-- Move down by offset
-			oldsize = collision.Size
-			collision.Position = collision.Position - Vector3.new(0, godmodeOffset, 0)
-			collision.Size = Vector3.new(2.47,5.5,3.3)
-			collision.RootPriority = 1
+    if state and not inGodmode then
+        if not skipOffset then
+            if not originalCollisionPos[char] then
+                originalCollisionPos[char] = collision.Position
+            end
+            collision.Position = collision.Position - Vector3.new(0, godmodeOffset, 0)
+            collision.Size = Vector3.new(2.47, 5.5, 3.3)
+            collision.RootPriority = 1
+        end
+        inGodmode = true
+        print("Godmode ON")
+         Library:Notify("Godmode Activated Wont Work On A-120", 3) 
+    elseif not state and inGodmode then
+        if not skipOffset and originalCollisionPos[char] then
+            collision.Position = originalCollisionPos[char]
+            collision.Size = Vector3.new(5, 5.5, 3.3)
+            collision.RootPriority = 0
+            originalCollisionPos[char] = nil
+        end
+        inGodmode = false
+        print("Godmode OFF")
+        if notify then Library:Notify("Godmode Deactivated", 3) end
+    end
+end
 
-			-- Enable toggles
-			
-		else
-			-- Restore position
-			local savedPos = originalCollisionPos[char]
-			if savedPos then
-				collision.Position = collision.Position + Vector3.new(0, godmodeOffset, 0)
-				collision.Size = Vector3.new(5,5.5,3.3)
-				collision.RootPriority = 0
-				originalCollisionPos[char] = nil
-			else
-				-- Fallback
-				collision.Position = HumanoidRootPart.Position 
-			end
+-- Called when a matching entity appears
+function onEntityAdded(entity)
+    if not autoAvoidEnabled then return end
+    if not entity:IsA("Model") then return end
+    -- Track
+    activeEntities[entity] = true
+    print("Entity added, enabling Godmode:", entity:GetFullName())
+    toggleGodmode(true, false, true)
+end
 
-			-- Disable toggles
-			
-		end
+-- Called when a matching entity is removed
+function onEntityRemoved(entity)
+    if activeEntities[entity] then
+        activeEntities[entity] = nil
+        print("Entity removed:", entity:GetFullName())
+        -- If no more activeEntities, disable godmode
+        local anyLeft = false
+        for _ in pairs(activeEntities) do
+            anyLeft = true
+            break
+        end
+        if not anyLeft then
+            print("No more tracked entities; disabling Godmode")
+            toggleGodmode(false, false, true)
+        end
+    end
+end
 
-		-- Notification
-		StarterGui:SetCore("SendNotification", {
-			Title    = "Godmode",
-			Text     = enabled and "Godmode Activated" or "Godmode Deactivated",
-			Duration = 3,
-		})
-	end,
-}):AddKeyPicker('Godmode Keybind', {
+-- Connect Workspace.ChildAdded and ChildRemoved
+Workspace.ChildAdded:Connect(function(child)
+    if entityNames[child.Name] then
+        onEntityAdded(child)
+    end
+end)
+Workspace.ChildRemoved:Connect(function(child)
+    if entityNames[child.Name] then
+        onEntityRemoved(child)
+    end
+end)
+
+-- The UI toggle callback for enabling/disabling autoAvoid behavior
+Godmode = BypassBox:AddToggle("Avoid Entities", {
+    Text = "Auto Godmode",
+    Default = false,
+    Tooltip = "Automatically Enable Godmode When Entities Appear",
+    Callback = function(enabled)
+        if not char then return end
+        if not Toggles.AntiFigureHearing.Value then
+            Toggles.AntiFigureHearing:SetValue(true)
+        end
+        collision = char:FindFirstChild("Collision")
+        if not (collision and collision:IsA("BasePart")) then
+            Library:Notify("Collision part not found!", 3)
+            return
+        end
+        autoAvoidEnabled = enabled
+        print("AutoAvoidEnabled set to", enabled)
+        if not enabled and inGodmode then
+            toggleGodmode(false, true, true)
+        end
+        if enabled then
+            -- Scan existing children
+            local children = Workspace:GetChildren()
+            for i = 1, #children do
+                local existing = children[i]
+                if entityNames[existing.Name] and existing:IsA("Model") then
+                    onEntityAdded(existing)
+                end
+            end
+        else
+            -- Disabled: clear tracking
+            for entity in pairs(activeEntities) do
+                -- disable godmode once; after loop, activeEntities cleared
+                activeEntities[entity] = nil
+            end
+        end
+    end,
+}):AddKeyPicker('Avoid Entities Keybind', {
 
 
             Default = 'G', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
@@ -1473,7 +1357,7 @@ local Godmode = PlayerBox:AddToggle("GodMode", {
             -- You can define custom Modes but I have never had a use for it.
             Mode = 'Toggle', -- Modes: Always, Toggle, Hold
 
-            Text = 'Godmode', -- Text to display in the keybind menu
+            Text = 'Auto Godmode', -- Text to display in the keybind menu
             NoUI = false, -- Set to true if you want to hide from the Keybind menu,
 
             -- Occurs when the keybind is clicked, Value is `true`/`false`
@@ -2343,7 +2227,7 @@ ESPSettings:AddToggle('Distance Meters ESP',{
 
 ESPSettings:AddSlider('Text Size',{
 	Text='Text Size',
-	Min=18,Max=22,Default=20,
+	Min=18,Max=29,Default=20,
 	Rounding=0,
 	Callback=function(v)
 		ESPLibrary:SetTextSize(v)
@@ -2393,7 +2277,7 @@ local targetFOV     = 70      -- slider’s value, updated even when disabled
 local fovEnabled    = false
 local stepping      = false
 
--- step the FOV by 10 towards targetFOV every 0.08s
+-- step the FOV by 5 towards targetFOV every 0.08s
 local function stepFOV()
     if stepping then return end
     stepping = true
@@ -2401,16 +2285,16 @@ local function stepFOV()
     task.spawn(function()
         while stepping and currentFOV ~= targetFOV do
             local delta = targetFOV - currentFOV
-            local step  = (delta > 0 and 10) or -10
+            local step  = (delta > 0 and 5) or -5
             -- if overshoot, clamp to exact
-            if math.abs(delta) < 10 then
+            if math.abs(delta) < 5 then
                 step = delta
             end
 
             currentFOV = currentFOV + step
             camera.FieldOfView = currentFOV
 
-            task.wait(0.08)
+            task.wait(0.002)
         end
         stepping = false
     end)
@@ -2431,7 +2315,7 @@ local function stopEnforcing()
 end
 
 -- Slider just updates targetFOV, and if enabled, kicks off a step
-PlayerBox:AddSlider("FOV", {
+ESPSettings:AddSlider("FOV", {
     Text     = "Field of View",
     Min      = 70,
     Max      = 120,
@@ -2446,7 +2330,7 @@ PlayerBox:AddSlider("FOV", {
 })
 
 -- Toggle turns enforcement & stepping on/off, and always steps to the slider’s value on turn-on
-PlayerBox:AddToggle("EnableFOV", {
+ESPSettings:AddToggle("EnableFOV", {
     Text    = "Enable Field of View",
     Default = false,
     Callback = function(on)
@@ -2601,7 +2485,7 @@ do
                         v = d[i]
                         if v:IsA("BasePart") then
                             v.CanCollide = false
-                            v.CFrame = CFrame.new()
+                            v.CFrame = CFrame.new(0, -999999999, 0)
                         end
                     end
                     notify(model.Name .. " has been cleared!")
@@ -2611,7 +2495,7 @@ do
         end)
     end
 
-    PlayerBox:AddToggle("DFF", {
+    BypassBox:AddToggle("DFF", {
         Text = "Delete Figure (FE)",
         Default = false,
         Callback = function(on)
@@ -2623,7 +2507,7 @@ do
             table.clear(destroyConn)
 
             if on then
-                notify("Some Times Reach AlarmClock…")
+                notify(" Some times Require  Clock…")
 
                 task.spawn(function()
                     dList = roomFolder:GetDescendants()
@@ -2647,7 +2531,30 @@ do
                 notify("Delete Figure disabled.")
             end
         end,
-    })
+    }):AddKeyPicker('Delete  Figure(FE) Keybind', {
+
+
+            Default = 'R', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
+            SyncToggleState = true,
+
+
+            -- You can define custom Modes but I have never had a use for it.
+            Mode = 'Toggle', -- Modes: Always, Toggle, Hold
+
+            Text = 'Delete Figure (FE)', -- Text to display in the keybind menu
+            NoUI = false, -- Set to true if you want to hide from the Keybind menu,
+
+            -- Occurs when the keybind is clicked, Value is `true`/`false`
+            Callback = function(Value)
+
+
+
+            end,
+
+            -- Occurs when the keybind itself is changed, `New` is a KeyCode Enum OR a UserInputType Enum
+            ChangedCallback = function(New)
+            end
+        })
 end
 local shade = game:GetService("ReplicatedStorage").ClientModules.EntityModules:FindFirstChild("_Shade")
 	or game:GetService("ReplicatedStorage").ClientModules.EntityModules:FindFirstChild("Shade")
@@ -2725,7 +2632,7 @@ do
 	local lastDir = Vector3.zero
 	local conn
 
-	PlayerBox:AddToggle('FCE', {
+	BypassBox:AddToggle('FCE', {
 		Text    = 'Closet Exit Fix',
 		Default = false,
 		Tooltip = "Fixes Where you Cant Exit Closet Instantly After Hiding",
@@ -3009,7 +2916,7 @@ local function computePath(destPart)
 	local origin = hrp.Position - Vector3.new(0,2.5,0)
 	local path = PathfindingService:CreatePath{
 		WaypointSpacing = WaypointSpacingSlider.Value,
-		AgentRadius     = 2,
+		AgentRadius     = 3,
 		AgentCanJump    = false,
 	}
 	path:ComputeAsync(origin, destPart.Position)
@@ -3120,6 +3027,7 @@ AutoRoomsToggle:OnChanged(function(on)
 		updateBehavior()
 		autoRoomsLoop = task.spawn(function()
 			while AutoRoomsToggle.Value do
+			if LatestRoom.Value  == 1000 then break end
 				computePath(hiding and getLockerPart() or getDoorPart())
 				task.wait(1)
 			end
@@ -3400,7 +3308,7 @@ player          = Players.LocalPlayer
 local SecondLiveConnection = nil
 local OriginalGravity = workspace.Gravity
 
-PlayerBox:AddToggle("SecondLive", {
+BypassBox:AddToggle("SecondLive", {
     Text    = "Second Live",
     Tooltip = "When you die, it uses fake death",
     Default = false,
@@ -3636,53 +3544,7 @@ TrollBox:AddToggle("Spam MotorReplication (FE)", {
     end
 })
 -- Global tables to track ESP instances and connection
-espGuidanceList = {}
-guidanceAddedConnection = nil
 
-ESPBox:AddToggle("Guiding Light ESP", {
-    Text    = "Guiding Light ESP",
-    Default = false,
-    Callback = function(enabled)
-        if enabled then
-            -- Iterate over existing children of the camera to find "Guidance" parts
-            local cameraChildren = workspace.CurrentCamera:GetChildren()  -- 0
-            for i = 1, #cameraChildren do
-                local potentialGuidance = cameraChildren[i]
-                if potentialGuidance:IsA("BasePart") and potentialGuidance.Name == "Guidance" then
-                    -- Add ESP for each existing guidance part
-                    table.insert(espGuidanceList, ESPLibrary:AddESP{
-                        Object = potentialGuidance,
-                        Text   = "Guiding Light",
-                        Color  = Color3.fromRGB(0, 255, 0)
-                    })
-                end
-            end
-
-            -- Connect to ChildAdded on the camera to catch any new guidance parts
-            guidanceAddedConnection = workspace.CurrentCamera.ChildAdded:Connect(function(newChild)
-                if newChild:IsA("BasePart") and newChild.Name == "Guidance" then
-                    table.insert(espGuidanceList, ESPLibrary:AddESP{
-                        Object = newChild,
-                        Text   = "Guiding Light",
-                        Color  = Color3.fromRGB(0, 255, 0)
-                    })
-                end
-            end)
-        else
-            -- Disconnect the ChildAdded listener if it exists
-            if guidanceAddedConnection then
-                guidanceAddedConnection:Disconnect()
-                guidanceAddedConnection = nil
-            end
-
-            -- Remove all ESP instances that were created
-            for i = 1, #espGuidanceList do
-                ESPLibrary:RemoveESP(espGuidanceList[i])
-            end
-            espGuidanceList = {}
-        end
-    end
-})
 -- Global variable to hold the active RenderStepped connection (if any)
 UpsideDownConnection = nil
 
@@ -4172,7 +4034,6 @@ local LocalPlayer    = Players.LocalPlayer
 local character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local hrp            = character:WaitForChild("HumanoidRootPart")
 local PlayerGui      = LocalPlayer:WaitForChild("PlayerGui")
-local CodeLabel      = PlayerGui.MainUI:WaitForChild("AnchorHintFrame"):WaitForChild("Code")
 
 -- Find your breaker-style remote once
 local BreakerRemote
@@ -4215,6 +4076,8 @@ AutoBox:AddToggle("Auto Anchor Solver", {
     Text    = "Auto Anchor Solver",
     Default = false,
     Callback = function(enabled)
+    local CodeLabel      = PlayerGui.MainUI:WaitForChild("AnchorHintFrame"):WaitForChild("Code")
+
         runSolver = enabled
         if not BreakerRemote then
             warn("AnchorRemote not found!")
@@ -4252,7 +4115,7 @@ AutoBox:AddToggle("Auto Anchor Solver", {
                             local part = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
                             if not part then break end
                             if (hrp.Position - part.Position).Magnitude > 30 then
-                                break
+                                continue 
                             end
 
                             -- parse the note for op/val
@@ -4281,3 +4144,694 @@ AutoBox:AddToggle("Auto Anchor Solver", {
         end
     end,
 })
+
+-- Services
+Workspace = game:GetService("Workspace")
+RunService = game:GetService("RunService")
+TARGET_NAME = "SeekGuidingLight"
+
+-- Mapping from targetPart to guide Part
+seekLightGuides = {}       -- [targetPart] = guidePart
+-- Mapping from targetPart to last known CFrame, to skip redundant updates
+seekLastCFrames = {}       -- [targetPart] = CFrame
+
+descAddConnection = nil
+descRemConnection = nil
+updateConnection = nil
+
+function createGuideFor(targetPart)
+    if seekLightGuides[targetPart] then
+        return
+    end
+    -- Create anchored Part that will match target's CFrame exactly
+    local guide = Instance.new("Part")
+    guide.Name = "SeekLightGuide"
+    guide.Size = Vector3.new(1, 1, 1)
+    guide.Anchored = true            -- no physics overhead
+    guide.CanCollide = false
+    guide.Material = Enum.Material.Neon
+    guide.BrickColor = BrickColor.new("Bright yellow")
+    guide.Transparency = 0.5
+    guide.CFrame = targetPart.CFrame -- initial match
+    guide.Parent = Workspace
+
+    seekLightGuides[targetPart] = guide
+    seekLastCFrames[targetPart] = targetPart.CFrame
+
+    -- Ensure the update loop is running
+    if not updateConnection then
+        updateConnection = RunService.RenderStepped:Connect(function()
+            -- Iterate through all guides
+            for target, guidePart in pairs(seekLightGuides) do
+                -- If target no longer exists under Workspace, remove guide
+                if not target:IsDescendantOf(Workspace) then
+                    guidePart:Destroy()
+                    seekLightGuides[target] = nil
+                    seekLastCFrames[target] = nil
+                else
+                    local currentCF = target.CFrame
+                    -- Only update if changed since last frame
+                    if currentCF ~= seekLastCFrames[target] then
+                        guidePart.CFrame = currentCF
+                        seekLastCFrames[target] = currentCF
+                    end
+                end
+            end
+            -- If no guides remain, disconnect loop to avoid overhead
+            if next(seekLightGuides) == nil then
+                updateConnection:Disconnect()
+                updateConnection = nil
+            end
+        end)
+    end
+end
+
+function removeGuideFor(targetPart)
+    local guide = seekLightGuides[targetPart]
+    if guide then
+        guide:Destroy()
+        seekLightGuides[targetPart] = nil
+        seekLastCFrames[targetPart] = nil
+    end
+end
+
+function onDescendantAdded(desc)
+    if desc:IsA("BasePart") and desc.Name == TARGET_NAME then
+        createGuideFor(desc)
+    end
+end
+
+function onDescendantRemoving(desc)
+    if desc:IsA("BasePart") and desc.Name == TARGET_NAME then
+        removeGuideFor(desc)
+    end
+end
+
+function scanWorkspaceBFS()
+    -- Breadth-first traversal with chunked yields to avoid frame spike
+    local queue = {Workspace}
+    local head = 1
+    local processed = 0
+    local MAX_PER_FRAME = 50
+    while head <= #queue do
+        local node = queue[head]
+        head = head + 1
+        for _, child in ipairs(node:GetChildren()) do
+            if child:IsA("BasePart") and child.Name == TARGET_NAME then
+                createGuideFor(child)
+            end
+            queue[#queue + 1] = child
+        end
+        processed = processed + 1
+        if processed >= MAX_PER_FRAME then
+            processed = 0
+            task.wait()
+        end
+    end
+end
+
+function enableSeekGuides()
+    -- Disconnect existing connections
+    if descAddConnection then
+        descAddConnection:Disconnect()
+        descAddConnection = nil
+    end
+    if descRemConnection then
+        descRemConnection:Disconnect()
+        descRemConnection = nil
+    end
+    -- Destroy any existing guides
+    for target, _ in pairs(seekLightGuides) do
+        removeGuideFor(target)
+    end
+    seekLightGuides = {}
+    seekLastCFrames = {}
+
+    -- Connect events
+    descAddConnection = Workspace.DescendantAdded:Connect(onDescendantAdded)
+    descRemConnection = Workspace.DescendantRemoving:Connect(onDescendantRemoving)
+    -- Start BFS scan in separate thread
+    task.spawn(scanWorkspaceBFS)
+end
+
+function disableSeekGuides()
+    if descAddConnection then
+        descAddConnection:Disconnect()
+        descAddConnection = nil
+    end
+    if descRemConnection then
+        descRemConnection:Disconnect()
+        descRemConnection = nil
+    end
+    if updateConnection then
+        updateConnection:Disconnect()
+        updateConnection = nil
+    end
+    -- Destroy all guides
+    for target, _ in pairs(seekLightGuides) do
+        removeGuideFor(target)
+    end
+    seekLightGuides = {}
+    seekLastCFrames = {}
+end
+
+-- Integrate with UI toggle (no extra `})` after)
+MinesBox:AddToggle("ShowSeekGuides", {
+    Text    = "Show PathfindingNodes (Seek)",
+    Default = false,
+    Callback = function(enabled)
+        if enabled then
+            enableSeekGuides()
+        else
+            disableSeekGuides()
+        end
+    end
+})
+-- BEFORE using PlayerBox:AddToggle, define the Fly logic globally (or
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+-- Fly table (global so PlayerBox callbacks and console can access it)
+Fly = Fly or {}
+Fly.Enabled = false
+ Fly.Speed = 15
+Fly.FlyBody = nil
+Fly.FlyGyro = nil
+
+-- Connections (to be created/destroyed when flying toggles)
+local renderConn = nil
+local charAddedConn = nil
+
+-- Setup BodyVelocity & BodyGyro on HumanoidRootPart
+function Fly.SetupBodies(char)
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- BodyVelocity: maintain target velocity
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "FlyBodyVelocity"
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)   -- high force to override gravity/forces 6
+    bv.Velocity = Vector3.zero
+    bv.Parent = root
+    Fly.FlyBody = bv
+
+    -- BodyGyro: maintain orientation matching camera
+    local bg = Instance.new("BodyGyro")
+    bg.Name = "FlyBodyGyro"
+    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)   -- high torque 7
+    local cam = workspace.CurrentCamera
+    if cam then
+        bg.CFrame = cam.CFrame
+    end
+    bg.Parent = root
+    Fly.FlyGyro = bg
+
+    -- Disable default physics on the humanoid
+    local humanoid = char:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.PlatformStand = true
+    end
+end
+
+-- Cleanup bodies on disable
+function Fly.CleanupBodies()
+    if Fly.FlyBody then
+        Fly.FlyBody:Destroy()
+        Fly.FlyBody = nil
+    end
+    if Fly.FlyGyro then
+        Fly.FlyGyro:Destroy()
+        Fly.FlyGyro = nil
+    end
+
+    -- Restore default physics
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = false
+        end
+    end
+end
+
+-- Per-frame update while flying: apply camera-tilt-based movement
+local function onRenderStepped()
+    if not Fly.Enabled then return end
+
+    local char = player.Character
+    if not char then return end
+
+    local humanoid = char:FindFirstChild("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local cam = workspace.CurrentCamera
+    if not humanoid or not root or not Fly.FlyBody or not Fly.FlyGyro or not cam then
+        return
+    end
+
+    local dir = Vector3.zero
+
+    if UserInputService.KeyboardEnabled then
+        -- Desktop: WASD keys
+        local forward = UserInputService:IsKeyDown(Enum.KeyCode.W)
+        local back    = UserInputService:IsKeyDown(Enum.KeyCode.S)
+        local left    = UserInputService:IsKeyDown(Enum.KeyCode.A)
+        local right   = UserInputService:IsKeyDown(Enum.KeyCode.D)
+
+        local camCFrame = cam.CFrame
+        local lookVec = camCFrame.LookVector
+        local rightVec = camCFrame.RightVector
+
+        if forward then
+            dir = dir + lookVec
+        end
+        if back then
+            dir = dir - lookVec
+        end
+        if left then
+            dir = dir - rightVec
+        end
+        if right then
+            dir = dir + rightVec
+        end
+    else
+        -- Mobile: use humanoid.MoveDirection for horizontal input (Y=0) 8
+        local moveDir = humanoid.MoveDirection
+        if moveDir.Magnitude > 0 then
+            local camCFrame = cam.CFrame
+            local flatLook = Vector3.new(camCFrame.LookVector.X, 0, camCFrame.LookVector.Z)
+            local flatRight = Vector3.new(camCFrame.RightVector.X, 0, camCFrame.RightVector.Z)
+            if flatLook.Magnitude > 0 then
+                flatLook = flatLook.Unit
+            end
+            if flatRight.Magnitude > 0 then
+                flatRight = flatRight.Unit
+            end
+
+            local forwardWeight = moveDir:Dot(flatLook)
+            local rightWeight = moveDir:Dot(flatRight)
+            -- Combine full camera vectors (including Y) for vertical component
+            dir = camCFrame.LookVector * forwardWeight + camCFrame.RightVector * rightWeight
+        end
+    end
+
+    -- Apply velocity: if input present, move along dir at Fly.Speed; else hover
+    if dir.Magnitude > 0 then
+        Fly.FlyBody.Velocity = dir.Unit * Fly.Speed
+    else
+        Fly.FlyBody.Velocity = Vector3.zero
+    end
+
+    -- Match orientation to camera for consistent movement direction
+    Fly.FlyGyro.CFrame = cam.CFrame
+
+    -- Keep humanoid in PlatformStand
+    humanoid.PlatformStand = true
+end
+
+-- Enable flying
+function Fly.Enable()
+    if Fly.Enabled then return end
+    Fly.Enabled = true
+
+    -- Setup bodies if character exists
+    local char = player.Character
+    if char then
+        Fly.SetupBodies(char)
+    end
+
+    -- Connect RenderStepped if not already
+    if not renderConn then
+        renderConn = RunService.RenderStepped:Connect(onRenderStepped)
+    end
+
+    -- Connect CharacterAdded to reapply on respawn
+    if not charAddedConn then
+        charAddedConn = player.CharacterAdded:Connect(function(char2)
+            if Fly.Enabled then
+                char2:WaitForChild("HumanoidRootPart")
+                Fly.SetupBodies(char2)
+            end
+        end)
+    end
+end
+
+-- Disable flying
+function Fly.Disable()
+    if not Fly.Enabled then return end
+    Fly.Enabled = false
+
+    -- Cleanup bodies
+    Fly.CleanupBodies()
+
+    -- Disconnect RenderStepped
+    if renderConn then
+        renderConn:Disconnect()
+        renderConn = nil
+    end
+
+    -- Disconnect CharacterAdded
+    if charAddedConn then
+        charAddedConn:Disconnect()
+        charAddedConn = nil
+    end
+end
+
+-- Toggle flying
+function Fly.Toggle()
+    if Fly.Enabled then
+        Fly.Disable()
+    else
+        Fly.Enable()
+    end
+end
+
+-- Adjust speed
+function Fly.SetSpeed(newSpeed)
+    Fly.Speed = newSpeed or Fly.Speed
+end
+
+-- PlayerBox slider integration for Fly.Speed
+FlySpeed = PlayerBox:AddSlider("FlySpeed", {
+    Text = "Fly Speed",
+    Min = 10,
+    Max = 100,
+    Default = Fly.Speed,
+    Rounding = 0,
+    Callback = function(v)
+        Fly.SetSpeed(v)
+    end
+})
+
+-- PlayerBox toggle integration
+PlayerBox:AddToggle("Fly", {
+    Text = "Fly",
+    Default = false,
+    Callback = function(enabled)
+        if enabled then
+            Fly.Enable()
+        else
+            Fly.Disable()
+        end
+    end
+}):AddKeyPicker('Fly Keybind', {
+
+
+            Default = 'F', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
+            SyncToggleState = true,
+
+
+            -- You can define custom Modes but I have never had a use for it.
+            Mode = 'Toggle', -- Modes: Always, Toggle, Hold
+
+            Text = 'Fly', -- Text to display in the keybind menu
+            NoUI = false, -- Set to true if you want to hide from the Keybind menu,
+
+            -- Occurs when the keybind is clicked, Value is `true`/`false`
+            Callback = function(Value)
+
+
+
+            end,
+
+            -- Occurs when the keybind itself is changed, `New` is a KeyCode Enum OR a UserInputType Enum
+            ChangedCallback = function(New)
+            end
+        })
+        -- Third-Person Camera with Head Hide/Show Integration in one script
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+
+-- Offsets (initialized)
+local offsetX = 0
+local offsetY = 0   -- e.g., slightly above head center
+local offsetZ = 4   -- behind the head
+
+-- Connections and state
+local transparencyConnections = {}
+local renderConn = nil
+local charAddedConn = nil
+local toggleState = false
+
+-- Utility: lock LocalTransparencyModifier on head & accessories to a given value (0 = visible, 1 = fully invisible locally)
+local function lockTransparency(char, value)
+    -- First disconnect any existing locks
+    for _, conn in ipairs(transparencyConnections) do
+        conn:Disconnect()
+    end
+    transparencyConnections = {}
+
+    -- Iterate over children
+    for _, v in ipairs(char:GetChildren()) do
+        if v:IsA("Accessory") and v:FindFirstChild("Handle") then
+            local handle = v.Handle
+            -- Set immediately
+            handle.LocalTransparencyModifier = value  -- 0
+            -- Lock it
+            transparencyConnections[#transparencyConnections+1] = handle:GetPropertyChangedSignal("LocalTransparencyModifier"):Connect(function()
+                handle.LocalTransparencyModifier = value
+            end)
+        end
+        if v.Name == "Head" and v:IsA("BasePart") then
+            local head = v
+            head.LocalTransparencyModifier = value  -- 1
+            transparencyConnections[#transparencyConnections+1] = head:GetPropertyChangedSignal("LocalTransparencyModifier"):Connect(function()
+                head.LocalTransparencyModifier = value
+            end)
+        end
+    end
+end
+
+-- Camera update: set CFrame relative to head plus offsets
+local function updateCameraThirdPerson()
+    local char = player.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+
+    -- Override CameraType to Scriptable so default camera logic doesn't override
+    cam.CameraType = Enum.CameraType.Scriptable
+
+    -- Compute new CFrame: head.CFrame * offset
+    local baseCFrame = head.CFrame
+    local offsetCFrame = CFrame.new(offsetX, offsetY, offsetZ)
+    cam.CFrame = baseCFrame * offsetCFrame  -- 2
+end
+
+-- Enable third-person: show head, lock transparency=0, connect camera update & respawn handling
+local function enableThirdPerson()
+    if toggleState then return end
+    toggleState = true
+
+    local char = player.Character
+    if char then
+        -- Show head & accessories
+        lockTransparency(char, 0)
+    end
+
+    -- Connect RenderStepped
+    if not renderConn then
+        renderConn = RunService.RenderStepped:Connect(updateCameraThirdPerson)  -- 3
+    end
+
+    -- Respawn handling: re-lock transparency=0 and continue camera update after respawn
+    if not charAddedConn then
+        charAddedConn = player.CharacterAdded:Connect(function(newChar)
+            -- Wait for head
+            local head = newChar:WaitForChild("Head", 5)
+            if head then
+                lockTransparency(newChar, 0)
+            end
+        end)
+    end
+end
+
+-- Disable third-person: hide head, lock transparency=1, disconnect camera update & restore default camera
+local function disableThirdPerson()
+    if not toggleState then return end
+    toggleState = false
+
+    -- Disconnect RenderStepped
+    if renderConn then
+        renderConn:Disconnect()
+        renderConn = nil
+    end
+    -- Disconnect respawn handler
+    if charAddedConn then
+        charAddedConn:Disconnect()
+        charAddedConn = nil
+    end
+
+    -- Hide head & accessories
+    local char = player.Character
+    if char then
+        lockTransparency(char, 1)
+    end
+
+    -- Restore default camera behavior
+    local cam = Workspace.CurrentCamera
+    if cam then
+        cam.CameraType = Enum.CameraType.Custom  -- 4
+        -- Reset CameraSubject to Humanoid so first-person/follow works normally
+        if player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                cam.CameraSubject = humanoid  -- 5
+            end
+        end
+    end
+end
+
+-- Slider integration
+PlayerBox:AddSlider("ThirdPersonX", {
+    Text = "Third Person X",
+    Min = -10,
+    Max = 10,
+    Default = offsetX,
+    Rounding = 0,
+    Callback = function(v)
+        offsetX = v
+        if toggleState then
+            updateCameraThirdPerson()
+        end
+    end
+})
+
+PlayerBox:AddSlider("ThirdPersonY", {
+    Text = "Third Person Y",
+    Min = -10,
+    Max = 10,
+    Default = offsetY,
+    Rounding = 0,
+    Callback = function(v)
+        offsetY = v
+        if toggleState then
+            updateCameraThirdPerson()
+        end
+    end
+})
+
+PlayerBox:AddSlider("ThirdPersonZ", {
+    Text = "Third Person Z",
+    Min = -10,
+    Max = 10,
+    Default = offsetZ,
+    Rounding = 0,
+    Callback = function(v)
+        offsetZ = v
+        if toggleState then
+            updateCameraThirdPerson()
+        end
+    end
+})
+
+-- Toggle integration
+PlayerBox:AddToggle("ThirdPerson", {
+    Text = "Third Person",
+    Default = false,
+    Callback = function(enabled)
+        if enabled then
+            enableThirdPerson()
+        else
+            disableThirdPerson()
+        end
+    end
+}):AddKeyPicker('ThirdP Keybind', {
+
+
+            Default = 'T', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
+            SyncToggleState = true,
+
+
+            -- You can define custom Modes but I have never had a use for it.
+            Mode = 'Toggle', -- Modes: Always, Toggle, Hold
+
+            Text = 'ThirdPerson', -- Text to display in the keybind menu
+            NoUI = false, -- Set to true if you want to hide from the Keybind menu,
+
+            -- Occurs when the keybind is clicked, Value is `true`/`false`
+            Callback = function(Value)
+
+
+
+            end,
+
+            -- Occurs when the keybind itself is changed, `New` is a KeyCode Enum OR a UserInputType Enum
+            ChangedCallback = function(New)
+            end
+        })
+
+-- On initial load: ensure head is hidden so it won't block FOV in first-person by default
+-- e.g., if player spawns before toggling, hide head LocalTransparencyModifier
+-- (optional: comment out if you prefer head visible until toggled)
+if player.Character then
+    lockTransparency(player.Character, 1)
+end
+-- Also handle respawn to keep head hidden by default
+player.CharacterAdded:Connect(function(newChar)
+    newChar:WaitForChild("Head", 5)
+    if not toggleState then
+        lockTransparency(newChar, 1)
+    else
+        lockTransparency(newChar, 0)
+    end
+end)
+RunService      = game:GetService("RunService")
+ReplicatedDS    = game:GetService("ReplicatedStorage").GameData
+
+local doorReachConn
+throttleTimer     = 0
+THROTTLE_INTERVAL = 0.05
+
+-- create the toggle and grab its handle
+local DoorReach = PlayerBox:AddToggle("DoorReach", {
+	Text    = "Door Reach",
+	Tooltip = "Makes Door Open From Far"
+})
+
+DoorReach:OnChanged(function(enabled)
+	-- cleanup any previous connection
+	if doorReachConn then
+		doorReachConn:Disconnect()
+		doorReachConn = nil
+		throttleTimer = 0
+	end
+
+	if not enabled then
+		return
+	end
+
+	-- start a new Heartbeat connection
+	doorReachConn = RunService.Heartbeat:Connect(function(dt)
+		throttleTimer = throttleTimer + dt
+		if throttleTimer < THROTTLE_INTERVAL then
+			return
+		end
+		throttleTimer = throttleTimer - THROTTLE_INTERVAL
+
+		-- look up the current room by name
+		local roomName = ReplicatedDS.LatestRoom.Value
+		local room     = CurrentRooms:FindFirstChild(roomName)
+		if not room then
+			return
+		end
+
+		-- if the door exists and has the ClientOpen remote, fire it
+		 door = room:FindFirstChild("Door")
+		if door and door:FindFirstChild("ClientOpen") then
+			door.ClientOpen:FireServer()
+		end
+	end)
+end)
