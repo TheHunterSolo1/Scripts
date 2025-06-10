@@ -815,8 +815,8 @@ heartbeatConn = nil
 descendantConn = nil
 throttleAccumulator = 0
 
-MAX_PROMPTS_PER_STEP = 54
-CHECK_DISTANCE = 12
+MAX_PROMPTS_PER_STEP = 400
+CHECK_DISTANCE = 12.5
 
 roomsFolder = Workspace:WaitForChild("CurrentRooms")
 
@@ -872,7 +872,7 @@ AutoBox:AddToggle("AutoInteract", {
 
         heartbeatConn = RunService.Heartbeat:Connect(function(dt)
             throttleAccumulator += dt
-            if throttleAccumulator < 0.02 then return end
+            if throttleAccumulator < 0.01 then return end
             throttleAccumulator = 0
 
             local char = LocalPlayer.Character
@@ -903,12 +903,12 @@ AutoBox:AddToggle("AutoInteract", {
 }):AddKeyPicker('Auto Interact Keybind', {
 
 
-            Default = 'A', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
+            Default = 'M', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
             SyncToggleState = true,
 
 
             -- You can define custom Modes but I have never had a use for it.
-            Mode = Library.IsMobile and 'Toggle' or 'Hold', -- Modes: Always, Toggle, Hold
+            Mode = 'Toggle', -- Modes: Always, Toggle, Hold
 
             Text = 'Auto Interact', -- Text to display in the keybind menu
             NoUI = false, -- Set to true if you want to hide from the Keybind menu,
@@ -1237,8 +1237,7 @@ function toggleGodmode(state, notify, skipOffset)
                 originalCollisionPos[char] = collision.Position
             end
             collision.Position = collision.Position - Vector3.new(0, godmodeOffset, 0)
-            collision.Size = Vector3.new(2.47, 5.5, 3.3)
-            collision.RootPriority = 1
+            
         end
         inGodmode = true
         print("Godmode ON")
@@ -1246,8 +1245,7 @@ function toggleGodmode(state, notify, skipOffset)
     elseif not state and inGodmode then
         if not skipOffset and originalCollisionPos[char] then
             collision.Position = collision.Position + Vector3.new(0,godmodeOffset,0)
-            collision.Size = Vector3.new(5, 5.5, 3.3)
-            collision.RootPriority = 0
+            
             originalCollisionPos[char] = nil
         end
         inGodmode = false
@@ -2416,15 +2414,15 @@ do
 
         task.spawn(function()
             while DeleteFigureEnabled do
-            task.wait(0.1)
+            task.wait(0.02)
                 ppart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
-                if ppart and model.Parent and isnetworkowner(ppart) then
+                if model.Root and model.Parent and isnetworkowner(model.Root) then
                     d = model:GetDescendants()
                     for i = 1, #d do
                         v = d[i]
                         if v:IsA("BasePart") then
                             v.CanCollide = false
-                            v.CFrame = CFrame.new(0, -999999999, 0)
+                            v.CFrame = CFrame.new(0,-math.huge, 0)
                         end
                     end
                     notify(model.Name .. " has been cleared!")
@@ -2450,8 +2448,8 @@ do
 
                 task.spawn(function()
                     dList = roomFolder:GetDescendants()
-                    for i = 1, #dList, 1000 do
-                        for j = i, math.min(i + 1000, #dList) do
+                    for i = 1, #dList, 3000 do
+                        for j = i, math.min(i + 3000 #dList) do
                             m = dList[j]
                             if m:IsA("Model") and (m.Name == "FigureRig" or m.Name == "FigureRagdoll") then
                                 handleFigure(m)
@@ -2470,31 +2468,7 @@ do
                 notify("Delete Figure disabled.")
             end
         end,
-    }):AddKeyPicker('Delete  Figure(FE) Keybind', {
-
-
-            Default = 'R', -- String as the name of the keybind (MB1, MB2 for mouse buttons)
-            SyncToggleState = true,
-
-
-            -- You can define custom Modes but I have never had a use for it.
-            Mode = 'Toggle', -- Modes: Always, Toggle, Hold
-
-            Text = 'Delete Figure (FE)', -- Text to display in the keybind menu
-            NoUI = false, -- Set to true if you want to hide from the Keybind menu,
-
-            -- Occurs when the keybind is clicked, Value is `true`/`false`
-            Callback = function(Value)
-
-
-
-            end,
-
-            -- Occurs when the keybind itself is changed, `New` is a KeyCode Enum OR a UserInputType Enum
-            ChangedCallback = function(New)
-            end
-        })
-end
+    })
 local shade = game:GetService("ReplicatedStorage").ClientModules.EntityModules:FindFirstChild("_Shade")
 	or game:GetService("ReplicatedStorage").ClientModules.EntityModules:FindFirstChild("Shade")
 
