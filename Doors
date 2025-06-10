@@ -284,8 +284,8 @@ TrollBox:AddToggle("SpamOthersTools", {
         runSpam = state
         if runSpam then
             task.spawn(function()
-                while runSpam do
-                    task.wait(0.9)
+                while   task.wait(0.9) and runSpam do
+                    
                     local players = Players:GetPlayers()
                     for i = 1, #players do
                         local plr = players[i]
