@@ -1,4 +1,4 @@
-if Library then Library:Notify("[([Loading])] ERROR ProHax  Already  Loaded",3) return end
+if Library then Library:Notify("[(Error]) Prohax is Already  Loaded") return end
 repo = 'https://raw.githubusercontent.com/bocaj111004/Linora/refs/heads/main/'
 Library      = loadstring(game:HttpGet(repo..'Library.lua'))()
 Library:Notify("Loading Prohax .. ",3)
@@ -30,7 +30,7 @@ MinesBox = Tabs.Floors:AddLeftGroupbox('Mines')
 RetroBox = Tabs.Floors:AddRightGroupbox('Retro')
 RoomsBox = Tabs.Floors:AddRightGroupbox('Rooms')
 SettingsBox = Tabs.UISettings:AddLeftGroupbox('Themes & Keybinds')
-MiscBox = Tabs.Player:AddRightGroupbox('Remotes')
+MiscBox = Tabs.Player:AddRightGroupbox('Miscellaneous')
 
 TrollBox = Tabs.Fun:AddLeftGroupbox('Troll')
 -- Services & References
@@ -115,6 +115,7 @@ end
 BreakDoorsFE:OnChanged(function(enabled)
 	cleanAll()
 	if not enabled then return end
+	if not isnetworkowner then Library:Notify("[Break doors]) isnetworkowner is not supported it wont work",3) return end
 	if tonumber(ReplicatedDS.LatestRoom.Value) >= 98 then BreakDoorsFE:SetValue(false) return end
 	cacheDoorParts()
 	roomConn = workspace.CurrentRooms.ChildAdded:Connect(function()
@@ -161,7 +162,8 @@ TrollBox:AddToggle('Stunned',{
 		LocalPlayer.Character:SetAttribute("Stunned",Value)
 	end
 })
-
+-- Services
+-- Services
 
 lastSpeed = 15
 humanoid = Humanoid
@@ -257,7 +259,7 @@ function onCharacterAdded(character)
 	end
 	-- Wait for the Humanoid and connect
 	humanoid = character:WaitForChild("Humanoid")
-	deathConn = humanoid.Died:Connect(onHumanoidDied)  -- î¨پ0î¨‚
+	deathConn = humanoid.Died:Connect(onHumanoidDied)  
 end
 
 -- Toggle handler
@@ -288,6 +290,7 @@ AutoBox:AddToggle("AutoPlayAgain", {
 		end
 	end,
 })
+ 
 MiscBox:AddButton({
 	Text    = "PlayAgain",
 	DoubleClick = true,
@@ -1872,12 +1875,19 @@ do
                 model.PrimaryPart = part
             end
         end
-        local target = model
+        if model.Name == "SeekMovingNewClone" or model.Name == "SeekMoving" then
+        repeat task.wait(0.2) until model:FindFirstChild("SeekRig")      
+  local target = model.SeekRig
+        else
+        target = model
         if not target then return end
 
         -- Visual adjustments
+        if target:IsA("Model") then
         target.PrimaryPart.Transparency = 0.99
-        
+        else
+        target.Transparency = 0.99
+        end
 
         local espHandle = ESPLibrary:AddESP({
             Object = target,
@@ -1886,6 +1896,8 @@ do
         })
         tracked[model] = espHandle
     end
+    end
+    
 
     local function removeESPForModel(model)
         local espHandle = tracked[model]
@@ -2079,13 +2091,21 @@ do
         Color3.fromRGB(0, 0, 255)
     )
     makeRoomESP("KeyESP",
-        function(o) return o.Name == "KeyObtain" end,
+        function(o) if o.Name == "KeyObtain" then
+        for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+end
+end,
         "Key",
         Color3.fromRGB(0, 255, 0)
     )
     makeRoomESP("HidingSpot ESP",
         function(o)
-            return o.Name == "Wardrobe"
+            
+            if o.Name == "Wardrobe"
                 or o.Name == "Rooms_Locker"
                 or o.Name == "Backdoor_Wardrobe"
                 or o.Name == "Toolshed"
@@ -2095,7 +2115,13 @@ do
                 or o.Name == "Rooms_Locker_Fridge"
                 or o.Name == "RetroWardrobe"
                 or o.Name == "Dumpster"
-                or o.Name == "Double_Bed"
+                or o.Name == "Double_Bed" then
+                for _, v in pairs(o:GetDescendants()) do
+                if v.Name ~= "PlayerCollision" and v:IsA("BasePart") then
+return v
+end
+end
+end
         end,
         function(o)
             if o.Name == "Bed" or o.Name == "Double_Bed" then
@@ -2115,49 +2141,103 @@ do
         Color3.fromRGB(0, 255, 0)
     )
     makeRoomESP("BookESP",
-        function(o) return o:IsA("Model") and o.Name == "LiveHintBook" end,
+        function(o) if o:IsA("Model") and o.Name == "LiveHintBook" then
+        for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+        end
+end,
         "Book",
         Color3.fromRGB(0, 0, 255)
     )
     makeRoomESP("LeverESP",
-        function(o) return o:IsA("Model") and o.Name == "LeverForGate" end,
+        function(o) if o:IsA("Model") and o.Name == "LeverForGate" then
+        for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+end
+end,
         "Gate Lever",
         Color3.fromRGB(0, 0, 255)
     )
     makeRoomESP("BreakerESP",
-        function(o) return o.Name == "LiveBreakerPolePickup" end,
+        function(o) if o.Name == "LiveBreakerPolePickup" then
+        for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+end
+ end,
         "Breaker",
         Color3.fromRGB(0, 255, 0)
     )
     makeRoomESP("TimerLeverESP",
-        function(o) return o.Name == "TimerLever" end,
+        function(o) if o.Name == "TimerLever" then
+        for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+end
+ end,
         "TimerLever",
         Color3.fromRGB(0, 0, 255)
     )
     makeRoomESP("GeneratorESP",
-        function(o) return o.Name == "MinesGenerator" end,
+        function(o) if o.Name == "MinesGenerator"  then
+for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+end
+end,
         "Generator",
         Color3.fromRGB(0, 255, 0)
     )
     makeRoomESP("FuseESP",
-        function(o) return o.Name == "FuseObtain" end,
+        function(o) if o.Name == "FuseObtain"  then
+for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+end
+end,
         "Fuse",
         Color3.fromRGB(0, 255, 0)
     )
     makeRoomESP("ChestESP",
-        function(o) return o.Name == "ChestBox" end,
+        function(o) if o.Name == "ChestBox" then
+        for _, v in pairs(o:GetDescendants()) do
+if v:IsA("BasePart") then
+return v
+end
+end
+end
+end,
         "Chest",
         Color3.fromRGB(0, 255, 0)
     )
+     
     local anchors = {
-        {Toggle="AnchorESP", Target="MinesAnchor", Label="Anchor"},
+        {Toggle="AnchorESP", Target="MinesAnchor", Label="Anchor" },
         {Toggle="ElectricalKeyESP", Target="ElectricalKeyObtain", Label="ElectricalKey"},
         {Toggle="WaterPumpESP", Target="WaterPump", Label="WaterPump"},
     }
     for i = 1, #anchors do
         local a = anchors[i]
         makeRoomESP(a.Toggle,
-            function(o) return o.Name == a.Target end,
+            function(o) 
+            
+return o.Name == a.Target 
+end,
+
             a.Label,
             Color3.fromRGB(0, 255, 0)
         )
@@ -2189,7 +2269,11 @@ do
                 espItems[plr] = nil
             end
             local hum = char:WaitForChild("Humanoid", 5)
-            local root = char.PrimaryPart
+            for _, root in pairs(char:GetDescendants()) do
+            if root:IsA("BasePart") then
+            local root = root
+            end
+            end
             if hum and root then
                 local text = ("%s [%d/%d]"):format(plr.Name, math.floor(hum.Health), math.floor(hum.MaxHealth))
                 local espHandle = ESPLibrary:AddESP{
@@ -2265,7 +2349,8 @@ do
 
     local function addItem(inst)
         if trackedItems[inst] then return end
-        local part = inst:IsA("BasePart") and inst or inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
+        for _, v in pairs(inst:GetDescendants()) do if v:IsA("BasePart") then
+        local part = v
         if not part then return end
         local esp = ESPLibrary:AddESP{
             Object = part,
@@ -2274,6 +2359,9 @@ do
         }
         trackedItems[inst] = esp
     end
+    end
+    end
+    
 
     local function removeDestroyed(inst)
         if trackedItems[inst] then
@@ -2365,11 +2453,12 @@ ESPBox:AddToggle("Gold ESP", {
             -- Avoid duplicates
             if goldESP[inst] then return end
             -- Check attribute
+            for _, base in pairs(inst:GetDescendants()) do if base:IsA("BasePart") then
             local value = inst:GetAttribute("GoldValue")
             if not value then return end
             -- Create ESP
             local handle = ESPLibrary:AddESP{
-                Object = inst,
+                Object = base,
                 Text = "Gold " .. tostring(value),
                 Color = Color3.fromRGB(255, 215, 0),
             }
@@ -2386,8 +2475,10 @@ ESPBox:AddToggle("Gold ESP", {
                         end
                         goldESP[inst] = nil
                     end
+                    end
+                    end)
                 end
-            end)
+            end
 
             goldESP[inst] = {
                 handle = handle,
@@ -2502,7 +2593,7 @@ local function stepFOV()
 			if math.abs(delta) < 2 then
 				step = delta
 			end
-			currentFOV += step
+			currentFOV = currentFOV + step
 			camera.FieldOfView = currentFOV
 			task.wait(0.009)
 		end
@@ -4918,7 +5009,7 @@ end
 	Fly.FlyGyro = nil
 
 	-- Connections (to be created/destroyed when flying toggles)
-	local renderConn = nil
+	local renderConn 
 	local charAddedConn = nil
 
 	-- Setup BodyVelocity & BodyGyro on HumanoidRootPart
@@ -5438,10 +5529,11 @@ function applyTransparency(apply)
 	for i = 1, #rooms do
 		local item = rooms[i]
 		if targetNames[item.Name] and item:FindFirstChild("HidePrompt") then
-			for _, doorName in ipairs({"Door1", "Door2", "Door","Grate","Main"}) do
-				 door = item:FindFirstChild(doorName)
-				if door then
-					door.Transparency = apply and transparencyValue or 0
+			for _, base in pairs(item:GetDescendants()) do
+if base:IsA("BasePart") and base.Name ~= "PlayerCollision" then
+
+				
+					 base.Transparency = apply and transparencyValue or 0
 				end
 			end
 		end
