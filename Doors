@@ -1,4 +1,4 @@
-if Library then Library:Notify("[(Error]) Prohax is Already  Loaded") return end
+if Library  then return end
 repo = 'https://raw.githubusercontent.com/bocaj111004/Linora/refs/heads/main/'
 Library      = loadstring(game:HttpGet(repo..'Library.lua'))()
 Library:Notify("Loading Prohax .. ",3)
@@ -9,7 +9,7 @@ Toggles = Library.Toggles
 
  
 ESPLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/ESPLibrary/refs/heads/main/main.lua"))() 
-ESPLibrary:SetFadeTime(0.5)
+ESPLibrary:SetFadeTime(0.8)
 Window = Library:CreateWindow({Title='ProHax V2',Center=true,AutoShow=true})
 Tabs = {
 	Player     = Window:AddTab('Main'),
@@ -60,7 +60,7 @@ local function Sound()
 	
 		local sound = Instance.new("Sound")
 		sound.Name = ESPLibrary:GenerateRandomString()
-		sound.Volume = 1.5
+		sound.Volume = 1.4
 		sound.Parent = game.ReplicatedStorage 
 
 		sound.SoundId = "rbxassetid://"..pingid
@@ -71,7 +71,8 @@ local function Sound()
 	
 end
 Sound()
- Library.NotifySide = "Left"
+ Library.NotifySide = "Right"
+
 RunService       = game:GetService("RunService")
 ReplicatedDS     = game:GetService("ReplicatedStorage").GameData
 doorVelTable     = {}
@@ -172,7 +173,7 @@ currentSpeed = lastSpeed
 -- Slider
 SpeedSlider = PlayerBox:AddSlider('WalkSpeed', {
 	Text = 'WalkSpeed',
-	Min = 15, Max = 21, Default = 15,
+	Min = 15, Max = 21.4, Default = 15,
 	Rounding = 0,
 	Callback = function(v)
 		lastSpeed = v
@@ -520,7 +521,6 @@ if motor then
 	})
 end
 BackBox:AddToggle("Anti-Lookman", { Text    = "Anti-Lookman", Default = false, Callback = function(enabled) if lookmanCon then lookmanCon:Disconnect() lookmanCon = nil end if enabled then lookmanCon = RunService.Heartbeat:Connect(function() if Workspace:FindFirstChild("BackdoorLookman") then motor:FireServer(-760) end end) end end }) 
-
 
 
 local Players = game:GetService("Players")
@@ -961,6 +961,7 @@ do
 
     local supportsFire = pcall(function()
         fireproximityprompt(Instance.new("ProximityPrompt", workspace))
+     task.wait(2) workspace:FindFirstChild("ProximityPrompt"):Destroy()
     end)
 
     local function doPrompt(prompt)
@@ -1175,47 +1176,52 @@ do
         end
     })
 end
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 
-local LocalPlayer = Players.LocalPlayer
+Players = game:GetService("Players")
+RunService = game:GetService("RunService")
+Workspace = game:GetService("Workspace")
+LocalPlayer = Players.LocalPlayer
 
 bypassActive = false
 bypassDelay = 0.21
+returnDelay = 0.28
+detectionDistance = 0.7
+
 collisionClones = {}
 masslessLoopThread = nil
 
-function cleanUpMassless()
+horizontalDirs = {
+    Vector3.new(1, 0, 0),
+    Vector3.new(-1, 0, 0),
+    Vector3.new(0, 0, 1),
+    Vector3.new(0, 0, -1),
+}
+
+function clearCollisionClones()
     if masslessLoopThread then
-        -- Using task.cancel if available, else rely on bypassActive flag to exit
-        -- Roblox Luau does not have direct cancellation for task.spawn threads;
-        -- we use bypassActive to break their loops.
         masslessLoopThread = nil
     end
     for i = 1, #collisionClones do
         local part = collisionClones[i]
         if part and part.Parent then
-            pcall(function()
-                part.Massless = false
-            end)
+            pcall(function() part.Massless = true end)
             part:Destroy()
         end
     end
     table.clear(collisionClones)
 end
 
-function startMasslessBypass()
-
+function startWallBypass()
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local root = character:WaitForChild("HumanoidRootPart")
-    local original = character:FindFirstChild("Collision")
-    if not original then
-        warn("Massless bypass: no 'Collision' part found")
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    local originalCollisionPart = character:FindFirstChild("Collision")
+    if not originalCollisionPart then
+        warn("Speed bypass: no 'Collision' part found")
         return
     end
 
     for i = 1, 5 do
-        local clone = original:Clone()
+        local clone = originalCollisionPart:Clone()
         clone.Name = "CollisionClone" .. i
         clone.CanCollide = false
         clone.Massless = true
@@ -1226,75 +1232,117 @@ function startMasslessBypass()
         collisionClones[#collisionClones + 1] = clone
     end
 
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+
     masslessLoopThread = task.spawn(function()
+        local toggling = false
         while bypassActive do
-            if not root or not root.Parent then
+            if not rootPart or not rootPart.Parent then
                 break
             end
-            if root.Anchored then
+
+            if rootPart.Anchored then
+                toggling = false
                 for i = 1, #collisionClones do
-                    local part = collisionClones[i]
-                    if part and part.Parent then
-                        pcall(function()
-                            if not part.Massless then
-                                part.Massless = true
-                            end
-                        end)
+                    local c = collisionClones[i]
+                    if c and c.Parent then
+                        pcall(function() c.Massless = true end)
                     end
                 end
-                repeat
-                    task.wait()
-                until not root.Anchored or not bypassActive
-                task.wait(0.31)
-            else
+                repeat task.wait() until not rootPart.Anchored
+                task.wait(returnDelay)
+            end
+
+            rayParams.FilterDescendantsInstances = {character}
+            local hit = false
+            local rpPos = rootPart.Position
+            for _, dir in ipairs(horizontalDirs) do
+                if Workspace:Raycast(rpPos, dir.Unit * detectionDistance, rayParams) then
+                    hit = true
+                    break
+                end
+            end
+
+            if hit then
+                toggling = false
                 for i = 1, #collisionClones do
-                    local part = collisionClones[i]
-                    if part and part.Parent then
-                        pcall(function()
-                            part.Massless = not part.Massless
-                        end)
+                    local c = collisionClones[i]
+                    if c and c.Parent then
+                        pcall(function() c.Massless = true end)
                     end
                 end
                 task.wait(bypassDelay)
+            else
+                if not toggling then
+                    toggling = true
+                    task.wait(returnDelay)
+                end
+                if not bypassActive then break end
+                -- toggling loop: alternate Massless false/true
+                for _, state in ipairs({false, true}) do
+                    if not bypassActive then break end
+                    -- Check again each iteration for hit or anchor
+                    if rootPart and rootPart.Parent then
+                        if rootPart.Anchored then
+                            toggling = false
+                            break
+                        end
+                        rayParams.FilterDescendantsInstances = {character}
+                        local hit2 = false
+                        local pos2 = rootPart.Position
+                        for _, dir2 in ipairs(horizontalDirs) do
+                            if Workspace:Raycast(pos2, dir2.Unit * detectionDistance, rayParams) then
+                                hit2 = true
+                                break
+                            end
+                        end
+                        if hit2 then
+                            toggling = false
+                            for i = 1, #collisionClones do
+                                local c2 = collisionClones[i]
+                                if c2 and c2.Parent then
+                                    pcall(function() c2.Massless = true end)
+                                end
+                            end
+                            break
+                        end
+                    end
+                    for i = 1, #collisionClones do
+                        local c = collisionClones[i]
+                        if c and c.Parent then
+                            pcall(function() c.Massless = state end)
+                        end
+                    end
+                    task.wait(bypassDelay)
+                end
             end
         end
-        cleanUpMassless()
+        clearCollisionClones()
     end)
 end
 
 function SetSpeedBypassState(on)
-SpeedSlider:SetMax(on and 75 or 21)
+    SpeedSlider:SetMax(on and 45 or 21.4)
+    SpeedSlider:SetValue(on and 45 or 21.4)
     bypassActive = false
-    cleanUpMassless()
+    clearCollisionClones()
     bypassActive = on
-    if not on then return end
-    startMasslessBypass()
+    if on then
+        startWallBypass()
+    end
 end
 
 LocalPlayer.CharacterAdded:Connect(function()
-    cleanUpMassless()
+    clearCollisionClones()
 end)
 
--- Example UI hookup; replace with your UI references:
-BypassBox:AddSlider("SpeedBypassDelay", {
-  Text = "Speed Bypass Delay",
-   Min = 0.21,
-  Max = 0.23,
-   Default = bypassDelay,
-   Rounding = 2,
-Callback = function(v)
-     bypassDelay = v
-    end,
-})
 BypassBox:AddToggle("SpeedBypass", {
     Text = "Speed Bypass",
     Default = false,
-  Callback = SetSpeedBypassState,
-})
-
-
-
-
+    Tooltip = "Bypasses game speed anticheat",
+    Callback = SetSpeedBypassState
+}) 
 -- SERVICES
 RepStorage = game:GetService("ReplicatedStorage")
 Players = game:GetService("Players")
@@ -1838,8 +1886,8 @@ do
         })
     end
 
-    handleNotificationToggle("EntityNotify", "Entities Notify", notifyESP)
-    handleNotificationToggle("ChatNotify", "Chat Notify", notifyChat)
+    handleNotificationToggle("Entity Notify", "Entities Notify", notifyESP)
+    handleNotificationToggle("Chat Notify", "Chat Notify", notifyChat)
 end
 
 --------------------------------------------------------------------------------
@@ -1876,8 +1924,7 @@ do
             end
         end
         if model.Name == "SeekMovingNewClone" or model.Name == "SeekMoving" then
-        repeat task.wait(0.2) until model:FindFirstChild("SeekRig")      
-  local target = model.SeekRig
+        local target = model.PrimaryPart
         else
         target = model
         if not target then return end
@@ -1920,7 +1967,7 @@ do
     end
 
     ESPBox:AddToggle("EntityESP", {
-        Text = "Entities ESP",
+        Text = "Entities",
         Default = false,
         Callback = function(on)
             -- Disconnect previous events
@@ -1955,124 +2002,102 @@ end
 
 --------------------------------------------------------------------------------
 -- Room ESP via makeRoomESP pattern (GetDescendants + events)
---------------------------------------------------------------------------------
-do
-    local function makeRoomESP(name, matchFn, labelFnOrText, color)
-        local tracked = {}      -- [Instance] = espHandle
-        local addedConn, removingConn, roomChangeConn
+------------------------------------------------------------------------------
 
-        local function addESP(obj)
-            if tracked[obj] then return end
-            local target
-            if obj:IsA("Model") then
-                target = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-            elseif obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Attachment") then
-                target = obj
-            end
-            if not target then return end
+local LatestRoomVal = game.ReplicatedStorage.GameData.LatestRoom
 
-            local textLabel
-            if type(labelFnOrText) == "function" then
-                local success, result = pcall(function() return labelFnOrText(obj) end)
-                textLabel = (success and result) or ""
-            else
-                textLabel = tostring(labelFnOrText)
-            end
+local function makeRoomESP(name, matchFn, labelFnOrText, color)
+    local tracked = {}
+    local addedConn, removingConn, roomChangeConn
 
-            local espHandle = ESPLibrary:AddESP{ Object = target, Text = textLabel, Color = color }
-            tracked[obj] = espHandle
-        end
-
-        local function removeESP(obj)
-            local h = tracked[obj]
-            if h then
-                ESPLibrary:RemoveESP(h)
-                tracked[obj] = nil
-            end
-        end
+    local function addESP(obj)
+        if tracked[obj] then return end
+        local target
         
-        
-        
-
-        local function bindRoom(room)
-            -- Clear previous trackers
-            for obj, espHandle in pairs(tracked) do
-                ESPLibrary:RemoveESP(espHandle)
-            end
-            table.clear(tracked)
-            -- Disconnect previous events
-            if addedConn then
-                addedConn:Disconnect()
-                addedConn = nil
-            end
-            if removingConn then
-                removingConn:Disconnect()
-                removingConn = nil
-            end
-            if not room then
-                return
-            end
-            -- Initial scan of current room
-            local descendants = room:GetDescendants()
-            for i = 1, #descendants do
-                local obj = descendants[i]
-                if matchFn(obj) then
-                    addESP(obj)
-                end
-            end
-            -- Connect events to detect new matches
-            addedConn = room.DescendantAdded:Connect(function(inst)
-                if matchFn(inst) then
-                
-                    addESP(inst)
-                end
-            end)
-            removingConn = room.DescendantRemoving:Connect(function(inst)
-                if tracked[inst] then
-                    removeESP(inst)
-                end
-            end)
+            target = (obj.Name == "Door") and obj.PrimaryPart or obj           
+       
+        if not target then return end
+        local textLabel
+        if type(labelFnOrText) == "function" then
+            local success, result = pcall(function() return labelFnOrText(obj) end)
+            textLabel = (success and result) or ""
+        else
+            textLabel = tostring(labelFnOrText)
         end
-
-        ESPBox:AddToggle(name, {
-            Text = name,
-            Default = false,
-            Callback = function(on)
-                -- Disconnect room change listener
-                if roomChangeConn then
-                    roomChangeConn:Disconnect()
-                    roomChangeConn = nil
-                end
-                -- Disconnect bound events & clear ESP
-                if addedConn then
-                    addedConn:Disconnect()
-                    addedConn = nil
-                end
-                if removingConn then
-                    removingConn:Disconnect()
-                    removingConn = nil
-                end
-                for obj, espHandle in pairs(tracked) do
-                    ESPLibrary:RemoveESP(espHandle)
-                end
-                table.clear(tracked)
-
-                if not on then return end
-
-                -- When room changes, re-bind
-                roomChangeConn = LatestRoomVal:GetPropertyChangedSignal("Value"):Connect(function()
-                    local newRoom = currentRoom()
-                    bindRoom(newRoom)
-                end)
-                -- Initial bind
-                bindRoom(currentRoom())
-            end,
-        })
+        local espHandle = ESPLibrary:AddESP{ Object = target, Text = textLabel, Color = color }
+        tracked[obj] = espHandle
     end
 
+    local function removeESP(obj)
+        local handle = tracked[obj]
+        if handle then
+            ESPLibrary:RemoveESP(handle)
+            tracked[obj] = nil
+        end
+    end
+
+    local function clearTracked()
+        for obj, handle in pairs(tracked) do
+            ESPLibrary:RemoveESP(handle)
+        end
+        table.clear(tracked)
+    end
+
+    local function disconnectBound()
+        if addedConn then
+            addedConn:Disconnect()
+            addedConn = nil
+        end
+        if removingConn then
+            removingConn:Disconnect()
+            removingConn = nil
+        end
+    end
+
+    local function bindRoom(room)
+        clearTracked()
+        disconnectBound()
+        if not room then return end
+        local descendants = room:GetDescendants()
+        for i = 1, #descendants do
+            local obj = descendants[i]
+            if matchFn(obj) then
+                addESP(obj)
+            end
+        end
+        addedConn = room.DescendantAdded:Connect(function(inst)
+            if matchFn(inst) then
+                addESP(inst)
+            end
+        end)
+        removingConn = room.DescendantRemoving:Connect(function(inst)
+            if tracked[inst] then
+                removeESP(inst)
+            end
+        end)
+    end
+
+    ESPBox:AddToggle(name, {
+        Text = name,
+        Default = false,
+        Callback = function(on)
+            if roomChangeConn then
+                roomChangeConn:Disconnect()
+                roomChangeConn = nil
+            end
+            disconnectBound()
+            clearTracked()
+            if not on then return end
+            roomChangeConn = LatestRoomVal.Changed:Connect(function()
+                bindRoom(currentRoom())
+            end)
+            bindRoom(currentRoom())
+        end,
+    })
+end
     -- Example calls as before:
     makeRoomESP(
-        "DoorESP",
+        "Door",
         function(o) return o:IsA("Model") and o.Name == "Door" end,
         function(o)
             local sign = o:FindFirstChild("Sign")
@@ -2090,212 +2115,185 @@ do
         end,
         Color3.fromRGB(0, 0, 255)
     )
-    makeRoomESP("KeyESP",
-        function(o) if o.Name == "KeyObtain" then
-        for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-end
-end,
-        "Key",
-        Color3.fromRGB(0, 255, 0)
-    )
-    makeRoomESP("HidingSpot ESP",
+    -- makeRoomESP callbacks now return Model instances; ESPLibrary:AddESP is called with Object = model
+makeRoomESP("Key",
+    function(o)
+        if o.Name == "KeyObtain" then
+            return o
+        end
+    end,
+    "Key",
+    Color3.fromRGB(0, 255, 0)
+)
+
+makeRoomESP("HidingSpot",
+    function(o)
+        if o.Name == "Wardrobe"
+            or o.Name == "Rooms_Locker"
+            or o.Name == "Backdoor_Wardrobe"
+            or o.Name == "Toolshed"
+            or o.Name == "Locker_Large"
+            or o.Name == "Bed"
+            or o.Name == "CircularVent"
+            or o.Name == "Rooms_Locker_Fridge"
+            or o.Name == "RetroWardrobe"
+            or o.Name == "Dumpster"
+            or o.Name == "Double_Bed" then
+            return o
+        end
+    end,
+    function(o)
+        if o.Name == "Bed" or o.Name == "Double_Bed" then
+            return "Bed"
+        elseif o.Name == "Rooms_Locker" or o.Name == "Locker_Large" then
+            return "Locker"
+        elseif o.Name == "Wardrobe" or o.Name == "Backdoor_Wardrobe"
+            or o.Name == "Toolshed" or o.Name == "RetroWardrobe" then
+            return "Closet"
+        elseif o.Name == "CircularVent" then
+            return "Hiding Vent"
+        elseif o.Name == "Rooms_Locker_Fridge" then
+            return "Locker_Fridge"
+        elseif o.Name == "Dumpster" then
+            return "Dumpster"
+        end
+    end,
+    Color3.fromRGB(0, 255, 0)
+)
+
+makeRoomESP("Library Books",
+    function(o)
+        if o:IsA("Model") and o.Name == "LiveHintBook" then
+            return o
+        end
+    end,
+    "Book",
+    Color3.fromRGB(0, 0, 255)
+)
+
+makeRoomESP("Gate Lever",
+    function(o)
+        if o:IsA("Model") and o.Name == "LeverForGate" then
+            return o
+        end
+    end,
+    "Gate Lever",
+    Color3.fromRGB(0, 0, 255)
+)
+
+makeRoomESP("Breaker",
+    function(o)
+        if o.Name == "LiveBreakerPolePickup" then
+            return o
+        end
+    end,
+    "Breaker",
+    Color3.fromRGB(0, 255, 0)
+)
+
+makeRoomESP("Timer Lever",
+    function(o)
+        if o.Name == "TimerLever" then
+            return o
+        end
+    end,
+    "TimerLever",
+    Color3.fromRGB(0, 0, 255)
+)
+
+makeRoomESP("Generator",
+    function(o)
+        if o.Name == "MinesGenerator" then
+            return o
+        end
+    end,
+    "Generator",
+    Color3.fromRGB(0, 255, 0)
+)
+
+makeRoomESP("Fuse",
+    function(o)
+        if o.Name == "FuseObtain" then
+            return o
+        end
+    end,
+    "Fuse",
+    Color3.fromRGB(0, 255, 0)
+)
+
+makeRoomESP("Chest",
+    function(o)
+        if o.Name == "ChestBox" then
+            return o
+        end
+    end,
+    "Chest",
+    Color3.fromRGB(0, 255, 0)
+)
+
+local anchors = {
+    {Toggle = "Anchor", Target = "MinesAnchor", Label = "Anchor"},
+    {Toggle = "Electrical Key", Target = "ElectricalKeyObtain", Label = "ElectricalKey"},
+    {Toggle = "Water Pump", Target = "WaterPump", Label = "WaterPump"},
+}
+for i = 1, #anchors do
+    local a = anchors[i]
+    makeRoomESP(a.Toggle,
         function(o)
-            
-            if o.Name == "Wardrobe"
-                or o.Name == "Rooms_Locker"
-                or o.Name == "Backdoor_Wardrobe"
-                or o.Name == "Toolshed"
-                or o.Name == "Locker_Large"
-                or o.Name == "Bed"
-                or o.Name == "CircularVent"
-                or o.Name == "Rooms_Locker_Fridge"
-                or o.Name == "RetroWardrobe"
-                or o.Name == "Dumpster"
-                or o.Name == "Double_Bed" then
-                for _, v in pairs(o:GetDescendants()) do
-                if v.Name ~= "PlayerCollision" and v:IsA("BasePart") then
-return v
-end
-end
-end
-        end,
-        function(o)
-            if o.Name == "Bed" or o.Name == "Double_Bed" then
-                return "Bed"
-            elseif o.Name == "Rooms_Locker" or o.Name == "Locker_Large" then
-                return "Locker"
-            elseif o.Name == "Wardrobe" or o.Name == "Backdoor_Wardrobe" or o.Name == "Toolshed" or o.Name == "RetroWardrobe" then
-                return "Closet"
-            elseif o.Name == "CircularVent" then
-                return "Hiding Vent"
-            elseif o.Name == "Rooms_Locker_Fridge" then
-                return "Locker_Fridge"
-            elseif o.Name == "Dumpster" then
-                return "Dumpster"
+            if o.Name == a.Target then
+                return o
             end
         end,
+        a.Label,
         Color3.fromRGB(0, 255, 0)
     )
-    makeRoomESP("BookESP",
-        function(o) if o:IsA("Model") and o.Name == "LiveHintBook" then
-        for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-        end
-end,
-        "Book",
-        Color3.fromRGB(0, 0, 255)
-    )
-    makeRoomESP("LeverESP",
-        function(o) if o:IsA("Model") and o.Name == "LeverForGate" then
-        for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-end
-end,
-        "Gate Lever",
-        Color3.fromRGB(0, 0, 255)
-    )
-    makeRoomESP("BreakerESP",
-        function(o) if o.Name == "LiveBreakerPolePickup" then
-        for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-end
- end,
-        "Breaker",
-        Color3.fromRGB(0, 255, 0)
-    )
-    makeRoomESP("TimerLeverESP",
-        function(o) if o.Name == "TimerLever" then
-        for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-end
- end,
-        "TimerLever",
-        Color3.fromRGB(0, 0, 255)
-    )
-    makeRoomESP("GeneratorESP",
-        function(o) if o.Name == "MinesGenerator"  then
-for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-end
-end,
-        "Generator",
-        Color3.fromRGB(0, 255, 0)
-    )
-    makeRoomESP("FuseESP",
-        function(o) if o.Name == "FuseObtain"  then
-for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-end
-end,
-        "Fuse",
-        Color3.fromRGB(0, 255, 0)
-    )
-    makeRoomESP("ChestESP",
-        function(o) if o.Name == "ChestBox" then
-        for _, v in pairs(o:GetDescendants()) do
-if v:IsA("BasePart") then
-return v
-end
-end
-end
-end,
-        "Chest",
-        Color3.fromRGB(0, 255, 0)
-    )
-     
-    local anchors = {
-        {Toggle="AnchorESP", Target="MinesAnchor", Label="Anchor" },
-        {Toggle="ElectricalKeyESP", Target="ElectricalKeyObtain", Label="ElectricalKey"},
-        {Toggle="WaterPumpESP", Target="WaterPump", Label="WaterPump"},
-    }
-    for i = 1, #anchors do
-        local a = anchors[i]
-        makeRoomESP(a.Toggle,
-            function(o) 
-            
-return o.Name == a.Target 
-end,
-
-            a.Label,
-            Color3.fromRGB(0, 255, 0)
-        )
-    end
 end
 
 --------------------------------------------------------------------------------
--- Players ESP (light event-driven, unchanged structure)
+-- Players ESP (pass Model instead of BasePart)
 --------------------------------------------------------------------------------
 do
-    local espConns = {}   -- list of connections
-    local espItems = {}   -- [player] = espHandle
-
-    local function clearPlayers()
+    local espConns = {}
+    local espItems = {}
+    function clearPlayers()
         for _, conn in ipairs(espConns) do
             conn:Disconnect()
         end
         espConns = {}
-        for _, espHandle in pairs(espItems) do
-            ESPLibrary:RemoveESP(espHandle)
+        for _, handle in pairs(espItems) do
+            ESPLibrary:RemoveESP(handle)
         end
         espItems = {}
     end
-
-    local function addPlayer(plr)
+    function addPlayer(plr)
         local function onCharacterAdded(char)
             if espItems[plr] then
                 ESPLibrary:RemoveESP(espItems[plr])
                 espItems[plr] = nil
             end
             local hum = char:WaitForChild("Humanoid", 5)
-            for _, root in pairs(char:GetDescendants()) do
-            if root:IsA("BasePart") then
-            local root = root
-            end
-            end
-            if hum and root then
+            if hum then
                 local text = ("%s [%d/%d]"):format(plr.Name, math.floor(hum.Health), math.floor(hum.MaxHealth))
-                local espHandle = ESPLibrary:AddESP{
-                    Object = root,
+                local handle = ESPLibrary:AddESP{
+                    Object = plr,
                     Text = text,
                     Color = Color3.fromRGB(0, 150, 255),
                 }
-                espItems[plr] = espHandle
-                table.insert(espConns, hum.HealthChanged:Connect(function()
-                    local newText = ("%s [%d/%d]"):format(plr.Name, math.floor(hum.Health), math.floor(hum.MaxHealth))
-                    espHandle:SetText(newText)
-                end))
+                espItems[plr] = handle
+                espConns[#espConns + 1] = hum.HealthChanged:Connect(function()
+                    if espItems[plr] then
+                        espItems[plr]:SetText(("%s [%d/%d]"):format(plr.Name, math.floor(hum.Health), math.floor(hum.MaxHealth)))
+                    end
+                end)
             end
         end
         if plr.Character then
             onCharacterAdded(plr.Character)
         end
-        table.insert(espConns, plr.CharacterAdded:Connect(onCharacterAdded))
+        espConns[#espConns + 1] = plr.CharacterAdded:Connect(onCharacterAdded)
     end
-
-    ESPBox:AddToggle("PlayersESP", {
-        Text = "PlayersESP",
+    ESPBox:AddToggle("Players", {
+        Text = "Players",
         Default = false,
     }):OnChanged(function(on)
         clearPlayers()
@@ -2303,38 +2301,38 @@ do
         for _, plr in ipairs(Players:GetPlayers()) do
             addPlayer(plr)
         end
-        table.insert(espConns, Players.PlayerAdded:Connect(addPlayer))
-        table.insert(espConns, Players.PlayerRemoving:Connect(function(leaving)
+        espConns[#espConns + 1] = Players.PlayerAdded:Connect(addPlayer)
+        espConns[#espConns + 1] = Players.PlayerRemoving:Connect(function(leaving)
             if espItems[leaving] then
                 ESPLibrary:RemoveESP(espItems[leaving])
                 espItems[leaving] = nil
             end
-        end))
+        end)
     end)
 end
 
 --------------------------------------------------------------------------------
--- Items ESP (per-room, using GetDescendants + events)
+-- Items ESP (model-level)
 --------------------------------------------------------------------------------
+-- Items ESP (model-level, rebind on LatestRoomVal change)
 do
-    items = {
+    local trackedItems = {}
+    local addedConn, removingConn, roomChangedConn
+    local items = {
         "Flashlight", "Lockpick", "Vitamins", "Bandage", "StarVial", "StarBottle", "StarJug",
         "Shakelight", "Straplight", "Bulklight", "Battery", "Candle", "Crucifix", "CrucifixWall",
         "Glowsticks", "SkeletonKey", "Candy", "ShieldMini", "ShieldBig", "BandagePack", "BatteryPack",
         "RiftCandle", "LaserPointer", "HolyGrenade", "Shears", "Smoothie", "Cheese", "Bread",
         "AlarmClock", "RiftSmoothie", "GweenSoda", "GlitchCub"
     }
-    itemSet = {}
+    local itemSet = {}
     for i = 1, #items do
         itemSet[items[i]] = true
     end
 
-    local trackedItems = {}  -- [Instance] = espHandle
-    local addedConn, removingConn, roomChangedConn
-
-    local function clearAll()
-        for inst, esp in pairs(trackedItems) do
-            ESPLibrary:RemoveESP(esp)
+    local function clearAllItems()
+        for inst, handle in pairs(trackedItems) do
+            ESPLibrary:RemoveESP(handle)
         end
         trackedItems = {}
         if addedConn then
@@ -2349,19 +2347,13 @@ do
 
     local function addItem(inst)
         if trackedItems[inst] then return end
-        for _, v in pairs(inst:GetDescendants()) do if v:IsA("BasePart") then
-        local part = v
-        if not part then return end
-        local esp = ESPLibrary:AddESP{
-            Object = part,
+        local handle = ESPLibrary:AddESP{
+            Object = inst,
             Text = inst.Name,
-            Color = Color3.fromRGB(255,215,0),
+            Color = Color3.fromRGB(255, 215, 0),
         }
-        trackedItems[inst] = esp
+        trackedItems[inst] = handle
     end
-    end
-    end
-    
 
     local function removeDestroyed(inst)
         if trackedItems[inst] then
@@ -2371,10 +2363,8 @@ do
     end
 
     local function bindRoomScan(room)
-        -- Clear previous
-        clearAll()
+        clearAllItems()
         if not room then return end
-        -- Initial scan
         local descendants = room:GetDescendants()
         for i = 1, #descendants do
             local node = descendants[i]
@@ -2382,56 +2372,42 @@ do
                 addItem(node)
             end
         end
-        -- Connect new additions/removals
         addedConn = room.DescendantAdded:Connect(function(inst)
             if itemSet[inst.Name] then
                 addItem(inst)
             end
         end)
-        removingConn = room.DescendantRemoving:Connect(function(inst)
-            removeDestroyed(inst)
-        end)
+        removingConn = room.DescendantRemoving:Connect(removeDestroyed)
     end
 
-    ESPBox:AddToggle("ItemsESP", {
-        Text = "ItemsESP",
+    ESPBox:AddToggle("Items", {
+        Text = "Items",
         Default = false,
         Callback = function(on)
-            -- Clear existing
-            clearAll()
+            clearAllItems()
             if roomChangedConn then
                 roomChangedConn:Disconnect()
                 roomChangedConn = nil
             end
             if not on then return end
-            -- Bind initial room
             bindRoomScan(currentRoom())
-            -- Re-bind on room change
             roomChangedConn = LatestRoomVal.Changed:Connect(function()
                 bindRoomScan(currentRoom())
             end)
         end,
     })
 end
--- Assume ESPLibrary has methods AddESP{Object=..., Text=..., Color=...} returning a handle,
--- and RemoveESP(handle) to remove it.
 
-local workspace = game:GetService("Workspace")
+-- Gold ESP (model-level, rebind on LatestRoomVal change)
+do
+    local goldESP = {}
+    local descendantConn, roomChangedConn
 
--- Table to hold ESP handles and cleanup connections
-local goldESP = {}  -- [instance] = { handle = espHandle, ancestryConn = RBXScriptConnection }
-local descendantConn = nil
-
-ESPBox:AddToggle("Gold ESP", {
-    Text = "Gold ESP",
-    Default = false,
-    Callback = function(on)
-        -- Cleanup if turning off or re-toggling
+    local function clearGoldESP()
         if descendantConn then
             descendantConn:Disconnect()
             descendantConn = nil
         end
-        -- Disconnect any existing ancestry watchers and remove ESP
         for inst, data in pairs(goldESP) do
             if data.ancestryConn then
                 data.ancestryConn:Disconnect()
@@ -2441,66 +2417,64 @@ ESPBox:AddToggle("Gold ESP", {
             end
         end
         goldESP = {}
+    end
 
-        if not on then
-            return
-        end
-
-        local roomsFolder = workspace:WaitForChild("CurrentRooms")
-
-        -- Helper to add ESP for a GoldPile instance, and set up cleanup when removed
-        local function addGoldPileESP(inst)
-            -- Avoid duplicates
-            if goldESP[inst] then return end
-            -- Check attribute
-            for _, base in pairs(inst:GetDescendants()) do if base:IsA("BasePart") then
-            local value = inst:GetAttribute("GoldValue")
-            if not value then return end
-            -- Create ESP
-            local handle = ESPLibrary:AddESP{
-                Object = base,
-                Text = "Gold " .. tostring(value),
-                Color = Color3.fromRGB(255, 215, 0),
-            }
-            -- Listen for removal from hierarchy to clean up ESP
-            local ancestryConn = inst.AncestryChanged:Connect(function(child, parent)
-                if not parent or not inst:IsDescendantOf(roomsFolder) then
-                    -- Instance removed or moved out of CurrentRooms: remove ESP and disconnect
-                    if goldESP[inst] then
-                        if goldESP[inst].handle then
-                            ESPLibrary:RemoveESP(goldESP[inst].handle)
+    ESPBox:AddToggle("Gold", {
+        Text = "Gold",
+        Default = false,
+        Callback = function(on)
+            clearGoldESP()
+            if roomChangedConn then
+                roomChangedConn:Disconnect()
+                roomChangedConn = nil
+            end
+            if not on then return end
+            local function bindGold()
+                clearGoldESP()
+                local roomsFolder = workspace:WaitForChild("CurrentRooms")
+                local function addGoldPileESP(inst)
+                    if goldESP[inst] then return end
+                    local value = inst:GetAttribute("GoldValue")
+                    if not value then return end
+                    local handle = ESPLibrary:AddESP{
+                        Object = inst,
+                        Text = "Gold " .. tostring(value),
+                        Color = Color3.fromRGB(255, 215, 0),
+                    }
+                    local ancestryConn = inst.AncestryChanged:Connect(function(child, parent)
+                        if not parent or not inst:IsDescendantOf(roomsFolder) then
+                            if goldESP[inst] then
+                                if goldESP[inst].handle then
+                                    ESPLibrary:RemoveESP(goldESP[inst].handle)
+                                end
+                                if goldESP[inst].ancestryConn then
+                                    goldESP[inst].ancestryConn:Disconnect()
+                                end
+                                goldESP[inst] = nil
+                            end
                         end
-                        if goldESP[inst].ancestryConn then
-                            goldESP[inst].ancestryConn:Disconnect()
-                        end
-                        goldESP[inst] = nil
-                    end
-                    end
                     end)
+                    goldESP[inst] = {handle = handle, ancestryConn = ancestryConn}
                 end
+                for _, inst in ipairs(roomsFolder:GetDescendants()) do
+                    if inst.Name == "GoldPile" then
+                        addGoldPileESP(inst)
+                    end
+                end
+                descendantConn = roomsFolder.DescendantAdded:Connect(function(inst)
+                    if inst.Name == "GoldPile" then
+                        addGoldPileESP(inst)
+                    end
+                end)
             end
 
-            goldESP[inst] = {
-                handle = handle,
-                ancestryConn = ancestryConn
-            }
-        end
-
-        -- Initial one-time scan: add ESP for existing GoldPile instances
-        for _, inst in ipairs(roomsFolder:GetDescendants()) do  -- 
-            if inst.Name == "GoldPile" then
-                addGoldPileESP(inst)
-            end
-        end
-
-        -- Listen for new descendants under CurrentRooms
-        descendantConn = roomsFolder.DescendantAdded:Connect(function(inst)  -- 
-            if inst.Name == "GoldPile" then
-                addGoldPileESP(inst)
-            end
-        end)
-    end,
-})
+            bindGold()
+            roomChangedConn = LatestRoomVal.Changed:Connect(function()
+                bindGold()
+            end)
+        end,
+    })
+end
 ESPSettings:AddToggle('Rainbow ESP',{
 	Text = "Rainbow Esp",
 	Default = false,
@@ -2525,7 +2499,7 @@ ESPSettings:AddToggle('Distance Meters ESP',{
 
 ESPSettings:AddSlider('Text Size',{
 	Text='Text Size',
-	Min=18,Max=29,Default=20,
+	Min=16,Max=23,Default=20,
 	Rounding=0,
 	Callback=function(v)
 		ESPLibrary:SetTextSize(v)
@@ -2852,31 +2826,73 @@ end
 function handleFigure(model)
 	if seenModels[model] or not model:IsDescendantOf(roomFolder) then return end
 	seenModels[model] = true
-
-	destroyConn[model] = model.AncestryChanged:Connect(function(_, parent)
+	destroyConn[model] = {}
+	local root = model:FindFirstChild("Root")
+	local function cleanUpModelConns()
+		local conns = destroyConn[model]
+		if conns then
+			for _, c in pairs(conns) do
+				if c and c.Disconnect then
+					c:Disconnect()
+				end
+			end
+		end
+		destroyConn[model] = nil
+		seenModels[model] = nil
+	end
+	local ancestryConn = model.AncestryChanged:Connect(function(_, parent)
 		if not parent then
-			seenModels[model] = nil
-			if destroyConn[model] then
-				destroyConn[model]:Disconnect()
-				destroyConn[model] = nil
-			end
+			cleanUpModelConns()
 		end
 	end)
-
-	task.spawn(function()
-		while DeleteFigureEnabled do
-			task.wait(0.02)
-			local root = model:FindFirstChild("Root")
-			if root and isnetworkowner(root) then
-				task.wait(0.4)
-				root.CanCollide = false
-				root.CFrame = CFrame.new(0, -999999, 0)
-				notify("Figure has been cleared!")
-				Sound()
-				break
-			end
+	table.insert(destroyConn[model], ancestryConn)
+	local function deleteRoot()
+		if not DeleteFigureEnabled then
+			cleanUpModelConns()
+			return
 		end
-	end)
+		local r = model:FindFirstChild("Root")
+		if r then
+			r.CanCollide = false
+			r.CFrame = CFrame.new(0, -999999, 0)
+			notify("Figure has been cleared!")
+			Sound()
+		end
+		cleanUpModelConns()
+	end
+	if root and isnetworkowner(root) then
+		task.spawn(function()
+			deleteRoot()
+		end)
+	else
+		local function onAlarmDestroyed()
+			deleteRoot()
+		end
+		local function listenToAlarm(alarm)
+			local alarmAncestryConn = alarm.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					alarmAncestryConn:Disconnect()
+					deleteRoot()
+				end
+			end)
+			table.insert(destroyConn[model], alarmAncestryConn)
+		end
+		local alarm = workspace:FindFirstChild("AlarmClockModel")
+		if alarm then
+			listenToAlarm(alarm)
+		else
+			local detectConn
+			detectConn = workspace.DescendantAdded:Connect(function(inst)
+				if inst.Name == "AlarmClockModel" then
+					detectConn:Disconnect()
+					table.insert(destroyConn[model], detectConn)
+					listenToAlarm(inst)
+				end
+			end)
+			table.insert(destroyConn[model], detectConn)
+		end
+		notify("isnetworkowner() not supported; will wait for AlarmClockModel to delete figure")
+	end
 end
 
 function scanRoomOnce()
@@ -2894,25 +2910,22 @@ BypassBox:AddToggle("DFF", {
 	Default = false,
 	Callback = function(on)
 		DeleteFigureEnabled = on
-
 		if descAddedConn then
 			descAddedConn:Disconnect()
 			descAddedConn = nil
 		end
-
-		for model, conn in pairs(destroyConn) do
-			if conn then conn:Disconnect() end
+		for model, conns in pairs(destroyConn) do
+			if conns then
+				for _, c in pairs(conns) do
+					if c then c:Disconnect() end
+				end
+			end
 		end
 		table.clear(seenModels)
 		table.clear(destroyConn)
-
 		if on then
-			notify("[Delete Figure] Some times Require Clock")
-
-			-- Initial limited scan
+			notify("[Delete Figure] Sometimes requires AlarmClockModel")
 			scanRoomOnce()
-
-			-- Real-time efficient spawn tracking
 			descAddedConn = roomFolder.DescendantAdded:Connect(function(node)
 				if node:IsA("Model") and (node.Name == "FigureRig" or node.Name == "FigureRagdoll") then
 					handleFigure(node)
@@ -2976,7 +2989,7 @@ CamLockEvents = {}
 task.spawn(function()
 	local RemotesFolder = ReplicatedStorage:FindFirstChild("Bricks") or ReplicatedStorage:WaitForChild("RemotesFolder")
 
-	local batchMax = 15
+	local batchMax = 1000
 	local all = {}
 
 	for _, obj in RemotesFolder do
@@ -3569,25 +3582,7 @@ Workspace.DescendantRemoving:Connect(function(desc)
 end)
 	Library:SetWatermarkVisibility(true)
 
-	-- Example of dynamically-updating watermark with common traits (fps and ping)
-	local FrameTimer = tick()
-	local FrameCounter = 0;
-	local FPS = 60;
-
-	local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(function()
-		FrameCounter = FrameCounter + 1;
-
-		if (tick() - FrameTimer) >= 1 then
-			FPS = FrameCounter;
-			FrameTimer = tick();
-			FrameCounter = 0;
-		end;
-
-		Library:SetWatermark(('ProHax V2 | %s fps | %s ms'):format(
-			math.floor(FPS),
-			math.floor(game:GetService('Stats').Network.ServerStatsItem['Data Ping']:GetValue())
-			));
-	end);
+Library:SetWatermark(("ProHax V2 | %s"):format(LocalPlayer.Name))
 	Players = game:GetService("Players")
 LocalPlayer = Players.LocalPlayer
 
@@ -3642,11 +3637,20 @@ AutoBox:AddButton({
 	end
 })
 
-
+SettingsBox:AddDropdown('Notify Side', {
+	Values = {'Left', 'Right'},
+	Default = 2,
+	Multi = false,
+	Text = 'Notify Side',
+	Tooltip = 'Make Notification Appears On Left or Right Side.',
+	Callback = function(Value)
+		Library.NotifySide = Value
+	end
+})
 
 	SettingsBox:AddToggle("ShowKeybinds", {
 		Text = "Show Keybinds",
-		Default = true,
+		Default = false,
 		Tooltip = "Toggle the visibility of the keybinds menu",
 	}):OnChanged(function()
 		Library.KeybindFrame.Visible = Toggles.ShowKeybinds.Value
@@ -3660,7 +3664,7 @@ AutoBox:AddButton({
 	end)
 	SettingsBox:AddToggle("CustomCursor", {
 		Text = "Custom Cursor",
-		Default = true,
+		Default = false,
 		Tooltip = "Toggle the visibility of the keybinds menu",
 	}):OnChanged(function()
 		Library.ShowCustomCursor = Toggles.CustomCursor.Value
