@@ -1069,7 +1069,7 @@ do
 
     local function applyFullBright()
         Lighting.GlobalShadows        = false
-        Lighting.Brightness           = 6
+        Lighting.Brightness           = 3
         Lighting.ClockTime            = 14
         Lighting.FogEnd               = 1e6
         Lighting.OutdoorAmbient       = Color3.fromRGB(192,192,192)
@@ -1356,9 +1356,9 @@ Godmode = BypassBox:AddToggle("Godmode", {
 	Callback = function(enabled)
 		inGodmode = enabled
 if inGodmode then
-LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position - Vector3.new(0, 2, 0)
+LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position - Vector3.new(0, 2.3, 0)
 else
-LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position + Vector3.new(0, 2, 0)
+LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position + Vector3.new(0, 2.3, 0)
       end
 end
 }):AddKeyPicker('Avoid Entities Keybind', {
@@ -5006,7 +5006,7 @@ workspace.DescendantAdded:Connect(function(inst)
 
 	local name = inst.Name
 
-	if name == "Snare" then
+	if name == "Snare" and name.Parent.Name == "Assets" then
 		local h = name:WaitForChild("Hitbox")
 		if h then
 			h.CanTouch = not Toggles.AntiSnare.Value
