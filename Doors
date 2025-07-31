@@ -317,8 +317,19 @@ MiscBox:AddButton({
 		end
 	end
 })
-
-
+local InfValue = false
+FoolsBox:AddToggle("Infinite Revive", {
+	Text = "Infinite Revive",
+	Default = false,
+	Callback = function(state)
+InfValue = state
+while InfValue do
+task.wait(0.1)
+if not InfValue then break end
+ReplicatedStorage.EntityInfo.Revive:FireServer()
+end
+end
+})
 Players = game:GetService("Players")
 LocalPlayer = Players.LocalPlayer
 
@@ -988,13 +999,13 @@ local validprompts = {}
 
 local function isvalidprompt(inst)
 	if not inst:IsA("ProximityPrompt") then return false end
-if inst.Enabled then
+
 	if staticignored[inst.Name] then return false end
 	local p = inst.Parent
 	if not p or ignoredparents[p.Name] then return false end
 	return true
 end
-end
+
 local function getvalidprompts()
 	table.clear(validprompts)
 	for _, inst in ipairs(workspace.CurrentRooms:GetDescendants()) do
@@ -1322,8 +1333,7 @@ collision = nil
 Invisibility = false
 
 IsFools = (RepStorage.GameData.Floor.Value == "Fools")
-local offset = Vector3.new(0, -2, 0)
-local highoffset = Vector3.new(0, -1.3, 0)
+local offset =  IsFools and 12.5 or 2.3
 originalCollisionPos = {}
 inGodmode = false
 
@@ -1356,9 +1366,9 @@ Godmode = BypassBox:AddToggle("Godmode", {
 	Callback = function(enabled)
 		inGodmode = enabled
 if inGodmode then
-LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position - Vector3.new(0, 2.3, 0)
+LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position - Vector3.new(0, offset,0)
 else
-LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position + Vector3.new(0, 2.3, 0)
+LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position + Vector3.new(0,offset,0)
       end
 end
 }):AddKeyPicker('Avoid Entities Keybind', {
@@ -5014,6 +5024,7 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "DoorFake" then
+task.wait(0.01)
 		for _, c in ipairs(inst:GetChildren()) do
 			if c:IsA("BasePart") then
 				c.CanTouch = not Toggles.AntiDupe.Value
@@ -5029,6 +5040,7 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "Seek_Arm" or name == "ChandelierObstruction" then
+task.wait(0.01)
 		for _, p in ipairs(inst:GetChildren()) do
 			if p:IsA("BasePart") then
 				p.CanTouch = not Toggles.AntiSeek.Value
@@ -5041,7 +5053,9 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "JeffTheKiller" then
+task.wait(0.01)
 		for _, p in ipairs(inst:GetChildren()) do
+
 			if p:IsA("BasePart") then
 				p.CanTouch = not Toggles.AntiJeff.Value
 			end
@@ -5053,7 +5067,9 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "ScaryWall" then
+task.wait(0.01)
 		for _, p in ipairs(inst:GetChildren()) do
+
 			if p:IsA("BasePart") then
 				p.CanTouch = not Toggles.AntiScaryWall.Value
 			end
@@ -5061,7 +5077,9 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "SideroomSpace" then
+task.wait(0.01)
 		for _, p in ipairs(inst:GetChildren()) do
+
 			if p:IsA("BasePart") then
 				p.CanTouch = not Toggles.AntiVacuum.Value
 			end
@@ -5069,7 +5087,9 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "GloomEgg" then
+task.wait(0.01)
 		for _, p in ipairs(inst:GetChildren()) do
+
 			if p:IsA("BasePart") then
 				p.CanTouch = not Toggles.AntiGloomPile.Value
 			end
