@@ -326,8 +326,10 @@ InfValue = state
 while InfValue do
 task.wait(0.1)
 if not InfValue then break end
+if LocalPlayer.Character and LocalPlayer.Character.Humanoid.Health == 0 then
 ReplicatedStorage.EntityInfo.Revive:FireServer()
-end
+             end
+      end
 end
 })
 Players = game:GetService("Players")
@@ -656,7 +658,7 @@ AntiBox:AddToggle("AntiSnare", {
 Callback = function(Value)
 for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
 if v.Name == "Snare" then
-v:WaitForChild("Hitbox",5).CanTouch = false
+v:WaitForChild("Hitbox",9e9).CanTouch = false
 end
 end
 end
@@ -2171,8 +2173,9 @@ local Toggle10 = AntiBox:AddToggle('AntiJamming', {
 	Text = "Anti-Jamming",
 	Default = false,
 	Callback = function(state)
-		if not game:GetService("ReplicatedStorage").LiveModifiers.Jammin then return end
-		local mainTrack = SoundService:FindFirstChild("Main")
+local Modifiers = game.ReplicatedStorage:WaitForChild("LiveModifiers")
+		if not Modifiers.Jammin then return end
+		local mainTrack = game["SoundService"]:FindFirstChild("Main")
 		if mainTrack then
 			local jamming = mainTrack:FindFirstChild("Jamming")
 			if jamming then
@@ -2888,343 +2891,7 @@ end
 	-------------------------------------------------------------------
 	-- SERVICES
 	-------------------------------------------------------------------
-	-- Services
 	
-local RepStorage         = game:GetService("ReplicatedStorage")
-local Players            = game:GetService("Players")
-local RunService         = game:GetService("RunService")
-local PathfindingService = game:GetService("PathfindingService")
-local Workspace          = game:GetService("Workspace")
-
-local LocalPlayer  = Players.LocalPlayer
-local LatestRoom   = RepStorage.GameData.LatestRoom
-
-if getconnections or get_signal_cons then
-    for _, c in pairs((getconnections or get_signal_cons)(LocalPlayer.Idled)) do
-        if c.Disable then
-            c:Disable()
-        elseif c.Disconnect then
-            c:Disconnect()
-        end
-    end
-end
-
-local folder = Workspace:FindFirstChild("PathFindPartsFolder")
-if folder then
-    folder:Destroy()
-end
-folder = Instance.new("Folder", Workspace)
-folder.Name = "PathFindPartsFolder"
-
-local visuals = {}
-local trackedEntities = {}
-
-local WaypointSpacingSlider = RoomsBox:AddSlider("WaypointSpacing", { Text     = "Waypoint Spacing", Min      = 1, Max      = 10, Default  = 2, Rounding = 0, })
-local AutoRoomsToggle = RoomsBox:AddToggle("AutoA1000Toggle", { Text = "Auto A-1000", Default = false })
-local DebugToggle     = RoomsBox:AddToggle("AutoA1000Debug", { Text = "Auto A-1000 Debug", Default = false })
-local ShowNodesToggle = RoomsBox:AddToggle("ShowPathfindingNodes", { Text    = "Show Pathfinding Nodes", Default = false, })
-local StopAutoEnable = RoomsBox:AddToggle("StopAutoEnable", { Text = "Stop Auto A-1000 At Room", Default = false })
-local StopAutoRoomSlider = RoomsBox:AddSlider("StopAutoRoomSlider", { Text     = "Stop Room Number", Min      = 1, Max      = 1000, Default  = 100, Rounding = 0, })
-
-local lastNotify = 0
-local hiding = false
-local PathfindNumber = 1
-
-local function throttleNotify(msg, dur)
-    local now = tick()
-    if now - lastNotify >= 1 then
-        lastNotify = now
-        Library:Notify(msg, dur)
-        Sound()
-    end
-end
-
-local function isEntityRelevant(model)
-    if not model.PrimaryPart then
-        return false
-    end
-    return model.PrimaryPart.Position.Y >= -4
-end
-
-local function clearVisuals()
-    for i = 1, #visuals do
-        local part = visuals[i]
-        if part and part.Parent then
-            part:Destroy()
-        end
-    end
-    visuals = {}
-end
-
-local function PathfindWalkTo(destPosition, onComplete)
-    task.spawn(function()
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then
-            if DebugToggle.Value then
-                throttleNotify("PathfindWalkTo: HRP missing", 2)
-            end
-            return
-        end
-        local origin = hrp.Position
-        local AgentParameters = {
-            WaypointSpacing = WaypointSpacingSlider.Value,
-            AgentRadius     = 1.5,
-            AgentHeight     = 4,
-            AgentCanJump    = false,
-        }
-        local path = PathfindingService:CreatePath(AgentParameters)
-        path:ComputeAsync(origin, destPosition)
-        if path.Status ~= Enum.PathStatus.Success then
-            if DebugToggle.Value then
-                throttleNotify("Path failed", 2)
-            end
-            return
-        end
-
-        PathfindNumber = PathfindNumber + 1
-        local CurrentPathNumber = PathfindNumber
-        local wps = path:GetWaypoints()
-
-        if ShowNodesToggle.Value then
-            clearVisuals()
-            for i = 1, #wps do
-                local wp = wps[i]
-                local part = Instance.new("Part")
-                part.Size = Vector3.new(1, 1, 1)
-                part.Shape = Enum.PartType.Ball
-                part.Color = Color3.fromRGB(0, 0, 255)
-                part.Material = Enum.Material.SmoothPlastic
-                part.Anchored = true
-                part.CanCollide = false
-                part.Transparency = 0.5
-                part.CFrame = CFrame.new(wp.Position)
-                part.Parent = folder
-                visuals[i] = part
-            end
-        else
-            clearVisuals()
-        end
-
-        local WaypointIndex = 1
-        local lastPos = hrp.Position
-        local stuckTime = 0
-        local conn
-        conn = RunService.PreRender:Connect(function(dt)
-            if PathfindNumber ~= CurrentPathNumber then
-                conn:Disconnect()
-                return
-            end
-            if WaypointIndex > #wps then
-                conn:Disconnect()
-                if onComplete then
-                    onComplete(true)
-                end
-                return
-            end
-            local wp = wps[WaypointIndex]
-            local wpPos = wp.Position * Vector3.new(1, 0, 1)
-            local localPos = hrp.Position * Vector3.new(1, 0, 1)
-             delta = (wpPos - localPos).Magnitude
-            if delta <= 1 then
-                WaypointIndex = WaypointIndex + 1
-                stuckTime = 0
-                lastPos = hrp.Position
-                return
-            end
-             movementDelta = (hrp.Position - lastPos).Magnitude
-            if movementDelta < 0.5 then
-                stuckTime = stuckTime + dt
-            else
-                stuckTime = 0
-                lastPos = hrp.Position
-            end
-            if stuckTime >= 2 then
-                conn:Disconnect()
-                PathfindWalkTo(destPosition, onComplete)
-                return
-            end
-            LocalPlayer.Character.Humanoid:Move(wp.Position - hrp.Position)
-        end)
-    end)
-end
-
- function getLockerPart()
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then
-        return
-    end
-    local closest, minD = nil, math.huge
-     currentRooms = Workspace:FindFirstChild("CurrentRooms")
-    if currentRooms then
-        local desc = currentRooms:GetDescendants()
-        for i = 1, #desc do
-             m = desc[i]
-            if m:IsA("Model") and (m.Name == "Rooms_Locker" or m.Name == "Rooms_Locker_Fridge") and m.PrimaryPart and m:FindFirstChild("HidePrompt") then
-                 d = (root.Position - m.PrimaryPart.Position).Magnitude
-                if d < minD then
-                    closest, minD = m.PrimaryPart, d
-                end
-            end
-        end
-    end
-    return closest
-end
-
- function getDoorPart()
-     room = Workspace.CurrentRooms and Workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom.Value))
-    if room then
-        local d = room:FindFirstChild("Door")
-        if d then
-            return d:FindFirstChild("Door")
-        end
-    end
-end
-
-function computePathToCurrentTarget()
-    if not AutoRoomsToggle.Value then
-        return
-    end
-    if StopAutoEnable.Value and tonumber(LatestRoom.Value) >= StopAutoRoomSlider.Value then
-        AutoRoomsToggle:SetValue(false)
-        throttleNotify("Stopped at selected room", 3)
-        return
-    end
-
-    if hiding then
-        local lockerPart = getLockerPart()
-        if lockerPart then
-            PathfindWalkTo(lockerPart.Position, function(reached)
-                if reached then
-                    local model = lockerPart.Parent
-                    if model and model:FindFirstChild("HidePrompt") then
-                        fireproximityprompt(model.HidePrompt)
-                        LocalPlayer.Character:SetAttribute("Hiding", true)
-                    end
-                end
-            end)
-        end
-    else
-        local doorPart = getDoorPart()
-        if doorPart then
-            PathfindWalkTo(doorPart.Position, function(reached)
-                if reached then
-                    if tonumber(LatestRoom.Value) == 1000 then
-                        throttleNotify("Congratulations on A-1000!", 5)
-                    elseif tonumber(LatestRoom.Value) == 60 or tonumber(LatestRoom.Value) == 120 then
-                        local lockerPart = getLockerPart()
-                        if lockerPart then
-                            PathfindWalkTo(lockerPart.Position, function(reached)
-                                if reached then
-                                    local model = lockerPart.Parent
-                                    if model and model:FindFirstChild("HidePrompt") then
-                                        fireproximityprompt(model.HidePrompt)
-                                        LocalPlayer.Character:SetAttribute("Hiding", true)
-                                    end
-                                end
-                            end)
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end
-
-function updateBehavior()
-    if not AutoRoomsToggle.Value then
-        return
-    end
-    local found = false
-    for model in pairs(trackedEntities) do
-        if model and model.PrimaryPart and isEntityRelevant(model) then
-            found = true
-            break
-        end
-    end
-    if found and not hiding then
-        hiding = true
-        LocalPlayer.Character:SetAttribute("Hiding", false)
-    elseif not found and hiding then
-        hiding = false
-        LocalPlayer.Character:SetAttribute("Hiding", false)
-    end
-    computePathToCurrentTarget()
-end
-
-Players.LocalPlayer.CharacterAdded:Connect(function()
-    PathfindNumber = PathfindNumber + 1
-    hiding = false
-    clearVisuals()
-end)
-
-LatestRoom:GetPropertyChangedSignal("Value"):Connect(function()
-    PathfindNumber = PathfindNumber + 1
-    hiding = false
-    clearVisuals()
-    if AutoRoomsToggle.Value then
-        computePathToCurrentTarget()
-    end
-end)
-
-AutoRoomsToggle:OnChanged(function(on)
-    PathfindNumber = PathfindNumber + 1
-    hiding = false
-    clearVisuals()
-    if on then
-        updateBehavior()
-        task.spawn(function()
-            while AutoRoomsToggle.Value do
-                if tonumber(LatestRoom.Value) == 1000 then
-                    break
-                end
-                computePathToCurrentTarget()
-                task.wait(1)
-            end
-        end)
-    end
-end)
-
-Workspace.ChildAdded:Connect(function(child)
-    if child:IsA("Model") then
-        local name = child.Name
-        if name == "A60" or name == "A-60" or name == "A120" or name == "A-120" then
-            trackedEntities[child] = true
-            if AutoRoomsToggle.Value then
-                updateBehavior()
-            end
-        end
-    end
-end)
-
-Workspace.ChildRemoved:Connect(function(child)
-    if trackedEntities[child] then
-        trackedEntities[child] = nil
-        if AutoRoomsToggle.Value then
-            updateBehavior()
-        end
-    end
-end)
-
-Workspace.DescendantAdded:Connect(function(desc)
-    if desc:IsA("Model") then
-        local name = desc.Name
-        if name == "A60" or name == "A-60" or name == "A120" or name == "A-120" then
-            trackedEntities[desc] = true
-            if AutoRoomsToggle.Value then
-                updateBehavior()
-            end
-        end
-    end
-end)
-
-Workspace.DescendantRemoving:Connect(function(desc)
-    if trackedEntities[desc] then
-        trackedEntities[desc] = nil
-        if AutoRoomsToggle.Value then
-            updateBehavior()
-        end
-    end
-end)
 	Library:SetWatermarkVisibility(true)
 
 Library:SetWatermark(("ProHax V3 | %s"):format(LocalPlayer.Name))
@@ -4730,101 +4397,244 @@ ESPSettings:AddToggle("Transparency Closet", {
 		closettoggle(v)
 	end
 })
-runservice = game:GetService("RunService")
-players = game:GetService("Players")
-localplayer = players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
-closets = {}
-hideconn = nil
-closetupdate = nil
+local LocalPlayer = Players.LocalPlayer
 
-function getclosets()
-	closets = {}
-	for _, room in ipairs(workspace.CurrentRooms:GetChildren()) do
-		local assets = room:FindFirstChild("Assets")
-		if assets then
-			for _, v in pairs(assets:GetChildren()) do
-				if v.Name == "Wardrobe" or v.Name == "Rooms_Locker" or v.Name == "Rooms_Locker_Fridge" or v.Name == "Bed" or v.Name == "Double_Bed" or v.Name == "CircularVent" or v.Name == "Toolshed" then
-					table.insert(closets, v)
+local Closets = {}
+local HideConn = nil
+local ClosetUpdate = nil
+local LastHideTime = 0
+
+local function DebugLog(Text)
+	print("[AutoCloset DEBUG]:", Text)
+end
+
+local function GetClosets()
+	Closets = {}
+	for _, Room in ipairs(workspace.CurrentRooms:GetChildren()) do
+		local Assets = Room:FindFirstChild("Assets")
+		if Assets then
+			for _, V in pairs(Assets:GetChildren()) do
+				if V.Name == "Wardrobe" or V.Name == "Rooms_Locker" or V.Name == "Rooms_Locker_Fridge"
+					or V.Name == "Bed" or V.Name == "Double_Bed" or V.Name == "CircularVent" or V.Name == "Toolshed" then
+					table.insert(Closets, V)
 				end
 			end
 		end
 	end
 end
 
-function getclosestcloset()
-	local root = localplayer.Character and localplayer.Character:FindFirstChild("HumanoidRootPart")
-	if not root then return end
+local function GetClosestCloset()
+	local Root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not Root then return end
 
-	local nearest, mindist
-	for _, closet in ipairs(closets) do
-		local primary = closet.PrimaryPart
-		if primary then
-			local dist = (primary.Position - root.Position).Magnitude
-			if not mindist or dist < mindist then
-				nearest, mindist = closet, dist
+	local Nearest, MinDist
+	for _, Closet in ipairs(Closets) do
+		local ClosetPart = Closet:FindFirstChildWhichIsA("BasePart")
+		if ClosetPart then
+			local Dist = (ClosetPart.Position - Root.Position).Magnitude
+			if not MinDist or Dist < MinDist then
+				Nearest, MinDist = Closet, Dist
 			end
 		end
 	end
-	return nearest, mindist
+	return Nearest, MinDist
 end
 
-function getentity()
-	return workspace:FindFirstChild("A60") or workspace:FindFirstChild("A120") or workspace:FindFirstChild("RushMoving") or workspace:FindFirstChild("AmbushMoving") or workspace:FindFirstChild("GlitchRush") or workspace:FindFirstChild("GlitchAmbush")
+local function GetEntity()
+	local EntityList = {"A60", "A120", "RushMoving", "AmbushMoving", "GlitchRush", "GlitchAmbush","BackdoorRush"}
+	for _, Name in ipairs(EntityList) do
+		local E = workspace:FindFirstChild(Name)
+		if E and E.PrimaryPart then
+			DebugLog("Entity Found: " .. Name)
+			return E
+		end
+	end
+	DebugLog("No entity found.")
 end
 
-function getthreshold(name)
-	return name == "A60" and 180 or name == "A120" and 90 or name == "RushMoving" and 150 or name == "AmbushMoving" and 230 or name == "GlitchRush" and 190 or name == "GlitchAmbush" and 200 or 0
+local function GetThreshold(Name)
+	return Name == "A60" and 180
+		or Name == "A120" and 90
+		or Name == "RushMoving" and 150
+		or Name == "AmbushMoving" and 230
+		or Name == "GlitchRush" and 190
+		or Name == "GlitchAmbush" and 200
+		or 150
+end
+
+local function FirePrompt(Prompt)
+	if Prompt and Prompt:IsA("ProximityPrompt") then
+		DebugLog("Firing prompt.")
+		 fireproximityprompt(Prompt)	end
 end
 
 AutoBox:AddToggle("AutoCloset", {
 	Text = "Auto Closet",
 	Default = false,
-	Callback = function(on)
-		if hideconn then hideconn:Disconnect() hideconn = nil end
-		if closetupdate then closetupdate:Disconnect() closetupdate = nil end
+	Callback = function(On)
+		if HideConn then HideConn:Disconnect() HideConn = nil end
+		if ClosetUpdate then ClosetUpdate:Disconnect() ClosetUpdate = nil end
 
-		if on then
-			getclosets()
+		if On then
+			DebugLog("Auto Closet enabled.")
+			GetClosets()
 
-			closetupdate = runservice.Heartbeat:Connect(function()
-				getclosets()
+			ClosetUpdate = RunService.Heartbeat:Connect(function()
+				GetClosets()
 			end)
 
-			hideconn = runservice.Heartbeat:Connect(function()
-				local entity = getentity()
-				local root = localplayer.Character and localplayer.Character:FindFirstChild("HumanoidRootPart")
-				if not entity or not root then return end
+			HideConn = RunService.Heartbeat:Connect(function()
+				local Entity = GetEntity()
+				local Character = LocalPlayer.Character
+				local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+				local Hiding = Character and Character:GetAttribute("Hiding")
 
-				local hiding = localplayer.Character:GetAttribute("Hiding")
-				local entityy = entity.PrimaryPart and entity.PrimaryPart.Position.Y or 0
-				local dist = (entity.PrimaryPart.Position - root.Position).Magnitude
-				local threshold = getthreshold(entity.Name)
+				if not Entity or not Root then return end
 
-				if entityy < -6 then
-					if hiding then localplayer.Character:SetAttribute("Hiding", false) end
-					return
-				end
+				local Distance = (Entity.PrimaryPart.Position - Root.Position).Magnitude
+				local Threshold = GetThreshold(Entity.Name)
+				local EntityY = Entity.PrimaryPart.Position.Y
 
-				if dist <= threshold then
-					if not hiding then
-						local closet = getclosestcloset()
-						if closet then
-							local prompt = closet:FindFirstChild("HidePrompt", true)
-							if prompt then
-								fireproximityprompt(prompt)
-								localplayer.Character:SetAttribute("Hiding", true)
+				DebugLog("Entity distance: " .. math.floor(Distance))
+				DebugLog("Entity threshold: " .. Threshold)
+				DebugLog("Entity Y: " .. EntityY)
+
+				
+				
+
+				if Distance <= Threshold then
+					DebugLog("Within hide range.")
+					if not Hiding and tick() - LastHideTime > 0.4 then
+						local Closet = GetClosestCloset()
+						if Closet then
+							local ClosetPart = Closet:FindFirstChildWhichIsA("BasePart")
+							if ClosetPart and (ClosetPart.Position - Root.Position).Magnitude <= 13 then
+								local Prompt = Closet:FindFirstChild("HidePrompt", true)
+								if Prompt then
+									DebugLog("Hiding...")
+									FirePrompt(Prompt)
+									Character:SetAttribute("Hiding", true)
+									LastHideTime = tick()
+								else
+									DebugLog("Prompt not found in closet.")
+								end
+							else
+								DebugLog("Too far from closet.")
 							end
+						else
+							DebugLog("No closest closet found.")
 						end
 					end
-				elseif dist > threshold + 10 then
-					if hiding then localplayer.Character:SetAttribute("Hiding", false) end
+				elseif Distance > Threshold + 10 then
+					if Hiding then
+						DebugLog("Unhiding - entity gone.")
+						Character:SetAttribute("Hiding", false)
+					end
 				end
 			end)
+		else
+			DebugLog("Auto Closet disabled.")
 		end
 	end
 })
+local PathfindingService = game:GetService("PathfindingService")
+PathfindNumber = 0
 
+function PathfindWalkTo(Position)
+	task.spawn(function()
+		local AgentParameters = {
+			WaypointSpacing = 4,
+			AgentRadius = 1.3,
+			AgentHeight = 3,
+			AgentCanJump = false,
+			AgentCanClimb = false
+		}
+		local Path = PathfindingService:CreatePath(AgentParameters)
+		Path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position, Position)
+		if Path.Status == Enum.PathStatus.Success then
+			PathfindNumber += 1
+			local ThisPathNumber = PathfindNumber
+			local Waypoints = Path:GetWaypoints()
+			local WaypointIndex = 2
+			local MoveConnection
+			MoveConnection = RunService.PreRender:Connect(function()
+				if ThisPathNumber ~= PathfindNumber then MoveConnection:Disconnect() return end
+				local Waypoint = Waypoints[WaypointIndex] or Waypoints[#Waypoints]
+				local Waypoint2D = Waypoint.Position * Vector3.new(1, 0, 1)
+				local Current2D = LocalPlayer.Character.HumanoidRootPart.Position * Vector3.new(1, 0, 1)
+				if (Waypoint2D - Current2D).Magnitude <= 1 then
+					WaypointIndex += 1
+				else
+					LocalPlayer.Character.Humanoid:MoveTo(Waypoint.Position)
+				end
+			end)
+		end
+	end)
+end
+
+function GetClosestLocker()
+	local HumanoidRootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not HumanoidRootPart then return end
+	local ClosestPart, ClosestDistance
+	for _, Object in ipairs(workspace.CurrentRooms:GetDescendants()) do
+		if Object:IsA("Model") and (Object.Name == "Rooms_Locker" or Object.Name == "Rooms_Locker_Fridge") then
+			local BasePart = Object:FindFirstChildWhichIsA("BasePart")
+			if BasePart then
+				local Distance = (BasePart.Position - HumanoidRootPart.Position).Magnitude
+				if not ClosestDistance or Distance < ClosestDistance then
+					ClosestPart = BasePart
+					ClosestDistance = Distance
+				end
+			end
+		end
+	end
+	return ClosestPart
+end
+
+function FirePrompt(ProxPrompt)
+	if ProxPrompt and ProxPrompt:IsA("ProximityPrompt") then
+		ProxPrompt:InputHoldBegin()
+		task.wait(ProxPrompt.HoldDuration or 1)
+		ProxPrompt:InputHoldEnd()
+	end
+end
+
+RoomsBox:AddToggle("AutoRooms", {
+	Text = "Auto Rooms",
+	Default = false,
+	Callback = function(Enabled)
+		if Enabled then
+			task.spawn(function()
+				while Toggles.AutoRooms.Value do
+					if workspace:FindFirstChild("A60") or workspace:FindFirstChild("A120") then
+						local LockerPart = GetClosestLocker()
+						if LockerPart then
+							PathfindWalkTo(LockerPart.Position)
+							repeat task.wait() until (LocalPlayer.Character.HumanoidRootPart.Position - LockerPart.Position).Magnitude <= 13
+							local Prompt = LockerPart.Parent and LockerPart.Parent:FindFirstChild("HidePrompt")
+							FirePrompt(Prompt)
+						end
+					elseif not workspace:FindFirstChild("Entity") then
+						LocalPlayer.Character:SetAttribute("Hiding", false)
+						local LatestRoom = game.ReplicatedStorage.GameData.LatestRoom.Value
+						local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
+						local DoorPart = Room and Room:FindFirstChild("Door") and Room.Door:FindFirstChild("Door")
+						if DoorPart then
+							PathfindWalkTo(DoorPart.Position)
+							repeat task.wait() until (LocalPlayer.Character.HumanoidRootPart.Position - DoorPart.Position).Magnitude <= 5
+						end
+					end
+					task.wait(0.1)
+				end
+			end)
+		else
+			PathfindNumber += -1
+		end
+	end
+})
  local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local workspace = game:GetService("Workspace")
@@ -4907,6 +4717,7 @@ AutoBox:AddToggle("Spectate", {
 		LocalPlayer.CharacterRemoving:Connect(cleanup)
 	end
 })
+
 Library:Notify("Loaded, Prohax, Successfully",3) 
 
 workspace.DescendantAdded:Connect(function(inst)
