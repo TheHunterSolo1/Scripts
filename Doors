@@ -1,4 +1,4 @@
-repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+repo = "https://raw.githubusercontent.content.com/deividcomsono/Obsidian/main/"
 
 
 Library  =  loadstring(game:HttpGet(repo..'Library.lua'))()
@@ -981,6 +981,7 @@ local staticignored = {
 	InteractPrompt = true,
 	PropPrompt = true,
 	StarRiftPrompt = true,
+RevivePrompt = true,
 	RiftPrompt = true
 }
 
@@ -988,7 +989,9 @@ local ignoredparents = {
 	Padlock = true,
 	Seek_Arm = true,
 	KeyObtainFake = true,
-   ChandelierObstruction  = true
+   ChandelierObstruction  = true,
+AlarmClockModel = true
+
 }
 
 local validprompts = {}
@@ -2478,113 +2481,126 @@ do
 end
 
 -- === DELETE FIGURE (FE) ===
-	seenModels = {}
-destroyConn = {}
-roomFolder = workspace.CurrentRooms
-DeleteFigureEnabled = false
+	seenmodels = {}
+destroyconn = {}
+deletefigureenabled = false
+heartbeatconnection = nil
+runservice = game:GetService("RunService")
+roomfolder = workspace.CurrentRooms
 
-function notify(msg)
+notify = function(msg)
 	Library:Notify(msg, 3)
 end
 
-function handleFigure(model)
-	if seenModels[model] or not model:IsDescendantOf(roomFolder) then return end
-	seenModels[model] = true
-	destroyConn[model] = {}
-	local root = model:FindFirstChild("Root")
-
-	local function cleanUpModelConns()
-		local conns = destroyConn[model]
-		if conns then
-			for _, c in pairs(conns) do
-				if c and c.Disconnect then c:Disconnect() end
+function cleanup(model)
+	local conns = destroyconn[model]
+	if conns then
+		for _, c in pairs(conns) do
+			if c then
+				c:Disconnect()
 			end
 		end
-		destroyConn[model] = nil
-		seenModels[model] = nil
 	end
+	destroyconn[model] = nil
+	seenmodels[model] = nil
+end
 
-	local ancestryConn = model.AncestryChanged:Connect(function(_, parent)
-		if not parent then cleanUpModelConns() end
-	end)
-	table.insert(destroyConn[model], ancestryConn)
+local isnetworkownerfunc = (type(isnetworkowner) == "function") and isnetworkowner or nil
 
-	local function deleteRoot()
-		if not DeleteFigureEnabled then cleanUpModelConns() return end
-		local r = model:FindFirstChild("Root")
-		if r then
-			r.CanCollide = false
-			r.CFrame = CFrame.new(0, -999999, 0)
-			notify("Figure has been cleared!")
-			Sound()
-		end
-		cleanUpModelConns()
-	end
-
-	if root and isnetworkowner(root) then
-		task.spawn(deleteRoot)
-	else
-		local function listenToAlarm(alarm)
-			local alarmAncestryConn = alarm.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					alarmAncestryConn:Disconnect()
-					deleteRoot()
-				end
-			end)
-			table.insert(destroyConn[model], alarmAncestryConn)
-		end
-
-		local alarm = workspace:FindFirstChild("AlarmClockModel")
-		if alarm then
-			listenToAlarm(alarm)
+function onheartbeat()
+	for model in pairs(seenmodels) do
+		if not model  then
+			cleanup(model)
 		else
-			local detectConn
-			detectConn = workspace.ChildAdded:Connect(function(inst)
-				if inst.Name == "AlarmClockModel" then
-					detectConn:Disconnect()
-					table.insert(destroyConn[model], detectConn)
-					listenToAlarm(inst)
+if model then
+			local root = model:FindFirstChild("Root")
+			if not root then
+				cleanup(model)
+			elseif deletefigureenabled then
+				if isnetworkownerfunc then
+					if isnetworkownerfunc(root) then
+repeat task.wait(0.6)
+						root.CanCollide = false
+						root.CFrame = CFrame.new(0, -999999, 0)
+until root.Position.Y < -9000 or not Toggles.DFF.Value
+						notify("Figure has been Removed!")
+						Sound()
+						cleanup(model)
+					end
+				else
+					local alarm = workspace:FindFirstChild("AlarmClockModel")
+					if alarm and not destroyconn[model].alarmListener then
+						local conn = alarm.AncestryChanged:Connect(function(_, parent)
+							if not parent and deletefigureenabled then
+								if model and model.Parent then
+									local r = model:FindFirstChild("Root")
+									if r then
+	repeat task.wait(0.6)		
+				r.CanCollide = false
+										r.CFrame = CFrame.new(0, -999999, 0)
+								until r.Position.Y  < -9000 or not Toggles.DFF.Value		notify("Figure has been Removed!")
+										Sound()
+									end
+								end
+								cleanup(model)
+if conn then
+								conn:Disconnect()
+		end						destroyconn[model].alarmListener = nil
+							end
+						end)
+						destroyconn[model].alarmListener = conn
+					end
 				end
-			end)
-			table.insert(destroyConn[model], detectConn)
-		end
-
-		notify("isnetworkowner() not supported; will wait for AlarmClockModel to delete figure")
-	end
-end
-
-function scanRoomOnce()
-	local descendants = roomFolder:GetDescendants()
-	for i = 1,math.min(#descendants,10000) do
-		local node = descendants[i]
-		if node:IsA("Model") and (node.Name == "FigureRig" or node.Name == "FigureRagdoll") then
-			handleFigure(node)
+			end
 		end
 	end
 end
-
+end
 BypassBox:AddToggle("DFF", {
 	Text = "Delete Figure (FE)",
 	Default = false,
 	Callback = function(on)
-		DeleteFigureEnabled = on
-		for model, conns in pairs(destroyConn) do
-			if conns then
-				for _, c in pairs(conns) do
-					if c then c:Disconnect() end
+		deletefigureenabled = on
+
+		if heartbeatconnection then
+			heartbeatconnection:Disconnect()
+			heartbeatconnection = nil
+		end
+
+		for model, conns in pairs(destroyconn) do
+			for _, c in pairs(conns) do
+				if c then
+					c:Disconnect()
 				end
 			end
 		end
-		table.clear(seenModels)
-		table.clear(destroyConn)
 
-		if on then
-			notify("[Delete Figure] Sometimes requires AlarmClockModel")
-			scanRoomOnce()
-		else
+		table.clear(seenmodels)
+		table.clear(destroyconn)
+
+		if not on then
 			notify("Delete Figure disabled.")
+			return
 		end
-end
+
+		notify("[Delete Figure] Enabled")
+
+		local descendants = roomfolder:GetDescendants()
+		for i = 1, #descendants do
+			local node = descendants[i]
+			if node:IsA("Model") and (node.Name == "FigureRig" or node.Name == "FigureRagdoll") and node:IsDescendantOf(roomfolder) then
+				seenmodels[node] = true
+				destroyconn[node] = {}
+				table.insert(destroyconn[node], node.AncestryChanged:Connect(function(_, parent)
+					if not parent then
+						cleanup(node)
+					end
+				end))
+			end
+		end
+
+		heartbeatconnection = runservice.Heartbeat:Connect(onheartbeat)
+	end
 })
 	local shade = game:GetService("ReplicatedStorage").ClientModules.EntityModules:FindFirstChild("_Shade")
 		or game:GetService("ReplicatedStorage").ClientModules.EntityModules:FindFirstChild("Shade")
@@ -4737,8 +4753,8 @@ workspace.DescendantAdded:Connect(function(inst)
 
 	if inst:IsA("Model") then
 		if name == "FigureRig" or name == "FigureRagdoll" then
-			if DeleteFigureEnabled then
-				handleFigure(inst)
+			if  Toggles.DFF.Value then
+				table.insert(seenmodels,inst)
 			end
 		end
 	end
@@ -4784,7 +4800,7 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "Snare" and parent and parent.Name == "Assets" then
-		local h = inst:FindFirstChild("Hitbox")
+		local h = inst:WaitForChild("Hitbox",9e9)
 		if h then
 			h.CanTouch = not Toggles.AntiSnare.Value
 		end
@@ -4800,7 +4816,7 @@ workspace.DescendantAdded:Connect(function(inst)
 	end
 
 	if name == "GiggleCeiling" then
-		local h = inst:WaitForChild("Hitbox", 5)
+		local h = inst:WaitForChild("Hitbox", 9e9)
 		if h then
 			h.CanTouch = not Toggles.AntiGiggle.Value
 		end
