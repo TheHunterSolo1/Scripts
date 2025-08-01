@@ -1,4 +1,4 @@
-repo = "https://raw.githubusercontent.content.com/deividcomsono/Obsidian/main/"
+repo = "https://raw.githubusercontent.com/mstudio45/Obsidian/refs/heads/main/"
 
 
 Library  =  loadstring(game:HttpGet(repo..'Library.lua'))()
@@ -2944,7 +2944,8 @@ SettingsBox:AddDropdown('Notify Side', {
 	}):OnChanged(function()
 		Library.ShowCustomCursor = Toggles.CustomCursor.Value
 	end)
-
+SettingsBox:AddDivider()
+SettingsBox:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
 
 	local Contributors = Tabs.UISettings:AddRightGroupbox("Credits")
 	Contributors:AddLabel("KardinCat - Creator",true)
@@ -2955,7 +2956,6 @@ SettingsBox:AddDropdown('Notify Side', {
 	SaveManager:SetLibrary(Library)
 	ThemeManager:ApplyToTab(Tabs.UISettings)
 	SaveManager:SetFolder('ProHax')
-	SaveManager:SetIgnoreIndexes({'MenuKeybind'})
 	SaveManager:BuildConfigSection(Tabs.UISettings)
 	-- SERVICES (globals only for late-binding patterns)
 	
