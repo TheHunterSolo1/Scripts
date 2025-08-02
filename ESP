@@ -1,0 +1,183 @@
+local ESP = {}
+
+local tracked = {}
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+
+local settings = {
+	Rainbow = false,
+	Tracers = true,
+	FillTransparency = 0.5,
+	OutlineTransparency = 0,
+	OutlineColor = Color3.fromRGB(255, 255, 255),
+	DistanceCheck = false
+}
+
+local function createTracer()
+	local line = Drawing.new("Line")
+	line.Visible = false
+	line.Thickness = 1
+	line.Color = Color3.new(1, 1, 1)
+	return line
+end
+
+local function createBillboard(name)
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.new(0, 100, 0, 50)
+	bb.AlwaysOnTop = true
+	bb.StudsOffset = Vector3.new(0, 2, 0)
+	bb.Enabled = false
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0.5, 0)
+	title.Position = UDim2.new(0, 0, 0, 0)
+	title.BackgroundTransparency = 1
+	title.Text = name
+	title.TextScaled = true
+	title.TextColor3 = Color3.new(1, 1, 1)
+	title.TextStrokeTransparency = 0
+	title.Font = Enum.Font.Code
+	title.Name = "Name"
+
+	local distance = Instance.new("TextLabel")
+	distance.Size = UDim2.new(1, 0, 0.5, 0)
+	distance.Position = UDim2.new(0, 0, 0.5, 0)
+	distance.BackgroundTransparency = 1
+	distance.Text = ""
+	distance.TextScaled = true
+	distance.TextColor3 = Color3.new(1, 1, 1)
+	distance.TextStrokeTransparency = 0
+	distance.Font = Enum.Font.Code
+	distance.Name = "Distance"
+
+	title.Parent = bb
+	distance.Parent = bb
+
+	return bb
+end
+
+function ESP:SetRainbow(bool)
+	settings.Rainbow = bool
+end
+
+function ESP:SetTracers(bool)
+	settings.Tracers = bool
+end
+
+function ESP:SetDistanceCheck(bool)
+	settings.DistanceCheck = bool
+end
+
+function ESP:SetFillTransparency(value)
+	settings.FillTransparency = value
+end
+
+function ESP:SetOutlineTransparency(value)
+	settings.OutlineTransparency = value
+end
+
+function ESP:SetOutlineColor(color)
+	settings.OutlineColor = color
+end
+
+function ESP:Add(model, displayName, color)
+	if tracked[model] then return end
+	local hrp = model:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	local hl = Instance.new("Highlight")
+	hl.Adornee = model
+	hl.FillColor = color or Color3.fromRGB(255, 0, 0)
+	hl.FillTransparency = settings.FillTransparency
+	hl.OutlineTransparency = settings.OutlineTransparency
+	hl.OutlineColor = settings.OutlineColor
+	hl.Parent = model
+	hl.Enabled = false
+
+	local bb = createBillboard(displayName or model.Name)
+	bb.Adornee = hrp
+	bb.Parent = model
+
+	local tracer = createTracer()
+
+	tracked[model] = {
+		model = model,
+		part = hrp,
+		highlight = hl,
+		billboard = bb,
+		tracer = tracer
+	}
+end
+
+function ESP:Remove(model)
+	local t = tracked[model]
+	if t then
+		if t.highlight then t.highlight:Destroy() end
+		if t.billboard then t.billboard:Destroy() end
+		if t.tracer then t.tracer:Remove() end
+		tracked[model] = nil
+	end
+end
+
+function ESP:Clear()
+	for model in pairs(tracked) do
+		self:Remove(model)
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	local viewportSize = Camera.ViewportSize
+	for model, data in pairs(tracked) do
+		local part = data.part
+		if not part or not part:IsDescendantOf(workspace) then
+			ESP:Remove(model)
+			continue
+		end
+
+		local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+
+		local fullyVisible = onScreen and
+			screenPos.Z > 0 and
+			screenPos.X >= 0 and screenPos.X <= viewportSize.X and
+			screenPos.Y >= 0 and screenPos.Y <= viewportSize.Y
+
+		data.highlight.Enabled = fullyVisible
+		data.billboard.Enabled = fullyVisible
+		if data.tracer then
+			data.tracer.Visible = fullyVisible and settings.Tracers
+			if data.tracer.Visible then
+				data.tracer.From = Vector2.new(viewportSize.X / 2, viewportSize.Y)
+				data.tracer.To = Vector2.new(screenPos.X, screenPos.Y)
+			end
+		end
+
+		if fullyVisible and settings.DistanceCheck and data.billboard:FindFirstChild("Distance") then
+			local dist = (Camera.CFrame.Position - part.Position).Magnitude
+			data.billboard.Distance.Text = "[" .. math.floor(dist) .. " studs]"
+		else
+			if data.billboard:FindFirstChild("Distance") then
+				data.billboard.Distance.Text = ""
+			end
+		end
+
+		if fullyVisible and settings.Rainbow then
+			local t = tick() * 2
+			local r = math.sin(t) * 0.5 + 0.5
+			local g = math.sin(t + 2) * 0.5 + 0.5
+			local b = math.sin(t + 4) * 0.5 + 0.5
+			local c = Color3.new(r, g, b)
+			data.highlight.FillColor = c
+			if data.billboard:FindFirstChild("Name") then
+				data.billboard.Name.TextColor3 = c
+			end
+			if data.billboard:FindFirstChild("Distance") then
+				data.billboard.Distance.TextColor3 = c
+			end
+			if data.tracer then
+				data.tracer.Color = c
+			end
+		end
+	end
+end)
+
+return ESP
