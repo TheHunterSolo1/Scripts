@@ -675,10 +675,14 @@ local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 if char then
  Collision = char:FindFirstChild("Collision")
+C = char:FindFirstChild("ClonedCollision")
 if Collision then
 		Collision.CanCollide = false
 
 		end
+if C then
+C.CanCollide = false
+end
 end
 		end)
 -- Services (globals as per preference)
