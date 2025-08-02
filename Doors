@@ -1,7 +1,7 @@
-repo = "https://raw.githubusercontent.com/mstudio45/Obsidian/refs/heads/main/"
+ repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 
 
-Library  =  loadstring(game:HttpGet(repo..'Library.lua'))()
+Library =  loadstring(game:HttpGet(repo..'Library.lua'))()
 Library:Notify("Loading Prohax .. ",3)
 ThemeManager = loadstring(game:HttpGet(repo..'addons/ThemeManager.lua'))()
 SaveManager  = loadstring(game:HttpGet(repo..'addons/SaveManager.lua'))()
@@ -25,7 +25,7 @@ AutoBox   = Tabs.Player:AddRightGroupbox('Automatically')
 ESPBox    = Tabs.Auto:AddLeftGroupbox('ESP')
 ESPSettings    = Tabs.Auto:AddRightGroupbox('Visuals')
 BypassBox = Tabs.Anti:AddRightGroupbox('Bypass')
-FoolsBox = Tabs.Floors:AddLeftGroupbox('Super Hard Mode 2023')
+FoolsBox = Tabs.Floors:AddLeftGroupbox('Super Hard Mode 2023/ -Hotel')
 BackBox = Tabs.Floors:AddLeftGroupbox('Backdoor')
 MinesBox = Tabs.Floors:AddLeftGroupbox('Mines')
 RetroBox = Tabs.Floors:AddRightGroupbox('Retro')
@@ -218,14 +218,24 @@ Toggles.EnableWalkSpeed:OnChanged(function(value)
 	end)
 end)
 MiscBox:AddButton({
+	Text    = "Reset",
+	DoubleClick = true,
+
+	Func = function()
+		replicatedsignal(LocalPlayer.Kill)
+end
+})
+MiscBox:AddButton({
 	Text    = "Revive",
 	DoubleClick = true,
 	Func = function()
 		if game.ReplicatedStorage:FindFirstChild("EntityInfo") then
 			game.ReplicatedStorage.EntityInfo.Revive:FireServer()
-		else
+		elseif ReplicatedStorage:FindFirstChild("RemotesFolder") then 
 
 			game.ReplicatedStorage.RemotesFolder.Revive:FireServer()
+else
+game.ReplicatedStorage.Bricks.Revive:FireServer()
 		end
 	end
 })
@@ -318,23 +328,62 @@ MiscBox:AddButton({
 	end
 })
 local InfValue = false
+local InfCon = nil
+local oid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+LocalPlayer.CharacterAdded:Connect(function()
+oid = LocalPlayer.Character:WaitForChild("Humanoid")
+end)
 FoolsBox:AddToggle("Infinite Revive", {
 	Text = "Infinite Revive",
 	Default = false,
 	Callback = function(state)
-InfValue = state
-while InfValue do
-task.wait(0.1)
-if not InfValue then break end
-if LocalPlayer.Character and LocalPlayer.Character.Humanoid.Health == 0 then
+if InfCon then
+InfCon:Disconnect()
+InfCon = nil
+end
+if not InfValue then return end
+InfCon = oid.Died:Connect(function()
+if ReplicatedStorage:FindFirstChild("EntityInfo") then
 ReplicatedStorage.EntityInfo.Revive:FireServer()
-             end
-      end
+else
+ReplicatedStorage.Bricks:FireServer()
+            end
+      end)
 end
 })
-Players = game:GetService("Players")
-LocalPlayer = Players.LocalPlayer
+ FoolsBox:AddToggle("FoolsGodmode", {
+	Text = "God Mode",
+	Default = false,
+	Tooltip = "Make you Invincible To Entities",
+	Callback = function(enabled)
+if enabled then
+LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position - Vector3.new(0, 7.5, 0)
+else
+LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position + Vector3.new(0, 7.5, 0)
+end
+end
+})
+ FoolsBox:AddToggle("FigureGodmode", {
+	Text = "Figure Godmode",
+	Default = false,
+	Tooltip = "Make you Immune to Figure",
+	Callback = function(enabled)
 
+if enabled then
+if not Toggles.FoolsGodmode.Value then
+Toggles.Godmode:SetValue(true)
+      end
+end
+
+local Figure = workspace:FindFirstChild("FigureRagdoll",true)
+if Figure and Figure.Root then
+for _, part in ipairs(Figure:GetChildren()) do
+if part:IsA("BasePart") then part.CanTouch = not Toggles.FigureGodmode.Value
+end
+end
+end
+end
+})
 runSpam = false
 
 TrollBox:AddToggle("SpamOthersTools", {
@@ -343,45 +392,26 @@ TrollBox:AddToggle("SpamOthersTools", {
 	Callback = function(state)
 		runSpam = state
 		if runSpam then
-			task.spawn(function()
 				while   task.wait(0.9) do
 					
 					if not runSpam then
 						break
 					end
 
-					local players = Players:GetPlayers()
-					for i = 1, #players do
-						local plr = players[i]
-						if plr ~= LocalPlayer then
-							local backpack = plr:FindFirstChild("Backpack")
-							if backpack then
-								local backpackItems = backpack:GetChildren()
-								for j = 1, #backpackItems do
-									local tool = backpackItems[j]
-									if tool.ClassName == "Tool" then
-										local remote = tool:FindFirstChild("Remote")
-										if remote then remote:FireServer() end
-									end
-								end
-							end
-							local char = plr.Character
-							if char then
-								local charItems = char:GetChildren()
-								for j = 1, #charItems do
-									local tool = charItems[j]
-									if tool.ClassName == "Tool" then
-										local remote = tool:FindFirstChild("Remote")
-										if remote then remote:FireServer() end
-									end
-								end
-							end
-						end
-					end
-				end
-			end)
-		end
-	end
+					for _, plr in pairs(Players:GetPlayers()) do
+if plr ~= LocalPlayer then
+for _, tool in ipairs(plr:GetDescendants()) do
+if tool:IsA("Tool") then
+if tool:FindFirstChild("Remote") then
+tool.Remote:FireServer()
+end
+end
+end
+end
+end
+end
+end
+end
 }):AddKeyPicker('Spam Others Tools Keybind', {
 
 
@@ -390,7 +420,7 @@ TrollBox:AddToggle("SpamOthersTools", {
 
 
 	-- You can define custom Modes but I have never had a use for it.
-	Mode = Library.IsMobile and 'Toggle' or 'Hold', -- Modes: Always, Toggle, Hold
+	Mode = 'Toggle', -- Modes: Always, Toggle, Hold
 
 	Text = 'Spam Others Tools (FE)', -- Text to display in the keybind menu
 	NoUI = false, -- Set to true if you want to hide from the Keybind menu,
@@ -470,6 +500,7 @@ ESPSettings:AddSlider('ToolOffsetZ', {
 ESPSettings:AddToggle('ToolOffset', {
 	Text = 'ToolOffset',
 	Default = false,
+
 	Callback = function(enabled)
 		gui = player:FindFirstChild("PlayerGui")
 		if not gui then return end
@@ -507,9 +538,9 @@ local workspace = game:GetService("Workspace")
 local runservice = game:GetService("RunService")
 
 local eyescon
-local remotes = replicatedstorage:FindFirstChild("EntityInfo") or replicatedstorage:FindFirstChild("RemotesFolder") or replicatedstorage
+local remotes = replicatedstorage:FindFirstChild("EntityInfo") or replicatedstorage:FindFirstChild("RemotesFolder") or replicatedstorage:FindFirstChild("Bricks")
 local motor = remotes:FindFirstChild("MotorReplication")
-local entityinfo = replicatedstorage:FindFirstChild("EntityInfo")
+
 
 AntiBox:AddToggle("Anti-Eyes", {
 	Text = "Anti-Eyes",
@@ -523,11 +554,11 @@ AntiBox:AddToggle("Anti-Eyes", {
 
 		eyescon = runservice.Heartbeat:Connect(function()
 			if workspace:FindFirstChild("Eyes") then
-				if entityinfo then
-					motor:FireServer(0, -710, 0, false)
-				else
-					motor:FireServer(-760)
-				end
+				if ReplicatedStorage:FindFirstChild("EntityInfo") or ReplicatedStorage:FindFirstChild("Bricks") then
+motor:FireServer(0,-760,0,false)
+else
+motor:FireServer(-760)
+end
 			end
 		end)
 	end
@@ -563,7 +594,7 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 -- Parts to ignore during noclip
 local NoclipIgnoreTable = {
 	"Collision",
-	"CollisionClone1"
+	"ClonedCollision"
 }
 
 -- Helper: is the part one we should ignore for noclip?
@@ -644,9 +675,11 @@ local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 if char then
  Collision = char:FindFirstChild("Collision")
+if Collision then
 		Collision.CanCollide = false
 
 		end
+end
 		end)
 -- Services (globals as per preference)
 -- Services
@@ -943,6 +976,7 @@ local mod
 ESPSettings:AddToggle('No CamShake', {
 	Text    = "No CamShake",
 	Tooltip = "Stops Camera Shake",
+
 	Default = false,
 	Callback = function(enabled)
 		if enabled then
@@ -982,7 +1016,11 @@ local staticignored = {
 	PropPrompt = true,
 	StarRiftPrompt = true,
 RevivePrompt = true,
-	RiftPrompt = true
+	RiftPrompt = true,
+UnlockPrompt = true,
+FusesPrompt = true,
+SkullPrompt = true
+
 }
 
 local ignoredparents = {
@@ -990,7 +1028,8 @@ local ignoredparents = {
 	Seek_Arm = true,
 	KeyObtainFake = true,
    ChandelierObstruction  = true,
-AlarmClockModel = true
+AlarmClockModel = true,
+Model = true,
 
 }
 
@@ -1017,17 +1056,19 @@ end
 local isfool = game.ReplicatedStorage.GameData.Floor.Value == "Fools"
 
 function firepromptsnear()
-task.wait(0.13)
+RunService.Heartbeat:Wait(0.15)
 	if not LocalPlayer.Character then return end
 	for _, prompt in ipairs(validprompts) do
 		if prompt.Parent then
 			if not (isfool and prompt.Name == "GoldPile") then
+if ((prompt:GetAttribute("Interactions") or 0) < 1) then
 				local part = prompt.Parent:IsA("BasePart") and prompt.Parent or prompt.Parent:FindFirstChildWhichIsA("BasePart")
 				if part and (part.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude <= 12.5 then
 					fireproximityprompt(prompt)
 					
 				end
 			end
+end
 		end
 	end
 end
@@ -1035,6 +1076,7 @@ local loopcon = nil
 AutoBox:AddToggle("AutoInteract", {
 	Text = "Auto Interact",
 	Default = false,
+
 	Callback = function(v)
 		if v then
 			getvalidprompts()
@@ -1060,7 +1102,7 @@ AutoBox:AddToggle("InteractInstant", {
 	Callback = function(v)
 		if not v then return end
 		for _, inst in ipairs(workspace.CurrentRooms:GetDescendants()) do
-			if isvalidprompt(inst) then
+			if  inst:IsA("ProximityPrompt") then
 				inst.HoldDuration = 0
 			end
 		end
@@ -1129,63 +1171,54 @@ do
         end
     })
 end
-local block_heartbeat = false
 
-local meta = getrawmetatable(game)
-setreadonly(meta, false)
-local old_namecall = meta.__namecall
-
-local in_hook = false
-meta.__namecall = newcclosure(function(self, ...)
-	if in_hook then
-		return old_namecall(self, ...)
-	end
-
-	local method = getnamecallmethod()
-	if block_heartbeat and method == "FireServer" and typeof(self) == "Instance" and self.Name == "ClutchHeartbeat" then
-		return
-	end
-
-	in_hook = true
-	local result = old_namecall(self, ...)
-	in_hook = false
-	return result
-end)
-
-AntiBox:AddToggle("AntiHeartbeatMiniGame", {
-	Text = "Anti Heartbeat Minigame",
+local AntiHeartbeat = false 
+old = hookmetamethod(game,"__namecall",newcclosure(function(self,...)
+if AntiHeartbeat and getnamecallmethod() == "FireServer" and self.Name == "ClutchHeartbeat" then return false end
+return old(self,...)
+end))
+AutoBox:AddToggle("AntiHeartbeatMiniGame", {
+	Text = "Auto Heartbeat Minigame",
 	Default = false,
 	Callback = function(state)
-		block_heartbeat = state
-	end
+		AntiHeartbeat = state
+
+end
 })
+ ClonedCollision = LocalPlayer.Character.Collision:Clone()
+ClonedCollision.Parent = LocalPlayer.Character
+ClonedCollision.Name = "_Collision"
+ClonedCollision.Massless = true
+ClonedCollision.CanCollide = false
 BypassBox:AddToggle("SpeedBypass", {
 	Text = "Speed Bypass",
 	Default = false,
 	Tooltip = "Bypasses game speed anticheat",
 	Callback = function(Value)
 		SpeedBypassValue = Value
+
+
 		SpeedSlider:SetMax(SpeedBypassValue and 75 or 21.4)
 
 		while SpeedBypassValue do
-			task.wait(0.215)
+			task.wait(0.205)
 
 			if LocalPlayer.Character.HumanoidRootPart.Anchored then
-				LocalPlayer.Character.Collision.Massless = false
-				task.wait(0.28)
+				ClonedCollision.Massless = true
+				task.wait(0.35)
 			else
-				LocalPlayer.Character.HumanoidRootPart.Size = Vector3.new(1, 1, 1.25)
-				LocalPlayer.Character.Collision.Massless = true
-				task.wait(0.215)
-				LocalPlayer.Character.Collision.Massless = false
+				
+				ClonedCollision.Massless = true
+				task.wait(0.205)
+				ClonedCollision.Massless = false
 			end
 
 			if not SpeedBypassValue then
-				LocalPlayer.Character.HumanoidRootPart.Size = Vector3.new(1, 1, 1)
-				LocalPlayer.Character.Collision.Massless = false
+				
+				ClonedCollision.Massless = true
 				break
 			end
-		end
+end 
 	end
 })
 
@@ -1200,8 +1233,8 @@ collision = nil
 Invisibility = false
 
 entityinfo = game.ReplicatedStorage:FindFirstChild("EntityInfo")
-offset = entityinfo and 7.5 or 2.3
 originalCollisionPos = {}
+offset = 2.3
 inGodmode = false
 
 
@@ -1227,7 +1260,7 @@ if char then updatechar(char) end
 
 
 Godmode = BypassBox:AddToggle("Godmode", {
-	Text = "Invincible",
+	Text = "God Mode",
 	Default = false,
 	Tooltip = "Make you Invincible To Entities",
 	Callback = function(enabled)
@@ -1248,7 +1281,7 @@ end
 	-- You can define custom Modes but I have never had a use for it.
 	Mode = 'Toggle', -- Modes: Always, Toggle, Hold
 
-	Text = 'Invincible', -- Text to display in the keybind menu
+	Text = 'God Mode', -- Text to display in the keybind menu
 	NoUI = false, -- Set to true if you want to hide from the Keybind menu,
 
 	-- Occurs when the keybind is clicked, Value is `true`/`false`
@@ -1464,21 +1497,23 @@ BypassBox:AddToggle("NB", {
 })
 
 
--- Toggle
+local DeleteFE = false
  FoolsBox:AddToggle("DeleteSeekFE", {
 	Text    = "Delete Seek (FE)",
 	Default = false,
 	Tooltip = "Makes Seek never appear",
 Callback = function(Value)
-for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
-if v.Name == "TriggerSeek" then
-v:Destroy()
-
+DeleteFE = Value
+while DeleteFe do
+task.wait(0.3)
+if not DeleteFe then break end
+local SeekTrigger = workspace:FindFirstChild("TriggerSeek",true)
+if SeekTrigger then
+SeekTrigger:Destroy()
 end
-if v.Name == "TriggerEventCollision" then
-v:FindFirstChild("Collision"):Destroy()
-Library:Notify("Deleted Seek successfully",3)
-Sound()
+local v = workspace:FindFirstChild("TriggerEventCollision",true)
+if v then
+v:ClearAllChildren()
 end
 end
 end
@@ -1571,106 +1606,72 @@ end
 --------------------------------------------------------------------------------
 -- Notification Toggles: EntityNotify and Chat Notify (event-driven)
 --------------------------------------------------------------------------------
-do
-    local NotifyEntities = {
-        RushMoving = {"Rush", "Find a hiding spot."},
-        AmbushMoving = {"Ambush", "Hide multiple times!"},
-        A60 = {"A-60", "Hide immediately!"},
-        A120 = {"A-120", "Find A HidingSpot!"},
-        JeffTheKiller = {"Jeff", "Keep distance and avoid."},
-        SeekMoving = {"Seek", "Run and dodge obstacles!"},
-        SeekMovingNewClone = {"Seek", "Run and dodge obstacles!"},
-        BackdoorRush = {"Blitz", "Find a hiding spot."},
-        GlitchRush = {"GlitchRush", "Find a hiding spot."},
-        GlitchAmbush = {"Glitch Ambush", "Find HidingSpot!"},
-        GiggleCeiling = {"Giggle", "Avoid it."},
-        Eyes = {"Eyes", "Don't look at it."},
-        BackdoorLookman = {"Lookman", "Don't look at it."},
-        Screech = {"Screech", "Look around quickly."},
-        GlitchedScreech = {"Glitched Screech", "Look around quickly."},
-    }
+ notifyentities = {
+	RushMoving = {"Rush", "Find a hiding spot."},
+	AmbushMoving = {"Ambush", "Hide multiple times!"},
+	A60 = {"A-60", "Hide immediately!"},
+	A120 = {"A-120", "Find A HidingSpot!"},
+	JeffTheKiller = {"Jeff", "Keep distance and avoid."},
+	SeekMoving = {"Seek", "Run and dodge obstacles!"},
+	SeekMovingNewClone = {"Seek", "Run and dodge obstacles!"},
+	BackdoorRush = {"Blitz", "Find a hiding spot."},
+	GlitchRush = {"GlitchRush", "Find a hiding spot."},
+	GlitchAmbush = {"Glitch Ambush", "Find HidingSpot!"},
+	GiggleCeiling = {"Giggle", "Avoid it."},
+	Eyes = {"Eyes", "Don't look at it."},
+	BackdoorLookman = {"Lookman", "Don't look at it."},
+	
+}
 
-    local function notifyESP(model)
-        local data = NotifyEntities[model.Name]
-        if not data then return end
-        local name, tip = data[1], data[2]
-        Library:Notify(("› %s has spawned! %s"):format(name, tip), 4)
-        Sound()
-    end
+ tracked_notify = {}
+ tracked_chat = {}
 
-    local function notifyChat(model)
-        local data = NotifyEntities[model.Name]
-        if not data then return end
-        local name, tip = data[1], data[2]
-        ChatNotify(("› %s has spawned! %s"):format(name, tip))
-        Sound()
-    end
+ESPBox:AddToggle("EntityNotify", {
+	Text = "Entities Notify",
+	Default = false,
+	Callback = function(on)
+		for inst in pairs(tracked_notify) do tracked_notify[inst] = nil end
 
-    local function handleNotificationToggle(ToggleName, DisplayText, notifyFunction)
-        local tracked = {}       -- [Instance] = true
-        local addedConn, removingConn
+		if on then
+			for _, inst in ipairs(workspace:GetDescendants()) do
+				if inst:IsA("Model") then
+					 data = notifyentities[inst.Name]
+					if data and not tracked_notify[inst] then
+						tracked_notify[inst] = true
+						Library:Notify(("› %s has spawned! %s"):format(data[1], data[2]), 4)
+						Sound()
+					end
+				end
+			end
+		end
+	end
+})
 
-        local function onDescendantAdded(inst)
-            if inst:IsA("Model") and NotifyEntities[inst.Name] then
-                if not tracked[inst] then
-                    tracked[inst] = true
-                    notifyFunction(inst)
-                end
-            end
-        end
+ESPBox:AddToggle("ChatNotify", {
+	Text = "Chat Notify",
+	Default = false,
+	Callback = function(on)
+		for inst in pairs(tracked_chat) do tracked_chat[inst] = nil end
 
-        local function onDescendantRemoving(inst)
-            if tracked[inst] then
-                tracked[inst] = nil
-            end
-        end
-
-        ESPBox:AddToggle(ToggleName, {
-            Text = DisplayText,
-            Default = false,
-            Callback = function(on)
-                -- Disconnect previous events
-                if addedConn then
-                    addedConn:Disconnect()
-                    addedConn = nil
-                end
-                if removingConn then
-                    removingConn:Disconnect()
-                    removingConn = nil
-                end
-                -- Clear tracked
-                for inst in pairs(tracked) do
-                    tracked[inst] = nil
-                end
-                if not on then
-                    return
-                end
-                -- Initial scan: get existing models under Workspace
-                local descendants = Workspace:GetDescendants()
-                for i = 1, #descendants do
-                    local inst = descendants[i]
-                    if inst:IsA("Model") and NotifyEntities[inst.Name] then
-                        if not tracked[inst] then
-                            tracked[inst] = true
-                            notifyFunction(inst)
-                        end
-                    end
-                end
-                -- Connect events for new spawns/removals
-                addedConn = Workspace.DescendantAdded:Connect(onDescendantAdded)
-                removingConn = Workspace.DescendantRemoving:Connect(onDescendantRemoving)
-            end,
-        })
-    end
-
-    handleNotificationToggle("Entity Notify", "Entities Notify", notifyESP)
-    handleNotificationToggle("Chat Notify", "Chat Notify", notifyChat)
-end
+		if on then
+			for _, inst in ipairs(workspace:GetDescendants()) do
+				if inst:IsA("Model") then
+					 data = notifyentities[inst.Name]
+					if data and not tracked_chat[inst] then
+						tracked_chat[inst] = true
+						ChatNotify(("› %s has spawned! %s"):format(data[1], data[2]))
+						Sound()
+					end
+				end
+			end
+		end
+	end
+})
 
 --------------------------------------------------------------------------------
 -- Entity ESP (event-driven)
 --------------------------------------------------------------------------------
-do
+
     EntityNames = {
 	RushMoving = "Rush", AmbushMoving = "Ambush", A60 = "A-60", A120 = "A-120",
 	BackdoorRush = "Blitz", SallyWindow = "Sally", JeffTheKiller = "Jeff",
@@ -1685,23 +1686,28 @@ tracked = {}
 State = false
 EspCon = nil
 
-function createESP(model)
-	if tracked[model] then return end
-	if not EntityNames[model.Name] then return end
-
-	if not model.PrimaryPart then
-		local parts = model:GetDescendants()
-		for i = 1, #parts do
-			if parts[i]:IsA("BasePart") then
-				model.PrimaryPart = parts[i]
-				break
-			end
+function getbasepart(model)
+	local function findbase(m)
+		for _, v in ipairs(m:GetChildren()) do
+			if v:IsA("BasePart") then return v end
+			local found = findbase(v)
+			if found then return found end
 		end
 	end
 
-	if not model.PrimaryPart then return end
+	local part = model:FindFirstChildOfClass("BasePart") or findbase(model)
+	repeat
+		task.wait()
+		part = model:FindFirstChildOfClass("BasePart") or findbase(model)
+	until part
+	return part
+end
 
-	model.PrimaryPart.Transparency = 0.99
+function createesp(model)
+	if not EntityNames[model.Name] or tracked[model] then return end
+
+	local part = getbasepart(model)
+	part.Transparency = 0.99
 
 	local handle = ESPLibrary:AddESP({
 		Object = model,
@@ -1712,7 +1718,7 @@ function createESP(model)
 	tracked[model] = handle
 end
 
-function removeAllESP()
+function removeallesp()
 	for model, handle in pairs(tracked) do
 		ESPLibrary:RemoveESP(handle)
 		tracked[model] = nil
@@ -1730,30 +1736,20 @@ ESPBox:AddToggle("EntityESP", {
 			EspCon = nil
 		end
 
-		removeAllESP()
-
+		removeallesp()
 		if not State then return end
 
 		local all = workspace:GetDescendants()
 		for i = 1, #all do
 			local inst = all[i]
-			if EntityNames[inst.Name] and inst:IsA("Model") then
-				createESP(inst)
+			if EntityNames[inst.Name] then
+				createesp(inst)
 			end
 		end
-
-		EspCon = workspace.DescendantAdded:Connect(function(inst)
-			if EntityNames[inst.Name] and inst:IsA("Model") then
-				createESP(inst)
-			end
-		end)
 	end
 })
-end
---------------------------------------------------------------------------------
--- Room ESP via makeRoomESP pattern (GetDescendants + events)
-------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
 local LatestRoomVal = game.ReplicatedStorage.GameData.LatestRoom
 
 local function makeRoomESP(name, matchFn, labelFnOrText, color)
@@ -1835,27 +1831,22 @@ local function makeRoomESP(name, matchFn, labelFnOrText, color)
         end,
     })
 end
-    -- Example calls as before:
+    
+
     makeRoomESP(
         "Door",
         function(o) return o:IsA("Model") and o.Name == "Door" end,
         function(o)
-            local sign = o:FindFirstChild("Sign")
-            if sign then
-                local stinker = sign:FindFirstChild("Stinker")
-                if stinker and stinker:IsA("TextLabel") then
-                    return "Door" .. tostring(stinker.Text)
-                end
-                local signText = sign:FindFirstChild("SignText")
-                if signText and signText:IsA("TextLabel") then
-                    return "Door " .. tostring(signText.Text)
-                end
-            end
+if o:FindFirstChild("Lock") then
+            
+                    return "Locked Door"
+                else
             return "Door"
-        end,
+        end
+end,
         Color3.fromRGB(0, 0, 255)
     )
-    -- makeRoomESP callbacks now return Model instances; ESPLibrary:AddESP is called with Object = model
+    
 makeRoomESP("Key",
     function(o)
         if o.Name == "KeyObtain" then
@@ -1865,7 +1856,6 @@ makeRoomESP("Key",
     "Key",
     Color3.fromRGB(0, 255, 0)
 )
-
 makeRoomESP("HidingSpot",
     function(o)
         if o.Name == "Wardrobe"
@@ -1900,7 +1890,16 @@ makeRoomESP("HidingSpot",
     end,
     Color3.fromRGB(0, 255, 0)
 )
-
+makeRoomESP(
+    "Chest",
+    function(o)
+        return o.Name == "Toolbox" or o.Name == "Toolbox_Locked" or o.Name == "Chest" or o.Name == "Chest_Vine" or o.Name == "Chest_Locked"
+    end,
+    function(o)
+        return o.Name
+    end,
+    Color3.fromRGB(0, 0, 255)
+)
 makeRoomESP("Library Books",
     function(o)
         if o:IsA("Model") and o.Name == "LiveHintBook" then
@@ -1961,16 +1960,16 @@ makeRoomESP("Fuse",
     Color3.fromRGB(0, 255, 0)
 )
 
-makeRoomESP("Chest",
-    function(o)
-        if o.Name == "ChestBox" then
-            return o
-        end
-    end,
+makeRoomESP(
     "Chest",
-    Color3.fromRGB(0, 255, 0)
+    function(o)
+        return o.Name == "Toolbox" or o.Name == "Toolbox_Locked" or o.Name == "Chest" or o.Name == "Chest_Vine" or o.Name == "Chest_Locked"
+    end,
+    function(o)
+        return o.Name
+    end,
+    Color3.fromRGB(0, 0, 255)
 )
-
 local anchors = {
     {Toggle = "Anchor", Target = "MinesAnchor", Label = "Anchor"},
     {Toggle = "Electrical Key", Target = "ElectricalKeyObtain", Label = "ElectricalKey"},
@@ -1989,6 +1988,7 @@ for i = 1, #anchors do
     )
 end
 
+
 --------------------------------------------------------------------------------
 -- Players ESP (pass Model instead of BasePart)
 --------------------------------------------------------------------------------
@@ -2006,7 +2006,7 @@ end
 return
 end
   for _, plr in pairs(Players:GetPlayers()) do
-if plr and plr.Character then
+if plr ~= LocalPlayer  and plr.Character then
 local handle = ESPLibrary:AddESP{
                     Object = plr.Character,
                     Text = plr.Name,
@@ -2163,10 +2163,114 @@ ESPSettings:AddToggle('Distance Meters ESP',{
 		ESPLibrary:SetShowDistance(Value)
 	end
 })
+infinitevalue = false
+clonedprompts = {}
+infinitecheck = nil
 
+function getinstance(name)
+	return workspace:FindFirstChild(name, true)
+end
+
+function handleprompt(prompt)
+	if not prompt:IsA("ProximityPrompt") or clonedprompts[prompt] then return end
+
+	if (prompt.Name == "ActivateEventPrompt" and prompt.Parent and prompt.Parent.Name == "Chest_Vine") or
+	   (prompt.Name == "UnlockPrompt") or (prompt.Name == "FusesPrompt") or (prompt.Name == "SkullPrompt") then
+
+		local clone = prompt:Clone()
+		clone.Name = "FakePrompt"
+		clonedprompts[prompt] = clone
+
+		clone.Parent = prompt.Parent
+		clone.Enabled = true
+		clone.ClickablePrompt = true
+
+		prompt.Enabled = false
+		prompt.ClickablePrompt = false
+
+		clone.Triggered:Connect(function()
+			local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+			if not tool then return end
+
+			local rf = replicatedstorage:FindFirstChild("RemotesFolder")
+			if not rf then return end
+
+			rf.DropItem:FireServer(tool)
+			local drop = workspace.Drops:WaitForChild(workspace.Drops.ChildAdded:Wait():GetFullName():split(".")[2], 1)
+			if drop then
+				local p = drop:FindFirstChildOfClass("ProximityPrompt")
+				if p then fireproximityprompt(p) end
+			end
+
+			fireproximityprompt(prompt)
+
+			clonedprompts[prompt] = nil
+			clone:Destroy()
+		end)
+	end
+end
+
+function handlechest(chest)
+	if chest and chest.Name == "Chest_Vine" then
+		local p = chest:FindFirstChildOfClass("ProximityPrompt") or chest:FindFirstChildWhichIsA("ProximityPrompt", true)
+		if p and not clonedprompts[p] then
+			handleprompt(p)
+		end
+	end
+end
+
+function startinfinite()
+	infinitecheck = task.spawn(function()
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("ProximityPrompt") then
+				handleprompt(obj)
+			end
+		end
+
+		while infinitevalue do
+			for original, clone in pairs(clonedprompts) do
+				if not original:IsDescendantOf(workspace) then
+					if clone then clone:Destroy() end
+					clonedprompts[original] = nil
+				end
+			end
+			task.wait(0.25)
+		end
+	end)
+end
+
+function stopinfinite()
+	infinitevalue = false
+	if infinitecheck then
+		task.cancel(infinitecheck)
+		infinitecheck = nil
+	end
+	for original, clone in pairs(clonedprompts) do
+		if clone then clone:Destroy() end
+		if original and original:IsDescendantOf(workspace) then
+			original.Enabled = true
+			original.ClickablePrompt = true
+		end
+	end
+	table.clear(clonedprompts)
+end
+
+PlayerBox:AddToggle("InfiniteItems", {
+	Text = "Infinite Items",
+	Default = false,
+	Callback = function(enabled)
+		if enabled then
+			if not replicatedstorage:FindFirstChild("RemotesFolder") then return end
+			infinitevalue = true
+			startinfinite()
+		else
+			stopinfinite()
+		end
+	end
+})
 ESPSettings:AddSlider('Text Size',{
 	Text='Text Size',
-	Min=16,Max=23,Default=20,
+	Min=16,Max=26,Default=23,
 	Rounding=0,
 	Callback=function(v)
 		ESPLibrary:SetTextSize(v)
@@ -2481,125 +2585,34 @@ do
 end
 
 -- === DELETE FIGURE (FE) ===
-	seenmodels = {}
-destroyconn = {}
-deletefigureenabled = false
-heartbeatconnection = nil
-runservice = game:GetService("RunService")
-roomfolder = workspace.CurrentRooms
-
-notify = function(msg)
-	Library:Notify(msg, 3)
-end
-
-function cleanup(model)
-	local conns = destroyconn[model]
-	if conns then
-		for _, c in pairs(conns) do
-			if c then
-				c:Disconnect()
-			end
-		end
-	end
-	destroyconn[model] = nil
-	seenmodels[model] = nil
-end
-
-local isnetworkownerfunc = (type(isnetworkowner) == "function") and isnetworkowner or nil
-
-function onheartbeat()
-	for model in pairs(seenmodels) do
-		if not model  then
-			cleanup(model)
-		else
-if model then
-			local root = model:FindFirstChild("Root")
-			if not root then
-				cleanup(model)
-			elseif deletefigureenabled then
-				if isnetworkownerfunc then
-					if isnetworkownerfunc(root) then
-repeat task.wait(0.6)
-						root.CanCollide = false
-						root.CFrame = CFrame.new(0, -999999, 0)
-until root.Position.Y < -9000 or not Toggles.DFF.Value
-						notify("Figure has been Removed!")
-						Sound()
-						cleanup(model)
-					end
-				else
-					local alarm = workspace:FindFirstChild("AlarmClockModel")
-					if alarm and not destroyconn[model].alarmListener then
-						local conn = alarm.AncestryChanged:Connect(function(_, parent)
-							if not parent and deletefigureenabled then
-								if model and model.Parent then
-									local r = model:FindFirstChild("Root")
-									if r then
-	repeat task.wait(0.6)		
-				r.CanCollide = false
-										r.CFrame = CFrame.new(0, -999999, 0)
-								until r.Position.Y  < -9000 or not Toggles.DFF.Value		notify("Figure has been Removed!")
-										Sound()
-									end
-								end
-								cleanup(model)
-if conn then
-								conn:Disconnect()
-		end						destroyconn[model].alarmListener = nil
-							end
-						end)
-						destroyconn[model].alarmListener = conn
-					end
-				end
-			end
-		end
-	end
-end
-end
-BypassBox:AddToggle("DFF", {
-	Text = "Delete Figure (FE)",
+	BypassBox:AddToggle("DeleteFigure", {
+	Text = "Delete Figure",
 	Default = false,
 	Callback = function(on)
-		deletefigureenabled = on
-
-		if heartbeatconnection then
-			heartbeatconnection:Disconnect()
-			heartbeatconnection = nil
-		end
-
-		for model, conns in pairs(destroyconn) do
-			for _, c in pairs(conns) do
-				if c then
-					c:Disconnect()
-				end
-			end
-		end
-
-		table.clear(seenmodels)
-		table.clear(destroyconn)
-
-		if not on then
-			notify("Delete Figure disabled.")
+		if not isnetworkowner then
+			Library:Notify("[Delete Figure] Executor Doesn't Support isnetworkowner it wouldn't work", 4)
 			return
 		end
 
-		notify("[Delete Figure] Enabled")
+		if on then
+			if _df_running then return end
+			_df_running = true
 
-		local descendants = roomfolder:GetDescendants()
-		for i = 1, #descendants do
-			local node = descendants[i]
-			if node:IsA("Model") and (node.Name == "FigureRig" or node.Name == "FigureRagdoll") and node:IsDescendantOf(roomfolder) then
-				seenmodels[node] = true
-				destroyconn[node] = {}
-				table.insert(destroyconn[node], node.AncestryChanged:Connect(function(_, parent)
-					if not parent then
-						cleanup(node)
+			white(function()
+				while _df_running do
+					local figure = getinstance("FigureRig") or getinstance("FigureRagdoll")
+					if figure and isnetworkowner(figure.Root) then
+						figure:PivotTo(CFrame.new(0, -9999, 0))
+					else
+						_df_running = false
+						break
 					end
-				end))
-			end
+					task.wait(0.2)
+				end
+			end)
+		else
+			_df_running = false
 		end
-
-		heartbeatconnection = runservice.Heartbeat:Connect(onheartbeat)
 	end
 })
 	local shade = game:GetService("ReplicatedStorage").ClientModules.EntityModules:FindFirstChild("_Shade")
@@ -2908,9 +2921,6 @@ end
 	-- SERVICES
 	-------------------------------------------------------------------
 	
-	Library:SetWatermarkVisibility(true)
-
-Library:SetWatermark(("ProHax V3 | %s"):format(LocalPlayer.Name))
 	
 SettingsBox:AddDropdown('Notify Side', {
 	Values = {'Left', 'Right'},
@@ -3043,6 +3053,27 @@ SettingsBox:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "Right
 			end
 		end
 	})
+TrollBox:AddToggle("TPFigure", {
+		Text    = "TP Figure to Latest Door (FE)",
+		Default = false,
+		Callback = function(Value)
+if Value then
+if not isnetworkowner then
+Library:Notify("[TP Figure] Doesn't work cuz Executor  Doesn't Support isnetworkowner",4)
+return
+end
+while task.wait(0.2) do
+if not Toggles.TPFigure.Value then break end
+local Figure = getinstance("FigureRig") or getinstance("FigureRagdoll")
+if Figure and Figure.Root then
+if isnetworkowner(Figure.Root) then
+Figure:PivotTo(CFrame.new(workspace.CurrentRooms[game.ReplicatedStorage.GameData.LatestRoom.Value].Door.Door.CFrame))
+end
+end
+end
+end
+end
+})
 	con = nil
 	RemotesFolder = nil
 
@@ -3140,357 +3171,12 @@ SettingsBox:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "Right
 		end
 	})
 
-	MiscBox:AddButton({
-		Text    = "Vitamin",
-		DoubleClick = true,
-		Func = function()
-			Character = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
-			Backpack = game.Players.LocalPlayer.Backpack
-
-			Vitamins = Instance.new("Tool", Backpack)
-			Vitamins.Name = "Vitamins"
-			Vitamins.TextureId = "rbxassetid://10482863785"
-
-			Handle = Instance.new("MeshPart", Vitamins)
-			Handle.Name = "Handle"
-			Handle.MeshId = "rbxassetid://10469363179"
-			Handle.Size = Vector3.new(0.02, 0.02, 0.02)
-
-			SoundEffect = Instance.new("Sound", Handle)
-			SoundEffect.SoundId = "rbxassetid://11405639640"
-
-			UseAnimation = Instance.new("Animation", Vitamins)
-			UseAnimation.AnimationId = "rbxassetid://10482563149"
-
-			Label = Instance.new("MeshPart", Handle)
-			Label.Name = "Label"
-			Label.MeshId = "rbxassetid://10469363500"
-
-			Lid = Instance.new("MeshPart", Handle)
-			Lid.Name = "Lid"
-			Lid.MeshId = "rbxassetid://10469363357"
-
-			Stuff = Instance.new("MeshPart", Handle)
-			Stuff.Name = "Stuff"
-			Stuff.MeshId = "rbxassetid://10469363693"
-
-			StuffTop = Instance.new("MeshPart", Handle)
-			StuffTop.Name = "StuffTop"
-			StuffTop.MeshId = "10469363693"
-
-			Vitamins.Activated:Connect(function()
-				Character.Humanoid:LoadAnimation(UseAnimation):Play()
-				SoundEffect:Play()
-
-				local currentBoost = Character:GetAttribute("SpeedBoost") or 0
-				Character:SetAttribute("SpeedBoost", currentBoost + 5)
-				task.wait(0.3)
-				Vitamins:Destroy()
-				task.spawn(function()
-					task.wait(5)
-					local remainingBoost = Character:GetAttribute("SpeedBoost") or 0
-					Character:SetAttribute("SpeedBoost", math.max(remainingBoost - 5, 0))
-				end)
-			end)
-		end
-	})
-	MiscBox:AddButton({
-		Text    = "Infinite Vitamins",
-		DoubleClick = true,
-		Func = function()
-			Character = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
-			Backpack = game.Players.LocalPlayer.Backpack
-
-			Vitamins = Instance.new("Tool", Backpack)
-			Vitamins.Name = "Vitamins"
-			Vitamins.TextureId = "rbxassetid://10482863785"
-
-			Handle = Instance.new("MeshPart", Vitamins)
-			Handle.Name = "Handle"
-			Handle.MeshId = "rbxassetid://10469363179"
-			Handle.Size = Vector3.new(0.02, 0.02, 0.02)
-
-			SoundEffect = Instance.new("Sound", Handle)
-			SoundEffect.SoundId = "rbxassetid://11405639640"
-
-			UseAnimation = Instance.new("Animation", Vitamins)
-			UseAnimation.AnimationId = "rbxassetid://10482563149"
-
-			Label = Instance.new("MeshPart", Handle)
-			Label.Name = "Label"
-			Label.MeshId = "rbxassetid://10469363500"
-
-			Lid = Instance.new("MeshPart", Handle)
-			Lid.Name = "Lid"
-			Lid.MeshId = "rbxassetid://10469363357"
-
-			Stuff = Instance.new("MeshPart", Handle)
-			Stuff.Name = "Stuff"
-			Stuff.MeshId = "rbxassetid://10469363693"
-
-			StuffTop = Instance.new("MeshPart", Handle)
-			StuffTop.Name = "StuffTop"
-			StuffTop.MeshId = "10469363693"
-
-			Vitamins.Activated:Connect(function()
-				Character.Humanoid:LoadAnimation(UseAnimation):Play()
-				SoundEffect:Play()
-
-				local currentBoost = Character:GetAttribute("SpeedBoost") or 0
-				Character:SetAttribute("SpeedBoost", currentBoost + 5)
-
-				task.spawn(function()
-					task.wait(5)
-					local remainingBoost = Character:GetAttribute("SpeedBoost") or 0
-					Character:SetAttribute("SpeedBoost", math.max(remainingBoost - 5, 0))
-				end)
-			end)
-		end
-	})
-	MiscBox:AddButton({
-		Text    = "Starlight Jug",
-		DoubleClick = true,
-		Func = function()
-			local TweenService = game:GetService("TweenService")
-			local StarJug = game:GetObjects("rbxassetid://119885581324516")[1]
-
-			local speedTweenValue = Instance.new("NumberValue", StarJug)
-
-			local durability = 4
-			local debounce = false
-			StarJug:SetAttribute("Durability", durability)
-
-			StarJug.Parent = game.Players.LocalPlayer.Backpack
-
-			local character = game.Players.LocalPlayer.Character
-			local humanoid = character:FindFirstChildOfClass("Humanoid")
-
-			local Animations = StarJug:WaitForChild("Animations")
-			local LoadedAnims = {}
-
-			for _, anim in pairs(Animations:GetChildren()) do
-				LoadedAnims[anim.Name] = humanoid:LoadAnimation(anim)
-
-				if anim.Name == "idle" then
-					LoadedAnims[anim.Name].Priority = Enum.AnimationPriority.Idle
-					LoadedAnims[anim.Name].Looped = true
-				end
-			end
-
-			StarJug.Equipped:Connect(function()
-				LoadedAnims["equip"]:Play()
-
-				task.wait(LoadedAnims["equip"].Length)
-
-				if StarJug:IsDescendantOf(character) then
-					LoadedAnims["idle"]:Play()
-				end
-			end)
-
-			StarJug.Unequipped:Connect(function()
-				if LoadedAnims["idle"].IsPlaying then
-					LoadedAnims["idle"]:Stop()
-				end
-			end)
-
-			local collisionClone
-			StarJug.Activated:Connect(function()
-				if debounce then return end
-				debounce = true
-
-				LoadedAnims["open"]:Play()
-
-				if durability - 1 ~= 0 then
-					durability = durability - 1
-					StarJug:SetAttribute("Durability", durability)
-				else
-					StarJug:Destroy()
-				end
-
-				character:SetAttribute("Starlight", true)
-				character:SetAttribute("StarlightHuge", true)
-
-				local speedBoost, speedBoostFinished, mspaint_speed = 30, false, false
-				if getgenv().mspaint_loaded then
-					if collisionClone then collisionClone:Destroy() end
-					mspaint_speed = true
-
-					local originalSpeed = getgenv().Linoria.Toggles.SpeedBypass.Value
-					repeat task.wait()
-						if not getgenv().Linoria.Toggles.SpeedBypass.Value then
-							getgenv().Linoria.Toggles.SpeedBypass:SetValue(true)
-						end
-					until speedBoostFinished
-					getgenv().Linoria.Toggles.SpeedBypass:SetValue(originalSpeed)
-				else
-					if not collisionClone then
-
-					end
-
-
-					task.spawn(function()
-						while not speedBoostFinished do
-							collisionClone.Massless = not collisionClone.Massless
-							task.wait(0.21)
-						end
-
-						collisionClone.Massless = true
-					end)
-				end
-
-				speedTweenValue.Value = 35
-				TweenService:Create(speedTweenValue, TweenInfo.new(70, Enum.EasingStyle.Linear), {
-					Value = 0
-				}):Play()
-
-				local conn; conn = speedTweenValue:GetPropertyChangedSignal("Value"):Connect(function()
-					character:SetAttribute("SpeedBoost", speedTweenValue.Value)
-				end)
-
-				task.wait(35)
-
-				speedBoostFinished = true
-				conn:Disconnect()
-
-
-				character:SetAttribute("Starlight", false)
-				character:SetAttribute("StarlightHuge", false)
-				character:SetAttribute("SpeedBoost", 0)
-				debounce = false
-			end)
-		end
-	})
-	MiscBox:AddButton({
-		Text    = "Infinite Jug of StarLight",
-		DoubleClick = true,
-		Func = function()
-			local TweenService = game:GetService("TweenService")
-			local StarJug = game:GetObjects("rbxassetid://119885581324516")[1]
-
-			local speedTweenValue = Instance.new("NumberValue", StarJug)
-
-			local durability = 4
-			local debounce = false
-			StarJug:SetAttribute("Durability", durability)
-
-			StarJug.Parent = game.Players.LocalPlayer.Backpack
-
-			local character = game.Players.LocalPlayer.Character
-			local humanoid = character:FindFirstChildOfClass("Humanoid")
-
-			local Animations = StarJug:WaitForChild("Animations")
-			local LoadedAnims = {}
-
-			for _, anim in pairs(Animations:GetChildren()) do
-				LoadedAnims[anim.Name] = humanoid:LoadAnimation(anim)
-
-				if anim.Name == "idle" then
-					LoadedAnims[anim.Name].Priority = Enum.AnimationPriority.Idle
-					LoadedAnims[anim.Name].Looped = true
-				end
-			end
-
-			StarJug.Equipped:Connect(function()
-				LoadedAnims["equip"]:Play()
-
-				task.wait(LoadedAnims["equip"].Length)
-
-				if StarJug:IsDescendantOf(character) then
-					LoadedAnims["idle"]:Play()
-				end
-			end)
-
-			StarJug.Unequipped:Connect(function()
-				if LoadedAnims["idle"].IsPlaying then
-					LoadedAnims["idle"]:Stop()
-				end
-			end)
-
-			local collisionClone
-			StarJug.Activated:Connect(function()
-				if debounce then return end
-				debounce = true
-
-				LoadedAnims["open"]:Play()
-
-				if durability - 1 ~= 0 then
-					durability = durability 
-					StarJug:SetAttribute("Durability", durability)
-				else
-					StarJug:Destroy()
-				end
-
-				character:SetAttribute("Starlight", true)
-				character:SetAttribute("StarlightHuge", true)
-
-				local speedBoost, speedBoostFinished, mspaint_speed = 30, false, false
-				if getgenv().mspaint_loaded then
-					if collisionClone then collisionClone:Destroy() end
-					mspaint_speed = true
-
-					local originalSpeed = getgenv().Linoria.Toggles.SpeedBypass.Value
-					repeat task.wait()
-						if not getgenv().Linoria.Toggles.SpeedBypass.Value then
-							getgenv().Linoria.Toggles.SpeedBypass:SetValue(true)
-						end
-					until speedBoostFinished
-					getgenv().Linoria.Toggles.SpeedBypass:SetValue(originalSpeed)
-				else
-					if not collisionClone then
-						collisionClone = character.Collision:Clone() do
-							collisionClone.CanCollide = false
-							collisionClone.Massless = true
-							collisionClone.Name = "CollisionClone"
-							if collisionClone:FindFirstChild("CollisionCrouch") then
-								collisionClone.CollisionCrouch:Destroy()
-							end
-
-							collisionClone.Parent = character    
-						end
-					end
-
-					task.spawn(function()
-						while not speedBoostFinished do
-							collisionClone.Massless = not collisionClone.Massless
-							task.wait(0.21)
-						end
-
-						collisionClone.Massless = true
-					end)
-				end
-
-				speedTweenValue.Value = 35
-				TweenService:Create(speedTweenValue, TweenInfo.new(70, Enum.EasingStyle.Linear), {
-					Value = 0
-				}):Play()
-
-				local conn; conn = speedTweenValue:GetPropertyChangedSignal("Value"):Connect(function()
-					character:SetAttribute("SpeedBoost", speedTweenValue.Value)
-				end)
-
-				task.wait(35)
-
-				speedBoostFinished = true
-				conn:Disconnect()
-
-
-				character:SetAttribute("Starlight", false)
-				character:SetAttribute("StarlightHuge", false)
-				character:SetAttribute("SpeedBoost", 0)
-				debounce = false
-			end)
-		end
-	})
--- BFS utility: breadth-first search up to maxNodes nodes, returns list of instances named targetName
--- Ladder ESP Toggle
-
+	
 local Workspace = game:GetService("Workspace")
-local ESPLibrary = ESPLibrary  -- assume in scope
-local ESPBox = ESPBox          -- assume in scope
 
 do
-    local ladderESPHandles = {}   -- [Instance] = espHandle
-    local ancestryConns = {}      -- [Instance] = AncestryChanged connection
+    local ladderESPHandles = {}   
+    local ancestryConns = {}      
     local descendantConn = nil
 
     local function addLadder(inst)
@@ -4337,7 +4023,7 @@ DoorReach:OnChanged(function(enabled)
 
 		room = CurrentRooms:FindFirstChild(ReplicatedDS.LatestRoom.Value)
 		if not room then return end
-
+if workspace:FindFirstChild("SeekMovingNewClone") or workspace:FindFirstChild("SeekMoving") then return end
 		door = room:FindFirstChild("Door")
 		if door and door:FindFirstChild("ClientOpen") then
 			door.ClientOpen:FireServer()
@@ -4532,7 +4218,7 @@ AutoBox:AddToggle("AutoCloset", {
 								if Prompt then
 									DebugLog("Hiding...")
 									FirePrompt(Prompt)
-									Character:SetAttribute("Hiding", true)
+									
 									LastHideTime = tick()
 								else
 									DebugLog("Prompt not found in closet.")
@@ -4651,17 +4337,9 @@ RoomsBox:AddToggle("AutoRooms", {
 		end
 	end
 })
- local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local workspace = game:GetService("Workspace")
+ 
 
-local LocalPlayer = Players.LocalPlayer
-local cam = workspace.CurrentCamera
-
-local spectate_connection
-
-
-local entity_names = {
+entity_names = {
 	"RushMoving",
 	"AmbushMoving",
 	"A60",
@@ -4670,67 +4348,41 @@ local entity_names = {
 	"GlitchAmbush"
 }
 
+spectatecon = nil
+spectatevalue = false
+camera = workspace.CurrentCamera
+runservice = game:GetService("RunService")
+players = game:GetService("Players")
+localplayer = players.LocalPlayer
+
+function getentity()
+	for _, name in ipairs(entity_names) do
+		ent = workspace:FindFirstChild(name)
+		if ent and ent.PrimaryPart then
+			return ent
+		end
+	end
+end
+
+function updatecamera()
+	ent = getentity()
+	if ent and localplayer.Character and localplayer.Character:GetAttribute("Hiding") then
+		camera.CameraType = Enum.CameraType.Scriptable
+		camera.CFrame = CFrame.lookAt(camera.CFrame.Position, ent.PrimaryPart.Position)
+	end
+end
+
 AutoBox:AddToggle("Spectate", {
 	Text = "Spectate Entity (While Hiding)",
 	Default = false,
 	Callback = function(state)
-		if spectate_connection then
-			spectate_connection:Disconnect()
-			spectate_connection = nil
+		spectatevalue = state
+		if spectatecon then
+			spectatecon:Disconnect()
+			spectatecon = nil
 		end
-
-		if not state then
-			cam.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid") or nil
-			return
-		end
-
-		
-
-		local function cleanup()
-			if spectate_connection then
-				spectate_connection:Disconnect()
-				spectate_connection = nil
-			end
-			
-			cam.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid") or nil
-		end
-
-		spectate_connection = RunService.Heartbeat:Connect(function(dt)
-			
-			local char = LocalPlayer.Character
-			if not char or char:GetAttribute("Hiding") ~= true then
-				cleanup()
-				return
-			end
-
-			local root = char:FindFirstChild("HumanoidRootPart")
-			if not root then
-				cleanup()
-				return
-			end
-
-			local closest_entity = nil
-			local closest_distance = math.huge
-
-			for i = 1, #entity_names do
-				local ent = workspace:FindFirstChild(entity_names[i])
-				if ent and ent:IsA("Model") and ent.PrimaryPart then
-					local dist = (ent.PrimaryPart.Position - root.Position).Magnitude
-					if dist < closest_distance then
-						closest_distance = dist
-						closest_entity = ent
-					end
-				end
-			end
-
-			if closest_entity then
-				cam.CFrame = CFrame.lookAt(root.Position, closest_entity.PrimaryPart.Position)
-			else
-				cleanup()
-			end
-		end)
-
-		LocalPlayer.CharacterRemoving:Connect(cleanup)
+		if not spectatevalue then return end
+		spectatecon = runservice.RenderStepped:Connect(updatecamera)
 	end
 })
 
@@ -4750,42 +4402,21 @@ workspace.DescendantAdded:Connect(function(inst)
 			end
 		end
 	end
-
-	if inst:IsA("Model") then
-		if name == "FigureRig" or name == "FigureRagdoll" then
-			if  Toggles.DFF.Value then
-				table.insert(seenmodels,inst)
-			end
-		end
-	end
-
 	if Toggles.DeleteSeekFE.Value then
-		if name == "TriggerSeek" then
+		if inst.Name == "TriggerSeek" then
 			inst:Destroy()
 			Sound()
 			Library:Notify("Deleted Seek successfully", 3)
 		end
 
-		if name == "TriggerEventCollision" then
-			local count = 0
-			local collisions = {}
-
-			for _, v in ipairs(inst:GetChildren()) do
-				if v.Name == "Collision" then
-					count += 1
-					collisions[#collisions + 1] = v
-				end
-			end
-
-			if count > 1 then
-				for _, c in ipairs(collisions) do
-					c:Destroy()
-				end
+		if inst.Name == "TriggerEventCollision" then
+			
+inst:ClearAllChildren()
+			
 				Sound()
-				Library:Notify("Deleted extra Seek collisions", 3)
+				Library:Notify("Deleted Seek", 3)
 			end
 		end
-	end
 
 	if Toggles.Items.Value then
 		if itemSet[name] and inst:IsDescendantOf(currentRoom()) then
@@ -4883,5 +4514,36 @@ workspace.DescendantAdded:Connect(function(inst)
 			end
 		end
 	end
-end)
 
+if Toggles.InfiniteItems.Value then
+	if inst:IsA("ProximityPrompt") then
+		handleprompt(inst)
+	end
+end
+
+if Toggles.EntityESP.Value then
+if EntityNames[inst.Name] then
+				createesp(inst)
+			end
+end
+if Toggles.EntityNotify.Value then
+		if inst:IsA("Model") then
+					 data = notifyentities[inst.Name]
+					if data and not tracked_notify[inst] then
+						tracked_notify[inst] = true
+						Library:Notify(("› %s has spawned! %s"):format(data[1], data[2]), 4)
+						Sound()
+					end
+				end
+end
+if Toggles.ChatNotify.Value then
+if inst:IsA("Model") then
+					 data = notifyentities[inst.Name]
+					if data and not tracked_chat[inst] then
+						tracked_chat[inst] = true
+						ChatNotify(("› %s has spawned! %s"):format(data[1], data[2]))
+						Sound()
+					end
+				end
+end
+end)
