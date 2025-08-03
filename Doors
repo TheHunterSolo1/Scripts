@@ -2200,12 +2200,9 @@ function handleprompt(prompt)
 			if not rf then return end
 
 			rf.DropItem:FireServer(tool)
-			local drop = workspace.Drops:WaitForChild(workspace.Drops.ChildAdded:Wait():GetFullName():split(".")[2], 1)
-			if drop then
-				local p = drop:FindFirstChildOfClass("ProximityPrompt")
-				if p then fireproximityprompt(p) end
-			end
-
+			
+				Workspace.Drops.ChildAdded:Wait()
+fireproximityprompt(workspace.Drops:FindFirstChildOfClass("Model"):FindFirstChildOfClass("ProximityPrompt"))
 			fireproximityprompt(prompt)
 
 			clonedprompts[prompt] = nil
