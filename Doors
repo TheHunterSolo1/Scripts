@@ -1,4 +1,62 @@
- repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 
 
 Library =  loadstring(game:HttpGet(repo..'Library.lua'))()
@@ -10,28 +68,28 @@ Toggles = Library.Toggles
 
  
 ESPLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/bocaj111004/ESPLibrary/refs/heads/main/main.lua"))() 
-ESPLibrary:SetFadeTime(0.8)
+ESPLibrary:SetFadeTime(0.5)
 Window = Library:CreateWindow({Title='ProHax V3',Center=true,AutoShow=true})
 Tabs = {
 	Player     = Window:AddTab('Main'),
 	Anti       = Window:AddTab('Exploits'),
 	Auto       = Window:AddTab('Visuals'),
 	Floors     = Window:AddTab('Floors'),
+Misc = Window:AddTab('Miscellaneous'),
 	Fun = Window:AddTab('Trolling'),    UISettings = Window:AddTab('UI Settings'),
 }
 PlayerBox = Tabs.Player:AddLeftGroupbox('LocalPlayer')
-AntiBox   = Tabs.Anti:AddLeftGroupbox('Anti Features')
+AntiBox   = Tabs.Anti:AddLeftGroupbox('Bypass Entities')
 AutoBox   = Tabs.Player:AddRightGroupbox('Automatically')
 ESPBox    = Tabs.Auto:AddLeftGroupbox('ESP')
 ESPSettings    = Tabs.Auto:AddRightGroupbox('Visuals')
 BypassBox = Tabs.Anti:AddRightGroupbox('Bypass')
-FoolsBox = Tabs.Floors:AddLeftGroupbox('Super Hard Mode 2023/ -Hotel')
-BackBox = Tabs.Floors:AddLeftGroupbox('Backdoor')
-MinesBox = Tabs.Floors:AddLeftGroupbox('Mines')
-RetroBox = Tabs.Floors:AddRightGroupbox('Retro')
-RoomsBox = Tabs.Floors:AddRightGroupbox('Rooms')
+FloorsBox = Tabs.Floors:AddRightGroupbox('Floors Bypass Entities')
+FloorsBx = Tabs.Floors:AddLeftGroupbox('Main Floor')
 SettingsBox = Tabs.UISettings:AddLeftGroupbox('Themes & Keybinds')
-MiscBox = Tabs.Player:AddRightGroupbox('Miscellaneous')
+MiscBox = Tabs.Misc:AddRightGroupbox('Remotes')
+MiscBox2 = Tabs.Misc:AddRightGroupbox('Reach')
+MiscBox3 = Tabs.Misc:AddLeftGroupbox('Disable')
 
 TrollBox = Tabs.Fun:AddLeftGroupbox('Troll')
 -- Services & References
@@ -51,6 +109,8 @@ GameData          = ReplicatedStorage:WaitForChild("GameData")
 LocalPlayer = Players.LocalPlayer
 Camera      = Workspace.CurrentCamera
 LocalPlayer.Character.HumanoidRootPart.CanCollide = true
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Collision") and LocalPlayer.Character.Collision:FindFirstChild("CollisionCrouch") then LocalPlayer.Character.Collision.CollisionCrouch:Destroy()
+end
 function ChatNotify(Text)
 	local textchannel = game:GetService("TextChatService"):WaitForChild("TextChannels"):WaitForChild("RBXGeneral") 
 	local message = Text
@@ -155,7 +215,38 @@ BreakDoorsFE:OnChanged(function(enabled)
 		end
 	end)
 end)
+MiscBox3:AddLabel("Sounds", {
+        Text = "Sounds is Extra Processing in  Device  Disabling them would improve fps on devices",
+        DoesWrap = true, -- Defaults to false
+})
 
+local WalkingCon = nil
+local WalkingValue = false
+MiscBox3:AddToggle('DisableWalkingSound',{
+	Text = "Disable Walking Sounds",
+	Tooltip = "Removes the Sound that appears when you walk",
+	Default = false,
+	Callback = function(Value)
+WalkingValue = Value
+if WalkingCon then
+WalkingCon:Disconnect()
+WalkingCon = nil
+end
+if not WalkingValue then return end
+WalkingCon = LocalPlayer.Character.ChildAdded:Connect(function(v)
+if v:IsA("Sound") then v:Destroy()
+end
+end)
+end
+})
+MiscBox3:AddToggle('DisableDrawersInteractionsSounds',{
+	Text = "Disable Drawers Sounds",
+	Tooltip = "Removes the Sound that appears at Drawers",
+	Default = false,
+	Callback = function(Value)
+
+end
+})
 TrollBox:AddToggle('Stunned',{
 	Text = "Stunned",
 	Tooltip = "Makes People Think your Died",
@@ -190,7 +281,7 @@ SpeedSlider = PlayerBox:AddSlider('WalkSpeed', {
 		end
 	end
 })
-
+PlayerBox:AddDivider()
 PlayerBox:AddToggle("EnableWalkSpeed", {
 	Text = "Enable WalkSpeed",
 	Default = false
@@ -222,7 +313,8 @@ MiscBox:AddButton({
 	DoubleClick = true,
 
 	Func = function()
-		replicatedsignal(LocalPlayer.Kill)
+	if replicatedsignal then	replicatedsignal(LocalPlayer.Kill)
+end
 end
 })
 MiscBox:AddButton({
@@ -253,7 +345,7 @@ if RS:FindFirstChild("EntityInfo") then
 elseif RS:FindFirstChild("RemotesFolder") then
 	playAgain = RS.RemotesFolder:WaitForChild("PlayAgain")
 else
-	warn("PlayAgain event not found in ReplicatedStorage")
+	playAgain = RS:FindFirstChild("Bricks"):WaitForChild("PlayAgain")
 end
 
 -- When a Humanoid dies, fire the cached event
@@ -310,9 +402,12 @@ MiscBox:AddButton({
 	Func = function()
 		if game.ReplicatedStorage:FindFirstChild("EntityInfo") then
 			game.ReplicatedStorage.EntityInfo.PlayAgain:FireServer()
-		else
+		elseif ReplicatedStorage:FindFirstChild("RemotesFolder") then
 
-			game.ReplicatedStorage.RemotesFolder.PlayAgain:FireServer()
+			ReplicatedStorage.RemotesFolder.PlayAgain:FireServer()
+
+else
+ReplicatedStorage.Bricks.PlayAgain:FireServer()
 		end
 	end
 })
@@ -327,63 +422,104 @@ MiscBox:AddButton({
 		end
 	end
 })
-local InfValue = false
-local InfCon = nil
-local oid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
-LocalPlayer.CharacterAdded:Connect(function()
-oid = LocalPlayer.Character:WaitForChild("Humanoid")
+local RS = game:GetService("ReplicatedStorage")
+if RS:FindFirstChild("Bricks") or RS:FindFirstChild("EntityInfo") then
+local WS = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local reviveToggle = false
+local reviveCon
+
+local function setupRevive(char)
+	local hum = char:WaitForChild("Humanoid")
+	if reviveCon then reviveCon:Disconnect() end
+
+	reviveCon = hum.Died:Connect(function()
+		local Info = RS:FindFirstChild("EntityInfo")
+		local Bricks = RS:FindFirstChild("Bricks")
+		if Info then
+			Info.Revive:FireServer()
+		elseif Bricks then
+			Bricks:FireServer()
+		end
+		if reviveToggle then
+			setupRevive(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())
+		end
+	end)
+end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+	if reviveToggle then
+		setupRevive(char)
+	end
 end)
-FoolsBox:AddToggle("Infinite Revive", {
+
+FloorsBx:AddToggle("InfiniteRevive", {
 	Text = "Infinite Revive",
 	Default = false,
 	Callback = function(state)
-if InfCon then
-InfCon:Disconnect()
-InfCon = nil
-end
-if not InfValue then return end
-InfCon = oid.Died:Connect(function()
-if ReplicatedStorage:FindFirstChild("EntityInfo") then
-ReplicatedStorage.EntityInfo.Revive:FireServer()
-else
-ReplicatedStorage.Bricks:FireServer()
-            end
-      end)
-end
+		reviveToggle = state
+		if not state then
+			if reviveCon then reviveCon:Disconnect() reviveCon = nil end
+			return
+		end
+		if LocalPlayer.Character then
+			setupRevive(LocalPlayer.Character)
+		end
+	end
 })
- FoolsBox:AddToggle("FoolsGodmode", {
-	Text = "God Mode",
-	Default = false,
-	Tooltip = "Make you Invincible To Entities",
-	Callback = function(enabled)
-if enabled then
-LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position - Vector3.new(0, 7.5, 0)
-else
-LocalPlayer.Character.Collision.Position = LocalPlayer.Character.Collision.Position + Vector3.new(0, 7.5, 0)
-end
-end
-})
- FoolsBox:AddToggle("FigureGodmode", {
-	Text = "Figure Godmode",
-	Default = false,
-	Tooltip = "Make you Immune to Figure",
-	Callback = function(enabled)
 
-if enabled then
-if not Toggles.FoolsGodmode.Value then
-Toggles.Godmode:SetValue(true)
-      end
-end
+	FloorsBx:AddToggle("FoolsGodmode", {
+		Text = "God Mode",
+		Default = false,
+		Tooltip = "Make you Invincible To Entities",
+		Callback = function(enabled)
+			local char = LocalPlayer.Character
+			if char and char:FindFirstChild("Collision") then
+				local offset = Vector3.new(0, 9.5, 0)
+				char.Collision.Position = enabled and (char.Collision.Position - offset) or (char.Collision.Position + offset)
+			end
+		end
+	})
 
-local Figure = workspace:FindFirstChild("FigureRagdoll",true)
-if Figure and Figure.Root then
-for _, part in ipairs(Figure:GetChildren()) do
-if part:IsA("BasePart") then part.CanTouch = not Toggles.FigureGodmode.Value
+	FloorsBx:AddToggle("FigureGodmode", {
+		Text = "Figure Godmode",
+		Default = false,
+		Tooltip = "Make you Immune to Figure",
+		Callback = function(enabled)
+			if enabled and not Toggles.FoolsGodmode.Value then
+				Library:Notify("[Figure Godmode] Enabled God Mode automatically", 4)
+				Toggles.FoolsGodmode:SetValue(true)
+			end
+
+			-- Loop to apply CanTouch repeatedly while enabled
+			spawn(function()
+				while Toggles.FigureGodmode.Value do
+					local Figure = WS:FindFirstChild("FigureRagdoll", true)
+					if Figure then
+						for _, part in ipairs(Figure:GetChildren()) do
+							if part:IsA("BasePart") then
+								part.CanTouch = false
+							end
+						end
+					end
+					task.wait(1)
+				end
+
+				-- When disabled, reset CanTouch if Figure exists
+				local Figure = WS:FindFirstChild("FigureRagdoll", true)
+				if Figure then
+					for _, part in ipairs(Figure:GetChildren()) do
+						if part:IsA("BasePart") then
+							part.CanTouch = true
+						end
+					end
+				end
+			end)
+		end
+	})
 end
-end
-end
-end
-})
 runSpam = false
 
 TrollBox:AddToggle("SpamOthersTools", {
@@ -436,7 +572,7 @@ end
 	ChangedCallback = function(New)
 	end
 })
-
+PlayerBox:AddDivider()
 PlayerBox:AddToggle('EnableJump',{
 	Text='Enable Jump',Default=false,Callback=function(v)
 		Character:SetAttribute('CanJump',v)
@@ -458,67 +594,60 @@ PlayerBox:AddToggle('NoSlowDown',{
 	end
 })
 
-Players     = game:GetService("Players")
-RunService  = game:GetService("RunService")
+Players = game:GetService("Players")
+RunService = game:GetService("RunService")
 
-player      = Players.LocalPlayer
+player = Players.LocalPlayer
 local offsetX, offsetY, offsetZ = 0, 0, 0
-heartbeatConnection = nil
-thingy = nil
-local requireSupported = require(LocalPlayer.PlayerScripts.PlayerModule)
-
-if not requireSupported then
-	Library:Notify("Require() is not supported. ToolOffset will be hidden.", 3)
-	return
-end
+local heartbeatConnection = nil
+local thingy = nil
 
 ESPSettings:AddSlider('ToolOffsetX', {
-	Text     = 'ToolOffset X',
-	Min      = -10,
-	Max      = 10,
-	Default  = 0,
+	Text = 'Viewmodel X',
+	Min = -10,
+	Max = 10,
+	Default = 0,
 	Rounding = 2,
 	Callback = function(v) offsetX = v end,
 })
+
 ESPSettings:AddSlider('ToolOffsetY', {
-	Text     = 'ToolOffset Y',
-	Min      = -10,
-	Max      = 10,
-	Default  = 0,
+	Text = 'Viewmodel Y',
+	Min = -10,
+	Max = 10,
+	Default = 0,
 	Rounding = 2,
 	Callback = function(v) offsetY = v end,
 })
+
 ESPSettings:AddSlider('ToolOffsetZ', {
-	Text     = 'ToolOffset Z',
-	Min      = -10,
-	Max      = 10,
-	Default  = 0,
+	Text = 'Viewmodel Z',
+	Min = -10,
+	Max = 10,
+	Default = 0,
 	Rounding = 2,
 	Callback = function(v) offsetZ = v end,
 })
 
 ESPSettings:AddToggle('ToolOffset', {
-	Text = 'ToolOffset',
+	Text = 'Viewmodel',
 	Default = false,
-
 	Callback = function(enabled)
-		gui = player:FindFirstChild("PlayerGui")
+		local gui = player:FindFirstChild("PlayerGui")
 		if not gui then return end
-		moduleGui = gui:FindFirstChild("MainUI")
+		local moduleGui = gui:FindFirstChild("MainUI")
 		if not moduleGui then return end
 		moduleGui = moduleGui:FindFirstChild("Initiator")
 		if not moduleGui then return end
 		moduleGui = moduleGui:FindFirstChild("Main_Game")
 		if not moduleGui then return end
 
-		thingy = thingy or require(moduleGui)
+		thingy = require(moduleGui)
 
 		if enabled then
 			if heartbeatConnection then heartbeatConnection:Disconnect() end
 			heartbeatConnection = RunService.Heartbeat:Connect(function()
-				if thingy then
-					thingy.tooloffset = Vector3.new(offsetX, offsetY, offsetZ)
-				end
+				thingy.tooloffset = Vector3.new(offsetX, offsetY, offsetZ)
 			end)
 		else
 			if heartbeatConnection then
@@ -529,10 +658,14 @@ ESPSettings:AddToggle('ToolOffset', {
 				thingy.tooloffset = Vector3.new(0, 0, 0)
 			end
 		end
-	end,
+	end
 })
+ESPSettings:AddDivider()
 
-Players = game:GetService("Players") RunService = game:GetService("RunService") ReplicatedStorage = game:GetService("ReplicatedStorage") Workspace = game:GetService("Workspace") local LocalPlayer = Players.LocalPlayer local WorkspaceCamera = Workspace.CurrentCamera local screechCon = nil local hearingCon = nil local eyesCon = nil local lookmanCon = nil AntiBox:AddToggle("AntiScreech", { Text    = "Remove Screech", Default = false, Callback = function(enabled) if screechCon then screechCon:Disconnect() screechCon = nil end if enabled then local camKids = WorkspaceCamera:GetChildren() for i = 1, #camKids do if camKids[i].Name == "GlitchedScreech" then camKids[i]:Destroy() end end screechCon = WorkspaceCamera.ChildAdded:Connect(function(child) if child.Name == "GlitchedScreech" then child:Destroy() end end) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("Screech") or mods:FindFirstChild("_Screech") if mod then mod.Name = "_Screech" end else local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("_Screech") or mods:FindFirstChild("Screech") if mod then mod.Name = "Screech" end end end }) AntiBox:AddToggle("AntiDread", { Text    = "Remove Dread", Default = false, Callback = function(enabled) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("Dread") or mods:FindFirstChild("_Dread") if mod then mod.Name = enabled and "_Dread" or "Dread" end end }) local THROTTLE = 0.1 AntiBox:AddToggle("AntiFigureHearing", { Text    = "Anti Figure Hearing", Default = false, Callback = function(enabled) if hearingCon then hearingCon:Disconnect() hearingCon = nil end if enabled then local acc = 0 hearingCon = RunService.Heartbeat:Connect(function(dt) acc = acc + dt if acc < THROTTLE then return end acc = 0 local remotes = ReplicatedStorage:FindFirstChild("RemotesFolder") remotes = remotes and remotes:FindFirstChild("Crouch") if remotes then remotes:FireServer(true) end end) else local remotes = ReplicatedStorage:FindFirstChild("RemotesFolder") remotes = remotes and remotes:FindFirstChild("Crouch") if remotes then remotes:FireServer(false) end end end }) RoomsBox:AddToggle("AntiA90", { Text    = "Remove A90", Default = false, Callback = function(enabled) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("A90") or mods:FindFirstChild("_A90") if mod then mod.Name = enabled and "_A90" or "A90" end end }) 
+Players = game:GetService("Players") RunService = game:GetService("RunService") ReplicatedStorage = game:GetService("ReplicatedStorage") Workspace = game:GetService("Workspace") local LocalPlayer = Players.LocalPlayer local WorkspaceCamera = Workspace.CurrentCamera local screechCon = nil local hearingCon = nil local eyesCon = nil local lookmanCon = nil AntiBox:AddToggle("AntiScreech", { Text    = "Disables Screech", Default = false, Tooltip = "Prevent Screech From Spawning", Callback = function(enabled) if screechCon then screechCon:Disconnect() screechCon = nil end if enabled then local camKids = WorkspaceCamera:GetChildren() for i = 1, #camKids do if camKids[i].Name == "GlitchedScreech" then camKids[i]:Destroy() end end screechCon = WorkspaceCamera.ChildAdded:Connect(function(child) if child.Name == "GlitchedScreech" then child:Destroy() end end) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("Screech") or mods:FindFirstChild("_Screech") if mod then mod.Name = "_Screech" end else local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("_Screech") or mods:FindFirstChild("Screech") if mod then mod.Name = "Screech" end end end }) AntiBox:AddToggle("AntiDread", { Text    = "Disables Dread", Default = false, Tooltip = "Prevent Dread From Spawning", Callback = function(enabled) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("Dread") or mods:FindFirstChild("_Dread") if mod then mod.Name = enabled and "_Dread" or "Dread" end end }) 
+AntiBox:AddDivider()
+local THROTTLE = 0.1 AntiBox:AddToggle("AntiFigureHearing", { Text    = "Anti Figure Hearing", Default = false, Callback = function(enabled) if hearingCon then hearingCon:Disconnect() hearingCon = nil end if enabled then local acc = 0 hearingCon = RunService.Heartbeat:Connect(function(dt) acc = acc + dt if acc < THROTTLE then return end acc = 0 local remotes = ReplicatedStorage:FindFirstChild("RemotesFolder") remotes = remotes and remotes:FindFirstChild("Crouch") if remotes then remotes:FireServer(true) end end) else local remotes = ReplicatedStorage:FindFirstChild("RemotesFolder") remotes = remotes and remotes:FindFirstChild("Crouch") if remotes then remotes:FireServer(false) end end end }) FloorsBox:AddToggle("AntiA90", { Text    = "Disables A90", Default = false, Callback = function(enabled) local mods = LocalPlayer.PlayerGui :WaitForChild("MainUI") :WaitForChild("Initiator") :WaitForChild("Main_Game") :WaitForChild("RemoteListener") :WaitForChild("Modules") local mod = mods:FindFirstChild("A90") or mods:FindFirstChild("_A90") if mod then mod.Name = enabled and "_A90" or "A90" end end }) 
+FloorsBx:AddDivider()
 local replicatedstorage = game:GetService("ReplicatedStorage")
 local workspace = game:GetService("Workspace")
 local runservice = game:GetService("RunService")
@@ -563,8 +696,7 @@ end
 		end)
 	end
 })
-
-    BackBox:AddToggle("Anti-Lookman", {
+    FloorsBox:AddToggle("Anti-Lookman", {
         Text = "Anti-Lookman",
         Default = false,
         Callback = function(enabled)
@@ -594,7 +726,7 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 -- Parts to ignore during noclip
 local NoclipIgnoreTable = {
 	"Collision",
-	"ClonedCollision"
+	"_Collision"
 }
 
 -- Helper: is the part one we should ignore for noclip?
@@ -606,6 +738,7 @@ end
 local NoclipConnection = nil
 
 -- Toggle (via your UI system)
+PlayerBox:AddDivider()
 PlayerBox:AddToggle("Noclip", {
 	Text = "Noclip",
 	Default = false,
@@ -675,7 +808,7 @@ local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 if char then
  Collision = char:FindFirstChild("Collision")
-C = char:FindFirstChild("ClonedCollision")
+C = char:FindFirstChild("_Collision")
 if Collision then
 		Collision.CanCollide = false
 
@@ -688,7 +821,7 @@ end
 -- Services (globals as per preference)
 -- Services
 
-AntiBox:AddToggle("AntiSnare", {
+FloorsBox:AddToggle("AntiSnare", {
 	Text = "Anti Snare",
 	Tooltip = "You become immune to Snare traps",
 	Default = false,
@@ -704,7 +837,7 @@ end
 
 -- Dupe
 
-AntiBox:AddToggle("AntiDupe", {
+FloorsBox:AddToggle("AntiDupe", {
 	Text = "Anti Dupe",
 	Tooltip = "You become immune to Sideroom Dupe",
 	Default = false,
@@ -716,7 +849,7 @@ end
 end
 end
 })
-FoolsBox:AddToggle("AntiBanana", {
+FloorsBox:AddToggle("AntiBanana", {
 	Text = "Anti Banana",
 	Tooltip = "You become immune to Banana",
 	Default = false,
@@ -728,7 +861,7 @@ end
 end
 end
 })
-FoolsBox:AddToggle("AntiJeff", {
+FloorsBox:AddToggle("AntiJeff", {
 	Text = "Anti Jeff ",
 	Tooltip = "You become immune to Jeff",
 	Default = false,
@@ -744,7 +877,7 @@ end
 end
 end
 })
-BackBox:AddToggle("AntiVacuum", {
+FloorsBox:AddToggle("AntiVacuum", {
 	Text = "Anti Vacuum",
 	Tooltip = "You become immune to Vacuum",
 	Default = false,
@@ -760,7 +893,7 @@ end
 end
 end
 })
-MinesBox:AddToggle("AntiGloomPile", {
+FloorsBox:AddToggle("AntiGloomPile", {
 	Text = "Anti GloomPile",
 	Tooltip = "You become immune to GloomPile",
 	Default = false,
@@ -776,7 +909,7 @@ end
 end
 end
 })
-RetroBox:AddToggle("AntiLava", {
+FloorsBox:AddToggle("AntiLava", {
 	Text = "Anti Lava",
 	Tooltip = "You become immune to Lava",
 	Default = false,
@@ -788,7 +921,7 @@ end
 end
 end
 })
-RetroBox:AddToggle("AntiScaryWall", {
+FloorsBox:AddToggle("AntiScaryWall", {
 	Text = "Anti ScaryWall",
 	Tooltip = "You become immune to ScaryWall",
 	Default = false,
@@ -805,7 +938,7 @@ end
 end
 end
 })
-MinesBox:AddToggle("AntiGiggle", {
+FloorsBox:AddToggle("AntiGiggle", {
 	Text = "Anti Giggle",
 	Tooltip = "You become immune to GiggleCeiling",
 	Default = false,
@@ -820,23 +953,22 @@ end
 
 -- Seek Obstacles
 
-AntiBox:AddToggle("AntiSeek", {
+FloorsBx:AddToggle("AntiSeek", {
 	Text = "Anti Seek Obstacles",
-	Tooltip = "You ignore Seek chase collisions",
 	Default = false,
-Callback = function(Value)
+	Callback = function(Value)
+		for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
+			if v.Name == "Seek_Arm" or v.Name == "ChandelierObstruction" then
+				for _, part in pairs(v:GetChildren()) do
+					if part:IsA("BasePart") then
+						part.CanTouch = not Value
+					end
+				end
+			end
+		end
+	end
+})
 
-for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
-if v.Name == "Seek_Arm" or v.Name == "ChandelierObstruction" then
-for _, part in pairs(v:GetChildren()) do
-if part:IsA("BasePart") then
-part.CanTouch = not Toggles.AntiSeek.Value
-end
-end
-end
-end
-end
-	})
 -- Services
 RepStore = game:GetService("ReplicatedStorage")
 PS       = game:GetService("Players")
@@ -972,6 +1104,7 @@ end
 
 -- Initialize toggles
 manageToggle("AutoCodeFire",   "Fire")
+AutoBox:AddDivider()
 manageToggle("AutoCodeNotify", "Notify")
 
 local noCamShakeConn
@@ -1099,7 +1232,7 @@ AutoBox:AddToggle("AutoInteract", {
 	Callback = function(v) end,
 	ChangedCallback = function(n) end
 })
-
+AutoBox:AddDivider()
 AutoBox:AddToggle("InteractInstant", {
 	Text = "Interact Instant",
 	Default = false,
@@ -1189,18 +1322,20 @@ AutoBox:AddToggle("AntiHeartbeatMiniGame", {
 
 end
 })
- ClonedCollision = LocalPlayer.Character.Collision:Clone()
-ClonedCollision.Parent = LocalPlayer.Character
-ClonedCollision.Name = "_Collision"
-ClonedCollision.Massless = true
-ClonedCollision.CanCollide = false
+
 BypassBox:AddToggle("SpeedBypass", {
 	Text = "Speed Bypass",
 	Default = false,
 	Tooltip = "Bypasses game speed anticheat",
 	Callback = function(Value)
 		SpeedBypassValue = Value
-
+if not LocalPlayer.Character:FindFirstChild("_Collision") then
+ClonedCollision = LocalPlayer.Character.Collision:Clone()
+ClonedCollision.Parent = LocalPlayer.Character
+ClonedCollision.Name = "_Collision"
+ClonedCollision.Massless = true
+ClonedCollision.CanCollide = false
+end 
 
 		SpeedSlider:SetMax(SpeedBypassValue and 75 or 21.4)
 
@@ -1225,7 +1360,7 @@ BypassBox:AddToggle("SpeedBypass", {
 end 
 	end
 })
-
+BypassBox:AddDivider()
 -- SERVICES
 RepStorage = game:GetService("ReplicatedStorage")
 Players = game:GetService("Players")
@@ -1499,95 +1634,77 @@ BypassBox:AddToggle("NB", {
 	ChangedCallback = function(New)
 	end
 })
+BypassBox:AddDivider()
 
 
-local DeleteFE = false
- FoolsBox:AddToggle("DeleteSeekFE", {
-	Text    = "Delete Seek (FE)",
-	Default = false,
-	Tooltip = "Makes Seek never appear",
-Callback = function(Value)
-DeleteFE = Value
-while DeleteFe do
-task.wait(0.3)
-if not DeleteFe then break end
-local SeekTrigger = workspace:FindFirstChild("TriggerSeek",true)
-if SeekTrigger then
-SeekTrigger:Destroy()
+if ReplicatedStorage:FindFirstChild("Bricks") or ReplicatedStorage:FindFirstChild("EntityInfo") then
+	local DeleteFE = false
+	local deleteCoroutine
+
+	FloorsBx:AddToggle("DeleteSeekFE", {
+		Text = "Delete Seek (FE)",
+		Default = false,
+		Tooltip = "Makes Seek never appear",
+		Callback = function(Value)
+			DeleteFE = Value
+
+			if deleteCoroutine and coroutine.status(deleteCoroutine) ~= "dead" then
+				DeleteFE = false
+				task.wait(0.3)
+			end
+
+			if DeleteFE then
+				deleteCoroutine = coroutine.create(function()
+					while DeleteFE do
+						task.wait(0.3)
+						local seek = workspace:FindFirstChild("TriggerSeek", true)
+						if seek then seek:Destroy() end
+						local evt = workspace:FindFirstChild("TriggerEventCollision", true)
+						if evt then evt:ClearAllChildren() end
+					end
+				end)
+				coroutine.resume(deleteCoroutine)
+			end
+		end
+	})
 end
-local v = workspace:FindFirstChild("TriggerEventCollision",true)
-if v then
-v:ClearAllChildren()
-end
-end
-end
-})
 
-local workspace         = game:GetService("Workspace")
-local RunService        = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LatestRoomValue   = ReplicatedStorage.GameData.LatestRoom
+if ReplicatedStorage.GameData.Floor.Value == "Retro" then
+	local LatestRoom = ReplicatedStorage.GameData.LatestRoom
+	local roomDescConn, roomChangeConn
 
-local roomDescConn
-local roomChangeConn
-local batchSize = 50     -- batch size for initial scan
+	FloorsBx:AddToggle("AntiFakeBridge", {
+		Text = "Remove Fake Bridge",
+		Default = false,
+		Callback = function(on)
+			if roomDescConn then roomDescConn:Disconnect() roomDescConn = nil end
+			if roomChangeConn then roomChangeConn:Disconnect() roomChangeConn = nil end
+			if not on then return end
 
-local AntiFakeBridgeToggle = RetroBox:AddToggle("AntiFakeBridge", {
-	Text    = "Remove Fake Bridge",
-	Default = false,
-})
-AntiFakeBridgeToggle:OnChanged(function(isOn)
-	-- cleanup
-	if roomDescConn then
-		roomDescConn:Disconnect()
-		roomDescConn = nil
-	end
-	if roomChangeConn then
-		roomChangeConn:Disconnect()
-		roomChangeConn = nil
-	end
-
-	if not isOn then return end
-
-	local function attachToRoom(room)
-		-- initial batch removal
-		local descendants = room:GetDescendants()
-		local total = #descendants
-		task.spawn(function()
-			for i = 1, total, batchSize do
-				for j = i, math.min(i + batchSize - 1, total) do
-					local obj = descendants[j]
+			local function removeBridgeParts(room)
+				for _, obj in ipairs(room:GetDescendants()) do
 					if obj:IsA("BasePart") and obj.Name == "Bridge" and not obj.CanCollide then
 						obj:Destroy()
 					end
 				end
-				task.wait()
+				roomDescConn = room.DescendantAdded:Connect(function(obj)
+					if obj:IsA("BasePart") and obj.Name == "Bridge" and not obj.CanCollide then
+						obj:Destroy()
+					end
+				end)
 			end
-		end)
 
-		-- listen for new parts
-		roomDescConn = room.DescendantAdded:Connect(function(obj)
-			if obj:IsA("BasePart") and obj.Name == "Bridge" and not obj.CanCollide then
-				obj:Destroy()
+			local function onRoomChanged()
+				if roomDescConn then roomDescConn:Disconnect() roomDescConn = nil end
+				local room = workspace.CurrentRooms:FindFirstChild(LatestRoom.Value)
+				if room then removeBridgeParts(room) end
 			end
-		end)
-	end
 
-	local function onRoomChanged()
-		if roomDescConn then
-			roomDescConn:Disconnect()
-			roomDescConn = nil
+			onRoomChanged()
+			roomChangeConn = LatestRoom.Changed:Connect(onRoomChanged)
 		end
-		local latestRoom = workspace.CurrentRooms:FindFirstChild(LatestRoomValue.Value)
-		if latestRoom then
-			attachToRoom(latestRoom)
-		end
-	end
-
-	-- initial attach + listen for room switches
-	onRoomChanged()
-	roomChangeConn = LatestRoomValue.Changed:Connect(onRoomChanged)
-end)
+	})
+end
 
 
 -- Services
@@ -1671,7 +1788,7 @@ ESPBox:AddToggle("ChatNotify", {
 		end
 	end
 })
-
+ESPBox:AddDivider()
 --------------------------------------------------------------------------------
 -- Entity ESP (event-driven)
 --------------------------------------------------------------------------------
@@ -1714,7 +1831,7 @@ function createesp(model)
 	part.Transparency = 0.99
 
 	local handle = ESPLibrary:AddESP({
-		Object = model,
+		Object = part,
 		Text = EntityNames[model.Name],
 		Color = Color3.fromRGB(255, 0, 0)
 	})
@@ -1754,7 +1871,7 @@ ESPBox:AddToggle("EntityESP", {
 })
 
 --------------------------------------------------------------------------------
-local LatestRoomVal = game.ReplicatedStorage.GameData.LatestRoom
+local LatestRoomValue = game.ReplicatedStorage.GameData.LatestRoom
 
 local function makeRoomESP(name, matchFn, labelFnOrText, color)
     local tracked = {}
@@ -1828,7 +1945,7 @@ local function makeRoomESP(name, matchFn, labelFnOrText, color)
             disconnectBound()
             clearTracked()
             if not on then return end
-            roomChangeConn = LatestRoomValue.Changed:Connect(function()
+            roomChangeConn = LatestRoomValue:GetPropertyChangedSignal("Value"):Connect(function()
     bindRoom(currentRoom())
             end)
             bindRoom(currentRoom())
@@ -1851,15 +1968,7 @@ end,
         Color3.fromRGB(0, 0, 255)
     )
     
-makeRoomESP("Key",
-    function(o)
-        if o.Name == "KeyObtain" then
-            return o
-        end
-    end,
-    "Key",
-    Color3.fromRGB(0, 255, 0)
-)
+
 makeRoomESP("HidingSpot",
     function(o)
         if o.Name == "Wardrobe"
@@ -1892,6 +2001,15 @@ makeRoomESP("HidingSpot",
             return "Dumpster"
         end
     end,
+    Color3.fromRGB(0, 255, 0)
+)
+makeRoomESP("Key",
+    function(o)
+        if o.Name == "KeyObtain" then
+            return o
+        end
+    end,
+    "Key",
     Color3.fromRGB(0, 255, 0)
 )
 makeRoomESP(
@@ -1997,39 +2115,45 @@ end
 -- Players ESP (pass Model instead of BasePart)
 --------------------------------------------------------------------------------
 
-    ESPBox:AddToggle("Players", {
-        Text = "Players",
-        Default = false,
-    }):OnChanged(function(on)
-if not on then
-local Players = Players:GetPlayers()
-for i = 1,#Players do
-local list = Players[i]
-ESPLibrary:RemoveESP(list.Character)
-end
-return
-end
-  for _, plr in pairs(Players:GetPlayers()) do
-if plr ~= LocalPlayer  and plr.Character then
-local handle = ESPLibrary:AddESP{
-                    Object = plr.Character,
-                    Text = plr.Name,
-                    Color = Color3.fromRGB(0, 150, 255),
-                }
-end
-end
-      end)
-for _, plr in pairs(Players:GetPlayers()) do
-plr.CharacterAdded:Connect(function(char)
-if not on then return end
-local handle = ESPLibrary:AddESP{
-                    Object = char,
-                    Text =  plr.Name,
-                    Color = Color3.fromRGB(0, 150, 255),
-                }
+    local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
-       end)
-end
+ESPBox:AddToggle("Players", {
+    Text = "Players",
+    Default = false,
+}):OnChanged(function(on)
+    if not on then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr.Character then
+                ESPLibrary:RemoveESP(plr.Character)
+            end
+        end
+        return
+    end
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            ESPLibrary:AddESP{
+                Object = plr.Character,
+                Text = plr.Name,
+                Color = Color3.fromRGB(0, 150, 255),
+            }
+        end
+    end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        if not Toggles.Players.Value then return end
+        if plr ~= LocalPlayer then
+            ESPLibrary:AddESP{
+                Object = char,
+                Text = plr.Name,
+                Color = Color3.fromRGB(0, 150, 255),
+            }
+        end
+    end)
+end)
 --------------------------------------------------------------------------------
 -- Items ESP (model-level)
 --------------------------------------------------------------------------------
@@ -2175,20 +2299,27 @@ function getinstance(name)
 	return workspace:FindFirstChild(name, true)
 end
 
+function hasValidTool()
+	local char = LocalPlayer.Character
+	if not char then return false end
+	return char:FindFirstChild("Shears") or char:FindFirstChild("Lockpick") or char:FindFirstChild("SkeletonKey")
+end
+
 function handleprompt(prompt)
 	if not prompt:IsA("ProximityPrompt") or clonedprompts[prompt] then return end
 
-	if (prompt.Name == "ActivateEventPrompt" and prompt.Parent and prompt.Parent.Name == "Chest_Vine") or
-	   (prompt.Name == "UnlockPrompt") or (prompt.Name == "FusesPrompt") or (prompt.Name == "SkullPrompt") then
+	local n = prompt.Name
+	local p = prompt.Parent
+	if not p then return end
 
+	if (n == "ActivateEventPrompt" and p.Name == "Chest_Vine") or n == "UnlockPrompt" or n == "FusesPrompt" or n == "SkullPrompt" then
 		local clone = prompt:Clone()
 		clone.Name = "FakePrompt"
-		clonedprompts[prompt] = clone
-
-		clone.Parent = prompt.Parent
+		clone.Parent = p
 		clone.Enabled = true
 		clone.ClickablePrompt = true
 
+		clonedprompts[prompt] = clone
 		prompt.Enabled = false
 		prompt.ClickablePrompt = false
 
@@ -2199,24 +2330,20 @@ function handleprompt(prompt)
 			local rf = replicatedstorage:FindFirstChild("RemotesFolder")
 			if not rf then return end
 
+			local name = tool.Name
 			rf.DropItem:FireServer(tool)
-			
-				Workspace.Drops.ChildAdded:Wait()
-fireproximityprompt(workspace.Drops:FindFirstChildOfClass("Model"):FindFirstChildOfClass("ProximityPrompt"))
-			fireproximityprompt(prompt)
+			workspace.Drops.ChildAdded:Wait()
 
+			local model = workspace.Drops:FindFirstChild(name)
+			if model then
+				local dp = model:FindFirstChildOfClass("ProximityPrompt")
+				if dp then fireproximityprompt(dp) end
+			end
+
+			fireproximityprompt(prompt)
 			clonedprompts[prompt] = nil
 			clone:Destroy()
 		end)
-	end
-end
-
-function handlechest(chest)
-	if chest and chest.Name == "Chest_Vine" then
-		local p = chest:FindFirstChildOfClass("ProximityPrompt") or chest:FindFirstChildWhichIsA("ProximityPrompt", true)
-		if p and not clonedprompts[p] then
-			handleprompt(p)
-		end
 	end
 end
 
@@ -2227,6 +2354,19 @@ function startinfinite()
 				handleprompt(obj)
 			end
 		end
+
+		RunService.Heartbeat:Connect(function()
+			for original, clone in pairs(clonedprompts) do
+				if not hasValidTool() then
+					if clone then clone:Destroy() end
+					if original and original:IsDescendantOf(workspace) then
+						original.Enabled = true
+						original.ClickablePrompt = true
+					end
+					clonedprompts[original] = nil
+				end
+			end
+		end)
 
 		while infinitevalue do
 			for original, clone in pairs(clonedprompts) do
@@ -2269,6 +2409,7 @@ PlayerBox:AddToggle("InfiniteItems", {
 		end
 	end
 })
+PlayerBox:AddDivider()
 ESPSettings:AddSlider('Text Size',{
 	Text='Text Size',
 	Min=16,Max=26,Default=23,
@@ -2277,6 +2418,7 @@ ESPSettings:AddSlider('Text Size',{
 		ESPLibrary:SetTextSize(v)
 	end
 })
+ESPSettings:AddDivider()
 local Toggle10 = AntiBox:AddToggle('AntiJamming', {
 	Text = "Anti-Jamming",
 	Default = false,
@@ -2487,6 +2629,7 @@ ESPSettings:AddToggle("EnableFOV", {
 		end
 	end,
 })
+ESPSettings:AddDivider()
 do
 	local Lighting     = game:GetService("Lighting")
 	local TweenService = game:GetService("TweenService")
@@ -2540,51 +2683,7 @@ do
 		end,
 	})
 end
-
--- === ANTI LAG (destroy lights) ===
-do
-	local LightNames = { LightStand = true, LightFixture = true }
-	local destroyConn
-
-	AntiBox:AddToggle("AntiLag", {
-		Text    = "Anti Lag (Remove Lights)",
-		Default = false,
-		Callback = function(on)
-			-- Disconnect any existing listener
-			if destroyConn then
-				destroyConn:Disconnect()
-				destroyConn = nil
-			end
-
-			if not on then
-				return
-			end
-
-			-- 1) Batched initial scan
-			task.spawn(function()
-				local allDescendants = workspace.CurrentRooms:GetDescendants()
-				local batchSize = 20
-				for i = 1, #allDescendants, batchSize do
-					for j = i, math.min(i + batchSize - 1, #allDescendants) do
-						local obj = allDescendants[j]
-						if LightNames[obj.Name] and obj:IsA("BasePart") then
-							obj:Destroy()
-						end
-					end
-					task.wait()
-				end
-			end)
-
-			-- 2) Listen for new lights being added
-			destroyConn = workspace.CurrentRooms.DescendantAdded:Connect(function(obj)
-				if LightNames[obj.Name] then
-					obj:Destroy()
-				end
-			end)
-		end,
-	})
-end
-
+	
 -- === DELETE FIGURE (FE) ===
 	BypassBox:AddToggle("DeleteFigure", {
 	Text = "Delete Figure",
@@ -2723,55 +2822,57 @@ do
 		end,
 	})
 end
-
+BypassBox:AddDivider()
 	--------------------------------------------------------------------------------
 	-- 2) ANTI SEEK FLOOD (ASF) أ¢â‚¬â€‌ one-time disable when room "100" appears
 	--------------------------------------------------------------------------------
 	----- VARIABLES / SETUP -----
 
+	if ReplicatedStorage.GameData.Floor.Value == "Mines" then
 	do
-	local conn
+		local conn
 
-	MinesBox:AddToggle("ASF", {
-		Text = "Anti-Seek Flood",
-		Default = false,
-		Callback = function(on)
-			if conn then conn:Disconnect() conn = nil end
-			if not on then return end
+		FloorsBx:AddToggle("ASF", {
+			Text = "Anti-Seek Flood",
+			Default = false,
+			Callback = function(on)
+				if conn then conn:Disconnect() conn = nil end
+				if not on then return end
 
-			conn = RunService.Heartbeat:Connect(function()
-				local room = Workspace:FindFirstChild("CurrentRooms") and Workspace.CurrentRooms:FindFirstChild("100")
-				if not room then return end
+				conn = RunService.Heartbeat:Connect(function()
+					local room = workspace:FindFirstChild("CurrentRooms") and workspace.CurrentRooms:FindFirstChild("100")
+					if not room then return end
 
-				local damHandler = room:FindFirstChild("_DamHandler")
-				if not damHandler then return end
+					local damHandler = room:FindFirstChild("_DamHandler")
+					if not damHandler then return end
 
-				local queue = {damHandler}
-				local i = 1
-				local processed = 0
-				local MAX_SCAN = 50
+					local queue = {damHandler}
+					local i = 1
+					local processed = 0
+					local MAX_SCAN = 50
 
-				while i <= #queue and processed < MAX_SCAN do
-					local node = queue[i]
-					i = i + 1
+					while i <= #queue and processed < MAX_SCAN do
+						local node = queue[i]
+						i += 1
 
-					if node:IsA("BasePart") and node.Name == "SeekFloodline" then
-						node.CanCollide = false
-						node.CanTouch = false
+						if node:IsA("BasePart") and node.Name == "SeekFloodline" then
+							node.CanCollide = false
+							node.CanTouch = false
+						end
+
+						for _, child in ipairs(node:GetChildren()) do
+							queue[#queue + 1] = child
+						end
+
+						processed += 1
 					end
 
-					for _, child in ipairs(node:GetChildren()) do
-						queue[#queue + 1] = child
-					end
-
-					processed = processed + 1
-				end
-
-				conn:Disconnect()
-				conn = nil
-			end)
-		end
-	})
+					conn:Disconnect()
+					conn = nil
+				end)
+			end
+		})
+	end
 end
 
 	--------------------------------------------------------------------------------
@@ -2781,32 +2882,33 @@ end
 	--------------------------------------------------------------------------------
 	-- 4) ANTI BRIDGE FALL (ABF) أ¢â‚¬â€‌ batched initial scan + event-driven barrier clones
 	--------------------------------------------------------------------------------
+	if ReplicatedStorage.GameData.Floor.Value == "Mines" then
 	do
-		local clones      = {}
+		local clones = {}
 		local bridgeConns = {}
 
-		function makeBarrier(barrier)
+		local function makeBarrier(barrier)
 			if barrier.Parent:FindFirstChild("AntiBridge") then return end
 			local clone = barrier:Clone()
-			clone.Name         = "AntiBridge"
-			clone.Size         = Vector3.new(barrier.Size.X, barrier.Size.Y, 30)
-			clone.Color        = Color3.new(1,1,1)
-			clone.CFrame       = barrier.CFrame * CFrame.new(0,0,-5)
+			clone.Name = "AntiBridge"
+			clone.Size = Vector3.new(barrier.Size.X, barrier.Size.Y, 30)
+			clone.Color = Color3.new(1, 1, 1)
+			clone.CFrame = barrier.CFrame * CFrame.new(0, 0, -5)
 			clone.Transparency = 0
-			clone.Parent       = barrier.Parent
+			clone.Anchored = true
+			clone.CanCollide = true
+			clone.CanTouch = true
+			clone.Parent = barrier.Parent
 			table.insert(clones, clone)
 		end
 
-		function watchBridge(bridge)
-			-- clone existing barriers
+		local function processBridge(bridge)
+			if bridge:FindFirstChild("AntiBridge") then return end
 			for _, part in ipairs(bridge:GetChildren()) do
-				if part.Name == "PlayerBarrier"
-					and part.Size.Y == 2.75
-					and (part.Rotation.X % 180) == 0 then
+				if part.Name == "PlayerBarrier" and part.Size.Y == 2.75 and (part.Rotation.X % 180) == 0 then
 					makeBarrier(part)
 				end
 			end
-			-- listen for new barriers
 			local conn = bridge.ChildAdded:Connect(function(c)
 				if c.Name == "PlayerBarrier" then
 					makeBarrier(c)
@@ -2815,66 +2917,59 @@ end
 			table.insert(bridgeConns, conn)
 		end
 
-		MinesBox:AddToggle('ABF', {
-			Text    = "Anti-Bridge Fall",
+		FloorsBx:AddToggle("ABF", {
+			Text = "Anti-Bridge Fall",
 			Default = false,
 			Callback = function(on)
-				-- teardown
 				for _, c in ipairs(bridgeConns) do c:Disconnect() end
 				bridgeConns = {}
-				for _, c in ipairs(clones) do if c.Parent then c:Destroy() end end
+				for _, c in ipairs(clones) do if c and c.Parent then c:Destroy() end end
 				clones = {}
 
 				if not on then return end
 
-				-- batched initial bridge scan
 				task.spawn(function()
-					rooms = Workspace.CurrentRooms:GetChildren()
-					batch = 10
-					for i = 1, #rooms, batch do
-						for j = i, math.min(i+batch-1, #rooms) do
-							parts = rooms[j]:FindFirstChild("Parts")
-							if parts then
-								for _, bridge in ipairs(parts:GetChildren()) do
-									if bridge.Name == "Bridge" then
-										watchBridge(bridge)
-									end
+					for _, room in ipairs(workspace.CurrentRooms:GetChildren()) do
+						local parts = room:FindFirstChild("Parts")
+						if parts then
+							for _, obj in ipairs(parts:GetChildren()) do
+								if obj.Name == "Bridge" then
+									processBridge(obj)
 								end
 							end
+							local conn = parts.ChildAdded:Connect(function(c)
+								if c.Name == "Bridge" then
+									processBridge(c)
+								end
+							end)
+							table.insert(bridgeConns, conn)
 						end
-						task.wait()
 					end
 				end)
 
-				-- listen for new Bridges in existing rooms
-				for _, room in ipairs(Workspace.CurrentRooms:GetChildren()) do
-					parts = room:FindFirstChild("Parts")
-					if parts then
-						local conn = parts.ChildAdded:Connect(function(c)
-							if c.Name == "Bridge" then
-								watchBridge(c)
+				local roomConn = workspace.CurrentRooms.ChildAdded:Connect(function(room)
+					task.defer(function()
+						local parts = room:WaitForChild("Parts", 3)
+						if parts then
+							for _, obj in ipairs(parts:GetChildren()) do
+								if obj.Name == "Bridge" then
+									processBridge(obj)
+								end
 							end
-						end)
-						table.insert(bridgeConns, conn)
-					end
-				end
-
-				-- listen for new rooms
-				local roomsConn = Workspace.CurrentRooms.ChildAdded:Connect(function(r)
-					local parts = r:WaitForChild("Parts", 5)
-					if parts then
-						local conn = parts.ChildAdded:Connect(function(c)
-							if c.Name == "Bridge" then
-								watchBridge(c)
-							end
-						end)
-						table.insert(bridgeConns, conn)
-					end
+							local conn = parts.ChildAdded:Connect(function(c)
+								if c.Name == "Bridge" then
+									processBridge(c)
+								end
+							end)
+							table.insert(bridgeConns, conn)
+						end
+					end)
 				end)
-				table.insert(bridgeConns, roomsConn)
-			end,
+				table.insert(bridgeConns, roomConn)
+			end
 		})
 	end
+end
 	local ReplicatedStorage = game:GetService("ReplicatedStorage")
 	local Workspace         = game:GetService("Workspace")
 	local GameData          = ReplicatedStorage:WaitForChild("GameData")
@@ -2953,23 +3048,37 @@ SettingsBox:AddDropdown('Notify Side', {
 		Default = false,
 		Tooltip = "Toggle the visibility of the keybinds menu",
 	}):OnChanged(function()
-		Library.ShowCustomCursor = Toggles.CustomCursor.Value
+		                Library.ShowCustomCursor = Value
 	end)
 SettingsBox:AddDivider()
-SettingsBox:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+SettingsBox:AddDropdown("DPIDropdown", {
+        Values = { "50%", "75%", "100%", "125%", "150%", "175%", "200%" },
+        Default = "100%",
 
+        Text = "DPI Scale",
+
+        Callback = function(Value)
+                Value = Value:gsub("%%", "")
+                local DPI = tonumber(Value)
+
+                Library:SetDPIScale(DPI)
+        end,
+})
+SettingsBox:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+Library.ToggleKeybind = Options.MenuKeybind -- Allows you to have a custom keybind for the menu
 	local Contributors = Tabs.UISettings:AddRightGroupbox("Credits")
 	Contributors:AddLabel("KardinCat - Creator",true)
 	Contributors:AddLabel("bocaj111004 - Developer",true)
 	-- UI Settings
-	SaveManager:IgnoreThemeSettings()
-	ThemeManager:SetLibrary(Library)
-	SaveManager:SetLibrary(Library)
-	ThemeManager:ApplyToTab(Tabs.UISettings)
-	SaveManager:SetFolder('ProHax')
-	SaveManager:BuildConfigSection(Tabs.UISettings)
-	-- SERVICES (globals only for late-binding patterns)
 	
+	ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+	ThemeManager:ApplyToTab(Tabs.UISettings)
+	SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+ThemeManager:SetFolder("Prohax")
+SaveManager:SetFolder("Prohax/DOORS")
+SaveManager:BuildConfigSection(Tabs.UISettings)
 	 Players     = game:GetService("Players")
 	 LocalPlayer = Players.LocalPlayer
 
@@ -3161,8 +3270,8 @@ end
 			end
 		end
 	})
-	AntiBox:AddToggle("No CutScenes", {
-		Text    = "No CutScenes",
+	MiscBox3:AddToggle("No CutScenes", {
+		Text    = "Disable CutScenes",
 		Default = false,
 		Callback = function(enabled)
 			if enabled then
@@ -3259,253 +3368,196 @@ do
 end
 -- Anticheat Bypass (Ladder Method)
 
-local RunService = game:GetService("RunService")
-local Players    = game:GetService("Players")
-local Workspace  = game:GetService("Workspace")
+if ReplicatedStorage.GameData.Floor.Value == "Mines" then
+	local ladderBypassConnection = nil
+	local ladderBypassCharConn = nil
+	local roomAddedConn = nil
+	local roomRemovedConn = nil
 
-local ladderBypassConnection = nil
-local ladderBypassCharConn = nil
-local roomAddedConn = nil
-local roomRemovedConn = nil
+	local ladderHaltRoomExists = false
+	local ladderBypassPaused = false
+	local ladderBypassNotifiedPause = false
+	local ladderBypassNotifiedResume = false
 
-local ladderHaltRoomExists = false
-local ladderBypassPaused = false
-local ladderBypassNotifiedPause = false
-local ladderBypassNotifiedResume = false
+	local function IsHaltHallwayRoom(room)
+		return room:GetAttribute("RawName") == "JKKKKKKKKSWU"
+	end
 
-local function IsHaltHallwayRoom(room)
-    return room:GetAttribute("RawName") == "JKKKKKKKKSWU"
+	local function ScanExistingRooms()
+		local parent = workspace:FindFirstChild("CurrentRooms")
+		if not parent then return false end
+		for _, child in ipairs(parent:GetChildren()) do
+			if IsHaltHallwayRoom(child) then return true end
+		end
+		return false
+	end
+
+	local function OnRoomAdded(room)
+		if IsHaltHallwayRoom(room) then
+			ladderHaltRoomExists = true
+			if ladderBypassConnection and not ladderBypassPaused then
+				ladderBypassPaused = true
+				ladderBypassNotifiedPause = false
+				ladderBypassNotifiedResume = false
+			end
+		end
+	end
+
+	local function OnRoomRemoved(room)
+		if IsHaltHallwayRoom(room) then
+			ladderHaltRoomExists = false
+			if ladderBypassPaused then
+				ladderBypassPaused = false
+				ladderBypassNotifiedPause = false
+				ladderBypassNotifiedResume = false
+			end
+		end
+	end
+
+	local function BypassHeartbeat()
+		if ladderHaltRoomExists then
+			if not ladderBypassNotifiedPause then
+				Library:Notify("[Anticheat Bypass] Next room is HaltHallway: bypass breaks.", 3)
+				ladderBypassNotifiedPause = true
+				ladderBypassNotifiedResume = false
+			end
+			return
+		end
+		if not ladderBypassNotifiedResume then
+			ladderBypassNotifiedResume = true
+			ladderBypassNotifiedPause = false
+		end
+		local char = Players.LocalPlayer.Character
+		if char then
+			char:SetAttribute("Climbing", false)
+		end
+	end
+
+	local function StartLadderBypass()
+		if ladderBypassConnection then return end
+		ladderHaltRoomExists = ScanExistingRooms()
+
+		local rooms = workspace:FindFirstChild("CurrentRooms")
+		if rooms then
+			roomAddedConn = rooms.ChildAdded:Connect(OnRoomAdded)
+			roomRemovedConn = rooms.ChildRemoved:Connect(OnRoomRemoved)
+		end
+
+		ladderBypassConnection = RunService.Heartbeat:Connect(BypassHeartbeat)
+		ladderBypassCharConn = Players.LocalPlayer.CharacterAdded:Connect(function(char)
+			task.defer(function()
+				char:SetAttribute("Climbing", false)
+			end)
+		end)
+	end
+
+	local function StopLadderBypass()
+		if ladderBypassConnection then ladderBypassConnection:Disconnect() ladderBypassConnection = nil end
+		if ladderBypassCharConn then ladderBypassCharConn:Disconnect() ladderBypassCharConn = nil end
+		if roomAddedConn then roomAddedConn:Disconnect() roomAddedConn = nil end
+		if roomRemovedConn then roomRemovedConn:Disconnect() roomRemovedConn = nil end
+		ladderBypassPaused = false
+		ladderHaltRoomExists = false
+		ladderBypassNotifiedPause = false
+		ladderBypassNotifiedResume = false
+	end
+
+	FloorsBx:AddToggle("AnticheatBypass", {
+		Text = "Anticheat Bypass",
+		Default = false,
+		Callback = function(enabled)
+			if enabled then
+				StartLadderBypass()
+			else
+				StopLadderBypass()
+			end
+		end
+	})
 end
+if ReplicatedStorage.GameData.Floor.Value == "Mines" then
+	local TARGET_NAME = "SeekGuidingLight"
+	local seekLightGuides = {}
+	local ancestryConns = {}
+	local descendantConn = nil
+	local updateConnection = nil
 
-local function ScanExistingRooms()
-    local parent = Workspace:FindFirstChild("CurrentRooms")
-    if not parent then
-        return false
-    end
-    for _, child in ipairs(parent:GetChildren()) do
-        if IsHaltHallwayRoom(child) then
-            return true
-        end
-    end
-    return false
-end
+	local function createGuideFor(target)
+		if seekLightGuides[target] or not target:IsA("BasePart") then return end
 
-local function OnRoomAdded(room)
-    if IsHaltHallwayRoom(room) then
-        ladderHaltRoomExists = true
-        if ladderBypassConnection and not ladderBypassPaused then
-            ladderBypassPaused = true
-            ladderBypassNotifiedPause = false
-            ladderBypassNotifiedResume = false
-        end
-    end
-end
+		local guide = Instance.new("Part")
+		guide.Name = "SeekLightGuide"
+		guide.Size = Vector3.new(1, 1, 1)
+		guide.Anchored = true
+		guide.CanCollide = false
+		guide.Material = Enum.Material.Neon
+		guide.BrickColor = BrickColor.new("Bright yellow")
+		guide.Transparency = 0.5
+		guide.CFrame = target.CFrame
+		guide.Parent = workspace
 
-local function OnRoomRemoved(room)
-    if IsHaltHallwayRoom(room) then
-        ladderHaltRoomExists = false
-        if ladderBypassPaused then
-            ladderBypassPaused = false
-            ladderBypassNotifiedPause = false
-            ladderBypassNotifiedResume = false
-        end
-    end
-end
+		seekLightGuides[target] = guide
 
-local function BypassHeartbeat()
-    if ladderHaltRoomExists then
-        if not ladderBypassNotifiedPause then
-            Library:Notify("[Anticheat Bypass] Next room is HaltHallway: bypass breaks.", 3)
-            ladderBypassNotifiedPause = true
-            ladderBypassNotifiedResume = false
-        end
-        return
-    end
-    if not ladderHaltRoomExists and not ladderBypassPaused and not ladderBypassNotifiedResume then
-        ladderBypassNotifiedResume = true
-        ladderBypassNotifiedPause = false
-    end
-    local player = Players.LocalPlayer
-    if player and player.Character then
-        player.Character:SetAttribute("Climbing", false)
-    end
-end
+		local conn = target.AncestryChanged:Connect(function(_, parent)
+			if not parent or not target:IsDescendantOf(workspace) then
+				if seekLightGuides[target] then seekLightGuides[target]:Destroy() seekLightGuides[target] = nil end
+				if ancestryConns[target] then ancestryConns[target]:Disconnect() ancestryConns[target] = nil end
+			end
+		end)
+		ancestryConns[target] = conn
 
-local function StartLadderBypass()
-    if ladderBypassConnection then return end
+		if not updateConnection then
+			updateConnection = RunService.RenderStepped:Connect(function()
+				local any = false
+				for tgt, guide in pairs(seekLightGuides) do
+					if tgt:IsDescendantOf(workspace) then
+						guide.CFrame = tgt.CFrame
+						any = true
+					else
+						guide:Destroy()
+						seekLightGuides[tgt] = nil
+						if ancestryConns[tgt] then
+							ancestryConns[tgt]:Disconnect()
+							ancestryConns[tgt] = nil
+						end
+					end
+				end
+				if not any then
+					updateConnection:Disconnect()
+					updateConnection = nil
+				end
+			end)
+		end
+	end
 
-    ladderHaltRoomExists = ScanExistingRooms()
+	local function removeAllGuides()
+		for tgt, conn in pairs(ancestryConns) do conn:Disconnect() end
+		ancestryConns = {}
+		for _, guide in pairs(seekLightGuides) do guide:Destroy() end
+		seekLightGuides = {}
+		if updateConnection then updateConnection:Disconnect() updateConnection = nil end
+	end
 
-    local rooms = Workspace:FindFirstChild("CurrentRooms")
-    if rooms then
-        roomAddedConn = rooms.ChildAdded:Connect(OnRoomAdded)
-        roomRemovedConn = rooms.ChildRemoved:Connect(OnRoomRemoved)
-    end
+	FloorsBx:AddToggle("ShowSeekGuides", {
+		Text = "Show PathfindingNodes (Seek)",
+		Default = false,
+		Callback = function(enabled)
+			if descendantConn then descendantConn:Disconnect() descendantConn = nil end
+			removeAllGuides()
+			if not enabled then return end
 
-    ladderBypassConnection = RunService.Heartbeat:Connect(BypassHeartbeat)
-    ladderBypassCharConn = Players.LocalPlayer.CharacterAdded:Connect(function(newChar)
-        
-            newChar:SetAttribute("Climbing", false)
+			for _, inst in ipairs(workspace:GetDescendants()) do
+				if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
+					createGuideFor(inst)
+				end
+			end
 
-        
-            end)
-    end
-
-local function StopLadderBypass()
-    if ladderBypassConnection then
-        ladderBypassConnection:Disconnect()
-        ladderBypassConnection = nil
-    end
-    if ladderBypassCharConn then
-        ladderBypassCharConn:Disconnect()
-        ladderBypassCharConn = nil
-    end
-    if roomAddedConn then
-        roomAddedConn:Disconnect()
-        roomAddedConn = nil
-    end
-    if roomRemovedConn then
-        roomRemovedConn:Disconnect()
-        roomRemovedConn = nil
-    end
-    ladderBypassPaused = false
-    ladderHaltRoomExists = false
-    ladderBypassNotifiedPause = false
-    ladderBypassNotifiedResume = false
-end
-
-AntiCheatToggle = BypassBox:AddToggle("Anticheat Bypass", {
-    Text = "Anticheat Bypass",
-    Default = false,
-})
-AntiCheatToggle:OnChanged(function(enabled)
-    if enabled then
-        StartLadderBypass()
-    else
-        StopLadderBypass()
-    end
-end)
--- Anchor Code Notification Toggle
-
-
-local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local MinesBox = MinesBox  -- assume in scope
-local TARGET_NAME = "SeekGuidingLight"
-
-do
-    local seekLightGuides = {}   -- [Instance] = guidePart
-    local ancestryConns = {}     -- [Instance] = AncestryChanged connection
-    local descendantConn = nil
-    local updateConnection = nil
-
-    -- Create guide part and track it
-    local function createGuideFor(target)
-        if seekLightGuides[target] then return end
-        if not target:IsA("BasePart") then return end
-
-        local guide = Instance.new("Part")
-        guide.Name = "SeekLightGuide"
-        guide.Size = Vector3.new(1, 1, 1)
-        guide.Anchored = true
-        guide.CanCollide = false
-        guide.Material = Enum.Material.Neon
-        guide.BrickColor = BrickColor.new("Bright yellow")
-        guide.Transparency = 0.5
-        guide.CFrame = target.CFrame
-        guide.Parent = Workspace
-
-        seekLightGuides[target] = guide
-
-        -- Listen for removal of target
-        local conn = target.AncestryChanged:Connect(function(_, parent)
-            if not parent or not target:IsDescendantOf(Workspace) then
-                -- destroy guide and cleanup
-                if seekLightGuides[target] then
-                    seekLightGuides[target]:Destroy()
-                    seekLightGuides[target] = nil
-                end
-                if ancestryConns[target] then
-                    ancestryConns[target]:Disconnect()
-                    ancestryConns[target] = nil
-                end
-            end
-        end)
-        ancestryConns[target] = conn
-
-        -- Ensure update loop is running
-        if not updateConnection then
-            updateConnection = RunService.RenderStepped:Connect(function()
-                local empty = true
-                for tgt, guidePart in pairs(seekLightGuides) do
-                    if tgt:IsDescendantOf(Workspace) then
-                        local current = tgt.CFrame
-                        if current ~= guidePart.CFrame then
-                            guidePart.CFrame = current
-                        end
-                        empty = false
-                    else
-                        -- Shouldn't normally reach here because AncestryChanged handles removal
-                        guidePart:Destroy()
-                        seekLightGuides[tgt] = nil
-                        seekLastCFrames[tgt] = nil
-                    end
-                end
-                if empty then
-                    updateConnection:Disconnect()
-                    updateConnection = nil
-                end
-            end)
-        end
-    end
-
-    local function removeAllGuides()
-        -- Disconnect ancestry listeners and destroy guides
-        for tgt, conn in pairs(ancestryConns) do
-            conn:Disconnect()
-        end
-        ancestryConns = {}
-        for tgt, guidePart in pairs(seekLightGuides) do
-            guidePart:Destroy()
-        end
-        seekLightGuides = {}
-        -- Disconnect update loop
-        if updateConnection then
-            updateConnection:Disconnect()
-            updateConnection = nil
-        end
-    end
-
-    MinesBox:AddToggle("ShowSeekGuides", {
-        Text = "Show PathfindingNodes (Seek)",
-        Default = false,
-        Callback = function(enabled)
-            -- Cleanup previous
-            if descendantConn then
-                descendantConn:Disconnect()
-                descendantConn = nil
-            end
-            removeAllGuides()
-
-            if not enabled then
-                return
-            end
-
-            -- Initial scan via GetDescendants()
-            for _, inst in ipairs(Workspace:GetDescendants()) do  -- 
-                if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
-                    createGuideFor(inst)
-                end
-            end
-
-            -- Listen for future spawns
-            descendantConn = Workspace.DescendantAdded:Connect(function(inst)  -- 
-                if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
-                    createGuideFor(inst)
-                end
-            end)
-        end
-    })
+			descendantConn = workspace.DescendantAdded:Connect(function(inst)
+				if inst:IsA("BasePart") and inst.Name == TARGET_NAME then
+					createGuideFor(inst)
+				end
+			end)
+		end
+	})
 end
 	-- BEFORE using PlayerBox:AddToggle, define the Fly logic globally (or
 
@@ -3762,6 +3814,7 @@ end
 		ChangedCallback = function(New)
 		end
 	})
+PlayerBox:AddDivider()
 	-- Third-Person Camera with Head Hide/Show Integration in one script
 
 	-- Services
@@ -3988,6 +4041,26 @@ end
 			lockTransparency(newChar, 0)
 		end
 	end)
+MiscBox3:AddDivider()
+	
+local Storage = Instance.new("Folder",Workspace)
+Storage.Name = "AntiLagStorage"
+	MiscBox3:AddToggle("AntiLag", {
+		Text    = "Anti Lag",
+		Default = false,
+		Callback = function(on)
+			if on then
+for _, v in pairs(game.MaterialService:GetChildren()) do
+v.Parent = workspace:WaitForChild("AntiLagStorage")
+end
+else
+for _, part in ipairs(workspace:FindFirstChild("AntiLagStorage"):GetChildren()) do
+part.Parent = game.MaterialService
+end
+end
+end
+})
+
 	RunService = game:GetService("RunService")
 Players = game:GetService("Players")
 ReplicatedDS = game:GetService("ReplicatedStorage").GameData
@@ -4001,7 +4074,7 @@ throttleTimer = 0
 THROTTLE_INTERVAL = 0.15
 
 -- Door Reach Toggle
-DoorReach = PlayerBox:AddToggle("DoorReach", {
+DoorReach = MiscBox2:AddToggle("DoorReach", {
 	Text = "Door Reach",
 	Tooltip = "Makes Door Open From Far"
 })
@@ -4243,101 +4316,160 @@ AutoBox:AddToggle("AutoCloset", {
 		end
 	end
 })
-local PathfindingService = game:GetService("PathfindingService")
-PathfindNumber = 0
+if game.ReplicatedStorage.GameData.Floor.Value == "Rooms" then
+	local PathfindingService = game:GetService("PathfindingService")
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+	local LocalPlayer = Players.LocalPlayer
 
-function PathfindWalkTo(Position)
-	task.spawn(function()
-		local AgentParameters = {
-			WaypointSpacing = 4,
-			AgentRadius = 1.3,
-			AgentHeight = 3,
-			AgentCanJump = false,
-			AgentCanClimb = false
-		}
-		local Path = PathfindingService:CreatePath(AgentParameters)
-		Path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position, Position)
-		if Path.Status == Enum.PathStatus.Success then
-			PathfindNumber += 1
-			local ThisPathNumber = PathfindNumber
-			local Waypoints = Path:GetWaypoints()
-			local WaypointIndex = 2
-			local MoveConnection
-			MoveConnection = RunService.PreRender:Connect(function()
-				if ThisPathNumber ~= PathfindNumber then MoveConnection:Disconnect() return end
-				local Waypoint = Waypoints[WaypointIndex] or Waypoints[#Waypoints]
-				local Waypoint2D = Waypoint.Position * Vector3.new(1, 0, 1)
-				local Current2D = LocalPlayer.Character.HumanoidRootPart.Position * Vector3.new(1, 0, 1)
-				if (Waypoint2D - Current2D).Magnitude <= 1 then
-					WaypointIndex += 1
-				else
-					LocalPlayer.Character.Humanoid:MoveTo(Waypoint.Position)
-				end
-			end)
+	local PathID = 0
+	local WaypointParts = {}
+	local DestinationMarker
+
+	local function ClearWaypoints()
+		for _, part in pairs(WaypointParts) do
+			if part and part.Parent then part:Destroy() end
 		end
-	end)
-end
+		WaypointParts = {}
+	end
 
-function GetClosestLocker()
-	local HumanoidRootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-	if not HumanoidRootPart then return end
-	local ClosestPart, ClosestDistance
-	for _, Object in ipairs(workspace.CurrentRooms:GetDescendants()) do
-		if Object:IsA("Model") and (Object.Name == "Rooms_Locker" or Object.Name == "Rooms_Locker_Fridge") then
-			local BasePart = Object:FindFirstChildWhichIsA("BasePart")
-			if BasePart then
-				local Distance = (BasePart.Position - HumanoidRootPart.Position).Magnitude
-				if not ClosestDistance or Distance < ClosestDistance then
-					ClosestPart = BasePart
-					ClosestDistance = Distance
+	local function ShowWaypoints(waypoints)
+		ClearWaypoints()
+		for _, wp in ipairs(waypoints) do
+			local part = Instance.new("Part")
+			part.Size = Vector3.new(0.4, 0.4, 0.4)
+			part.Anchored = true
+			part.CanCollide = false
+			part.Material = Enum.Material.Neon
+			part.Color = Color3.fromRGB(255, 255, 0)
+			part.CFrame = CFrame.new(wp.Position)
+			part.Parent = workspace
+			table.insert(WaypointParts, part)
+		end
+	end
+
+	local function ShowDestination(pos)
+		if DestinationMarker then DestinationMarker:Destroy() end
+		local part = Instance.new("Part")
+		part.Size = Vector3.new(1, 0.3, 1)
+		part.Anchored = true
+		part.CanCollide = false
+		part.Material = Enum.Material.Neon
+		part.Color = Color3.fromRGB(0, 255, 0)
+		part.Position = pos + Vector3.new(0, 0.3, 0)
+		part.Shape = Enum.PartType.Cylinder
+		part.Orientation = Vector3.new(90, 0, 0)
+		part.Parent = workspace
+		DestinationMarker = part
+	end
+
+	local function PathfindWalkTo(pos)
+		PathID += 1
+		local thisID = PathID
+		local char = LocalPlayer.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not hrp or not hum then return end
+
+		local path = PathfindingService:CreatePath({
+			WaypointSpacing = 4,
+			AgentRadius = 0.2,
+			AgentHeight = 2,
+			AgentCanJump = true,
+			AgentJumpHeight = 9,
+			AgentCanClimb = false
+		})
+
+		path:ComputeAsync(hrp.Position, pos)
+		if path.Status ~= Enum.PathStatus.Success then return end
+
+		local waypoints = path:GetWaypoints()
+		ShowWaypoints(waypoints)
+		ShowDestination(pos)
+
+		task.spawn(function()
+			for i = 2, #waypoints do
+				if PathID ~= thisID then break end
+				hum:MoveTo(waypoints[i].Position)
+				hum.MoveToFinished:Wait()
+			end
+		end)
+	end
+
+	local function GetClosestLocker()
+		local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+		local closest, dist
+		for _, v in pairs(workspace.CurrentRooms:GetDescendants()) do
+			if v:IsA("Model") and (v.Name == "Rooms_Locker" or v.Name == "Rooms_Locker_Fridge") then
+				local part = v:FindFirstChildWhichIsA("BasePart")
+				if part then
+					local d = (part.Position - hrp.Position).Magnitude
+					if not dist or d < dist then
+						closest = part
+						dist = d
+					end
 				end
 			end
 		end
+		return closest
 	end
-	return ClosestPart
-end
 
-function FirePrompt(ProxPrompt)
-	if ProxPrompt and ProxPrompt:IsA("ProximityPrompt") then
-		ProxPrompt:InputHoldBegin()
-		task.wait(ProxPrompt.HoldDuration or 1)
-		ProxPrompt:InputHoldEnd()
-	end
-end
-
-RoomsBox:AddToggle("AutoRooms", {
-	Text = "Auto Rooms",
-	Default = false,
-	Callback = function(Enabled)
-		if Enabled then
-			task.spawn(function()
-				while Toggles.AutoRooms.Value do
-					if workspace:FindFirstChild("A60") or workspace:FindFirstChild("A120") then
-						local LockerPart = GetClosestLocker()
-						if LockerPart then
-							PathfindWalkTo(LockerPart.Position)
-							repeat task.wait() until (LocalPlayer.Character.HumanoidRootPart.Position - LockerPart.Position).Magnitude <= 13
-							local Prompt = LockerPart.Parent and LockerPart.Parent:FindFirstChild("HidePrompt")
-							FirePrompt(Prompt)
-						end
-					elseif not workspace:FindFirstChild("Entity") then
-						LocalPlayer.Character:SetAttribute("Hiding", false)
-						local LatestRoom = game.ReplicatedStorage.GameData.LatestRoom.Value
-						local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
-						local DoorPart = Room and Room:FindFirstChild("Door") and Room.Door:FindFirstChild("Door")
-						if DoorPart then
-							PathfindWalkTo(DoorPart.Position)
-							repeat task.wait() until (LocalPlayer.Character.HumanoidRootPart.Position - DoorPart.Position).Magnitude <= 5
-						end
-					end
-					task.wait(0.1)
-				end
-			end)
-		else
-			PathfindNumber += -1
+	local function FirePrompt(prompt)
+		if prompt and prompt:IsA("ProximityPrompt") then
+			fireproximityprompt(prompt)
 		end
 	end
-})
+
+	FloorsBx:AddToggle("AutoRooms", {
+		Text = "Auto Rooms",
+		Default = false,
+		Callback = function(state)
+			if state then
+				task.spawn(function()
+					while Toggles.AutoRooms.Value do
+						local char = LocalPlayer.Character
+						local hrp = char and char:FindFirstChild("HumanoidRootPart")
+						if not hrp then task.wait() continue end
+
+						local A60 = workspace:FindFirstChild("A60")
+						local A120 = workspace:FindFirstChild("A120")
+						local Entity = workspace:FindFirstChild("Entity")
+
+						if A60 or A120 then
+							local locker = GetClosestLocker()
+							if locker then
+								PathfindWalkTo(locker.Position)
+								repeat task.wait() until (hrp.Position - locker.Position).Magnitude <= 2
+
+								local prompt = locker.Parent and locker.Parent:FindFirstChild("HidePrompt")
+								FirePrompt(prompt)
+							end
+						elseif not Entity then
+							if char:GetAttribute("Hiding") == true then
+								char:SetAttribute("Hiding", false)
+							end
+
+							local roomNum = game.ReplicatedStorage.GameData.LatestRoom.Value
+							local room = workspace.CurrentRooms:FindFirstChild(tostring(roomNum))
+							local door = room and room:FindFirstChild("Door") and room.Door:FindFirstChild("Door")
+							if door then
+								PathfindWalkTo(door.Position)
+								repeat task.wait() until (hrp.Position - door.Position).Magnitude <= 5
+							end
+						end
+
+						task.wait(0.2)
+					end
+				end)
+			else
+				PathID += 1
+				ClearWaypoints()
+				if DestinationMarker then DestinationMarker:Destroy() end
+			end
+		end
+	})
+end
  
 
 entity_names = {
@@ -4403,21 +4535,7 @@ workspace.DescendantAdded:Connect(function(inst)
 			end
 		end
 	end
-	if Toggles.DeleteSeekFE.Value then
-		if inst.Name == "TriggerSeek" then
-			inst:Destroy()
-			Sound()
-			Library:Notify("Deleted Seek successfully", 3)
-		end
-
-		if inst.Name == "TriggerEventCollision" then
-			
-inst:ClearAllChildren()
-			
-				Sound()
-				Library:Notify("Deleted Seek", 3)
-			end
-		end
+	
 
 	if Toggles.Items.Value then
 		if itemSet[name] and inst:IsDescendantOf(currentRoom()) then
@@ -4547,4 +4665,9 @@ if inst:IsA("Model") then
 					end
 				end
 end
-end)
+if Toggles.DisableDrawersInteractionsSounds.Value then
+    if (inst.Name == "Open" or inst.Name == "Close") and inst.Parent.Name == "Main" then
+        inst:Destroy()
+    end
+end
+end) 
