@@ -130,7 +130,7 @@ elseif Workspace.CurrentCamera.FieldOfView  == 70 then
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 23
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 23
 end
-local Pos = Object:IsA("Model") and Object:GetPivot().Position or Object.Position 
+local Pos = Object:IsA("Model") and Object:GetPivot().Position or Object:IsA("BasePart") and Object.Position or Vector3.new(0, 0, 0)
 
 local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - Pos).Magnitude
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Text = "[" .. math.floor(Distance) .. "m]" 
