@@ -1,8 +1,3 @@
-
-
-
-
-
 local Library = {}
 getgenv().ESPLibrary = Library
 
@@ -79,6 +74,13 @@ end
 
 function Library:RemoveESP(Part)
 
+for i, part in pairs(ESPTable) do
+if part == Part then
+table.remove(ESPTable, i)
+break
+end
+end
+
 for _, v in ipairs(Part:GetChildren()) do
 if v.Name == "ESP_System" or v.Name == "ESP_GUI"  then
 v:Destroy()
@@ -86,6 +88,7 @@ end
 end
 
 end
+
 
 function Library:GenerateRandomString()
 return HttpService:GenerateGUID(false)
@@ -97,9 +100,11 @@ if UpdateConnection then
 UpdateConnection:Disconnect()
 UpdateConnection = nil
 end
-for _, v in ipairs(workspace:GetDescendants()) do
-if v.Name == "ESP_System" or v.Name == "ESP_GUI"  then
-v:Destroy()
+for _, Object in ipairs(ESPTable) do
+if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
+Object:FindFirstChild("ESP_GUI"):Destroy()
+Object:FindFirstChild("ESP_System"):Destroy()
+ESPTable = {}
 end
 end
 
@@ -119,8 +124,8 @@ Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Visible = Show
 
 
 if Workspace.CurrentCamera.FieldOfView > 70 then
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 36
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 36
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 45 
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 45
 elseif Workspace.CurrentCamera.FieldOfView  == 70 then
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 23
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 23
