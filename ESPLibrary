@@ -125,9 +125,9 @@ if Workspace.CurrentCamera ~= nil then
 
 local FOV = Workspace.CurrentCamera.FieldOfView
 
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 22 * (FOV / 70)
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 16 * (FOV / 70)
 
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 25 * (FOV / 70)
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 19 * (FOV / 70)
 
 
 end
