@@ -114,20 +114,23 @@ getgenv().ESPLibrary = nil
 end
 
 
-UpdateConnection = RunService.Heartbeat:Connect(function()
+UpdateConnection = RunService.Heartbeat.Connect(function()
 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 for _, Object in ipairs(ESPTable) do
 if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
 
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Visible = ShowDis
 
-
+if Workspace.CurrentCamera ~= nil then
 
 local FOV = Workspace.CurrentCamera.FieldOfView
 
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 22 * (FOV / 70)
 
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 25 * (FOV / 70)
+
+
+end
 
 
 
