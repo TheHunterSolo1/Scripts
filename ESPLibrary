@@ -97,11 +97,9 @@ if UpdateConnection then
 UpdateConnection:Disconnect()
 UpdateConnection = nil
 end
-for _, Object in ipairs(ESPTable) do
-if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
-Object:FindFirstChild("ESP_GUI"):Destroy()
-Object:FindFirstChild("ESP_System"):Destroy()
-ESPTable = {}
+for _, v in ipairs(workspace:GetDescendants()) do
+if v.Name == "ESP_System" or v.Name == "ESP_GUI"  then
+v:Destroy()
 end
 end
 
