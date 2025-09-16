@@ -114,7 +114,7 @@ getgenv().ESPLibrary = nil
 end
 
 
-UpdateConnection = RunService.Heartbeat:Connect(function()
+UpdateConnection = RunService.Heartbeat:Connect(function(dt)
 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 for _, Object in ipairs(ESPTable) do
 if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
