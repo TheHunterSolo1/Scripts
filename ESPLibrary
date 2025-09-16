@@ -1,0 +1,144 @@
+
+
+
+
+
+local Library = {}
+getgenv().ESPLibrary = Library
+
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = game.Players.LocalPlayer
+
+local UpdateConnection
+
+
+
+
+local ESPTable = {}
+
+local ShowDis = ShowDis or true
+
+function Library:ShowDistance(Value)
+
+ShowDis = Value
+
+end
+
+function Library:AddESP(Part, Txt, Color)
+if Part:FindFirstChild("ESP_System") then return end
+
+
+
+table.insert(ESPTable, Part)
+
+local Highlight = Instance.new("Highlight",Part)
+Highlight.Name = "ESP_System"
+Highlight.FillColor = Color
+Highlight.Enabled = true
+Highlight.Adornee = Part
+Highlight.FillTransparency = 0.7
+Highlight.OutlineTransparency = 0.4
+
+local BillboardGui = Instance.new("BillboardGui", Part)
+BillboardGui.Name = "ESP_GUI"
+BillboardGui.Size = UDim2.new(0, 1, 0, 1)
+BillboardGui.MaxDistance = math.huge
+BillboardGui.Enabled = true
+BillboardGui.AlwaysOnTop = true
+
+
+
+local TextLabel = Instance.new("TextLabel", BillboardGui)
+TextLabel.Text = Txt
+TextLabel.TextSize = 19
+TextLabel.Size = UDim2.new(0, 1,0, 1)
+TextLabel.Font = Enum.Font.Highway
+TextLabel.TextColor3 = Color
+TextLabel.Name = "Txt"
+TextLabel.TextYAlignment = "Bottom"
+TextLabel.TextStrokeTransparency = 0
+
+
+local TextLabel2 = Instance.new("TextLabel", BillboardGui)
+TextLabel2.Text = "nil"
+TextLabel2.TextSize = 12
+TextLabel2.Size = UDim2.new(0, 1,0, 1)
+TextLabel2.TextColor3 = Color3.new(1, 1, 1)
+TextLabel2.Name = "DistanceMarker"
+TextLabel2.Font = Enum.Font.Highway
+TextLabel2.TextStrokeTransparency = 0
+TextLabel2.TextYAlignment = "Top"
+
+
+
+
+
+end
+
+function Library:RemoveESP(Part)
+
+for _, v in ipairs(Part:GetChildren()) do
+if v.Name == "ESP_System" or v.Name == "ESP_GUI"  then
+v:Destroy()
+end
+end
+
+end
+
+function Library:GenerateRandomString()
+return HttpService:GenerateGUID(false)
+end
+
+function Library:Unload()
+
+if UpdateConnection then
+UpdateConnection:Disconnect()
+UpdateConnection = nil
+end
+for _, Object in ipairs(ESPTable) do
+if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
+Object:FindFirstChild("ESP_GUI"):Destroy()
+Object:FindFirstChild("ESP_System"):Destroy()
+ESPTable = {}
+end
+end
+
+getgenv().ESPLibrary = nil
+
+
+end
+
+
+UpdateConnection = RunService.Heartbeat:Connect(function(dt)
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") and LocalPlayer.Character.Humanoid.Health > 0 then
+
+for _, Object in ipairs(ESPTable) do
+if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
+
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Visible = ShowDis
+
+
+if Workspace.CurrentCamera.FieldOfView > 70 then
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 36
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 36
+elseif Workspace.CurrentCamera.FieldOfView  == 70 then
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").TextSize = 23
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").TextSize = 23
+end
+local Pos = Object:IsA("Model") and Object:GetPivot().Position or Object.Position 
+
+local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - Pos).Magnitude
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Text = "[" .. math.floor(Distance) .. "m]" 
+end
+
+end
+
+end 
+
+
+
+end)
+
+ return Library
