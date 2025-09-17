@@ -6,7 +6,7 @@ local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = game.Players.LocalPlayer
 
-local UpdateConnection
+local Updating = true
 
 
 
@@ -100,10 +100,7 @@ end
 
 function Library:Unload()
 
-if UpdateConnection then
-UpdateConnection:Disconnect()
-UpdateConnection = nil
-end
+Updating = false
 for _, Object in ipairs(ESPTable) do
 if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
 Object:FindFirstChild("ESP_GUI"):Destroy()
@@ -118,7 +115,8 @@ getgenv().ESPLibrary = nil
 end
 
 
-UpdateConnection = RunService.Heartbeat:Connect(function(dt)
+while task.wait(0.07) do
+if Updating == false then print("Break") break end
 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 for _, Object in ipairs(ESPTable) do
 if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
@@ -162,6 +160,6 @@ end
 
 
 
-end)
+end
 
  return Library
