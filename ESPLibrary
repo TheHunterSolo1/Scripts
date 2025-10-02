@@ -22,7 +22,7 @@ ShowDis = Value
 end
 
 function Library:AddESP(Part,Txt,Color)
-
+if Part:FindFirstChild("ESP_System") then return end
 
 
 
