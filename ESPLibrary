@@ -12,14 +12,29 @@ local Updating = true
 
 
 local ESPTable = {}
+local TracersTable = {}
 
 local ShowDis = ShowDis or false
 
 local EnableHighlight = true
 
+local SetTracers = false
+
 function Library:ShowDistance(Value)
 
 ShowDis = Value
+
+end
+
+local function CreateTracers(part,Color)
+if Drawing then
+local line = Drawing.new("Line")
+line.Color = Color or Color3.new(1, 1, 1)
+line.Thickness = 1
+line.Visible = SetTracers
+table.insert(TracersTable, line)
+
+end
 
 end
 
@@ -33,6 +48,7 @@ if Type == "NoHighlight" then
 
 EnableHighlight = false
 end
+CreateTracers(Part, Color)
 
 table.insert(ESPTable, Part)
 
@@ -107,6 +123,10 @@ function Library:GenerateRandomString()
 return HttpService:GenerateGUID(false)
 end
 
+function Library:SetTracers(Value)
+SetTracers = Value
+end
+
 function Library:Unload()
 
 Updating = false
@@ -127,12 +147,33 @@ task.spawn(function()
 while task.wait(0.07) do
 if Updating == false then print("Break") break end
 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+
+
 for _, Object in ipairs(ESPTable) do
 if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
 
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Visible = ShowDis
 
 if Workspace.CurrentCamera ~= nil then
+
+for _, Tracer in pairs(TracersTable) do
+if Tracer then
+local Pos2 = Object:IsA("Model") and Object:GetPivot().Position or Object:IsA("BasePart") and Object.Position or Vector3.new(0, 0, 0)
+
+if Workspace.CurrentCamera.CFrame:WorldToViewportPoint(Pos2) and SetTracers == true then
+Tracer.Visible = true
+elseif not Workspace.CurrentCamera.CFrame:WorldToViewportPoint(Pos2) or SetTracers == false then
+Tracer.Visible = false
+end
+local Place = workspace.CurrentCamera:WorldToViewportPoint(Pos2)
+
+Tracer.From = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y)
+Tracer.To = Vector2.new(Place.X, Place.Y)
+
+
+
+end
+end
 
 local FOV = Workspace.CurrentCamera.FieldOfView
 
@@ -161,6 +202,7 @@ local Pos = Object:IsA("Model") and Object:GetPivot().Position or Object:IsA("Ba
 
 local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - Pos).Magnitude
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Text = "[" .. math.floor(Distance) .. "m]" 
+
 end
 
 end
