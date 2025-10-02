@@ -15,26 +15,35 @@ local ESPTable = {}
 
 local ShowDis = ShowDis or false
 
+local EnableHighlight = true
+
 function Library:ShowDistance(Value)
 
 ShowDis = Value
 
 end
 
-function Library:AddESP(Part, Txt, Color)
+function Library:AddESP(Part, Txt, Color,Type)
 if Part:FindFirstChild("ESP_System") then return end
 
 
+EnableHighlight = true
+
+if Type == "NoHighlight" then
+
+EnableHighlight = false
+end
 
 table.insert(ESPTable, Part)
 
 local Highlight = Instance.new("Highlight",Part)
 Highlight.Name = "ESP_System"
 Highlight.FillColor = Color
-Highlight.Enabled = true
+Highlight.Enabled = EnableHighlight 
 Highlight.Adornee = Part
 Highlight.FillTransparency = 0.7
 Highlight.OutlineTransparency = 0.4
+
 
 local BillboardGui = Instance.new("BillboardGui", Part)
 BillboardGui.Name = "ESP_GUI"
