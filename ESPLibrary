@@ -19,7 +19,9 @@ local ShowDis = ShowDis or false
 function Library:ShowDistance(Value)
 
 ShowDis = Value
+end
 
+function Library:AddESP(Part,Txt,Color)
 
 
 
@@ -29,7 +31,7 @@ table.insert(ESPTable, Part)
 local Highlight = Instance.new("Highlight",Part)
 Highlight.Name = "ESP_System"
 Highlight.FillColor = Color
-Highlight.Enabled = EnableHighlight 
+Highlight.Enabled = true 
 Highlight.Adornee = Part
 Highlight.FillTransparency = 0.7
 Highlight.OutlineTransparency = 0.4
