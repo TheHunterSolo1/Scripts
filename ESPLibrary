@@ -160,9 +160,9 @@ for _, Tracer in pairs(TracersTable) do
 if Tracer then
 local Pos2 = Object:IsA("Model") and Object:GetPivot().Position or Object:IsA("BasePart") and Object.Position or Vector3.new(0, 0, 0)
 
-if Workspace.CurrentCamera.CFrame:WorldToViewportPoint(Pos2) and SetTracers == true then
+if Workspace.CurrentCamera:WorldToViewportPoint(Pos2) and SetTracers == true then
 Tracer.Visible = true
-elseif not Workspace.CurrentCamera.CFrame:WorldToViewportPoint(Pos2) or SetTracers == false then
+elseif not Workspace.CurrentCamera:WorldToViewportPoint(Pos2) or SetTracers == false then
 Tracer.Visible = false
 end
 local Place = workspace.CurrentCamera:WorldToViewportPoint(Pos2)
