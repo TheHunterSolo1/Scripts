@@ -23,7 +23,6 @@ ShowDis = Value
 
 
 
-CreateTracers(Part, Color)
 
 table.insert(ESPTable, Part)
 
