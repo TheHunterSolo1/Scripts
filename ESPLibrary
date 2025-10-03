@@ -52,19 +52,21 @@ TextLabel.TextSize = 19
 TextLabel.Size = UDim2.new(0, 1,0, 1)
 TextLabel.Font = Enum.Font.Highway
 TextLabel.TextColor3 = Color
-TextLabel.Name = "Txt"
+TextLabel.Name = "nil"
 TextLabel.TextYAlignment = "Bottom"
 TextLabel.TextStrokeTransparency = 0
+TextLabel.BackgroundTransparency = 1
 
 local UIScale2 = Instance.new("UIScale",TextLabel)
 UIScale2.Scale = 1
 
 local TextLabel2 = Instance.new("TextLabel", BillboardGui)
-TextLabel2.Text = "0"
+TextLabel2.Text = "nil"
 TextLabel2.TextSize = 18
 TextLabel2.Size = UDim2.new(0, 1,0, 1)
 TextLabel2.TextColor3 = Color3.new(1, 1, 1)
 TextLabel2.Name = "DistanceMarker"
+TextLabel2.BackgroundTransparency = 1
 TextLabel2.Font = Enum.Font.Highway
 TextLabel2.TextStrokeTransparency = 0
 TextLabel2.TextYAlignment = "Top"
@@ -116,10 +118,19 @@ getgenv().ESPLibrary = nil
 
 
 end
+local Con
+local Time = 0
+Con = RunService.Heartbeat:Connect(function(dt)
+Time = Time + dt
 
-task.spawn(function()
-while task.wait(0.095) do
-if Updating == false then print("Break") break end
+if Time > 0.15 then
+Time = 0
+
+if Updating == false then
+Con:Disconnect()
+Con = nil
+end
+
 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 
 
@@ -165,7 +176,6 @@ end
 end
 
 end 
-
 
 
 end
