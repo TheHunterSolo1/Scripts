@@ -52,7 +52,7 @@ TextLabel.TextSize = 19
 TextLabel.Size = UDim2.new(0, 1,0, 1)
 TextLabel.Font = Enum.Font.Highway
 TextLabel.TextColor3 = Color
-TextLabel.Name = "nil"
+TextLabel.Name = "Txt"
 TextLabel.TextYAlignment = "Bottom"
 TextLabel.TextStrokeTransparency = 0
 TextLabel.BackgroundTransparency = 1
@@ -152,8 +152,8 @@ elseif FOV == 80 then
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 1.5
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").UIScale.Scale = 1.5
 elseif FOV > 80  then
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 2
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").UIScale.Scale = 2
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 2.2
+Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").UIScale.Scale = 2.2
 
 elseif FOV == 70 then
 Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 1
