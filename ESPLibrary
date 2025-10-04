@@ -65,9 +65,9 @@ BillboardGui.AlwaysOnTop = true
 
 local TextLabel = Instance.new("TextLabel", BillboardGui)
 TextLabel.Text = Txt
-TextLabel.TextSize = 19
+TextLabel.TextSize = 23
 TextLabel.Size = UDim2.new(0, 1,0, 1)
-TextLabel.Font = Enum.Font.Highway
+TextLabel.Font = Enum.Font.GothamBold
 TextLabel.TextColor3 = Color
 TextLabel.Name = "Txt"
 TextLabel.TextYAlignment = "Bottom"
@@ -79,12 +79,12 @@ UIScale2.Scale = 1
 
 local TextLabel2 = Instance.new("TextLabel", BillboardGui)
 TextLabel2.Text = "[unknown]"
-TextLabel2.TextSize = 18
+TextLabel2.TextSize = 23
 TextLabel2.Size = UDim2.new(0, 1,0, 1)
 TextLabel2.TextColor3 = Color3.new(1, 1, 1)
 TextLabel2.Name = "DistanceMarker"
 TextLabel2.BackgroundTransparency = 1
-TextLabel2.Font = Enum.Font.Highway
+TextLabel2.Font = Enum.Font.GothamBold
 TextLabel2.TextStrokeTransparency = 0
 TextLabel2.TextYAlignment = "Top"
 TextLabel2.Visible = ShowDis
