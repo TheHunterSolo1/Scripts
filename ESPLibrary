@@ -20,6 +20,22 @@ function Library:ShowDistance(Value)
 
 ShowDis = Value
 end
+function Library:RemoveESP(Part)
+
+for i, part in pairs(ESPTable) do
+if part == Part then
+table.remove(ESPTable, i)
+break
+end
+end
+for _, v in ipairs(Part:GetChildren()) do
+if v.Name == "ESP_System" or v.Name == "ESP_GUI"  then
+v:Destroy()
+end
+end
+
+end
+
 
 function Library:AddESP(Part,Txt,Color)
 if Part:FindFirstChild("ESP_System") then return end
@@ -27,6 +43,12 @@ if Part:FindFirstChild("ESP_System") then return end
 
 
 table.insert(ESPTable, Part)
+Part.AncestryChanged(function(_, Parent)
+if not Parent then
+Library:RemoveESP(Part)
+end
+
+end)
 
 local Highlight = Instance.new("Highlight",Part)
 Highlight.Name = "ESP_System"
@@ -61,7 +83,7 @@ local UIScale2 = Instance.new("UIScale",TextLabel)
 UIScale2.Scale = 1
 
 local TextLabel2 = Instance.new("TextLabel", BillboardGui)
-TextLabel2.Text = "nil"
+TextLabel2.Text = "[unknown]"
 TextLabel2.TextSize = 18
 TextLabel2.Size = UDim2.new(0, 1,0, 1)
 TextLabel2.TextColor3 = Color3.new(1, 1, 1)
@@ -79,22 +101,9 @@ UIScale.Scale = 1
 
 end
 
-function Library:RemoveESP(Part)
 
-for i, part in pairs(ESPTable) do
-if part == Part then
-table.remove(ESPTable, i)
-break
-end
-end
 
-for _, v in ipairs(Part:GetChildren()) do
-if v.Name == "ESP_System" or v.Name == "ESP_GUI"  then
-v:Destroy()
-end
-end
 
-end
 
 
 function Library:GenerateRandomString()
@@ -107,7 +116,7 @@ function Library:Unload()
 
 Updating = false
 for _, Object in ipairs(ESPTable) do
-if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
+if Object then
 Object:FindFirstChild("ESP_GUI"):Destroy()
 Object:FindFirstChild("ESP_System"):Destroy()
 ESPTable = {}
@@ -123,7 +132,7 @@ local Time = 0
 Con = RunService.Heartbeat:Connect(function(dt)
 Time = Time + dt
 
-if Time > 0.15 then
+if Time > 0.05 then
 Time = 0
 
 if Updating == false then
@@ -135,9 +144,12 @@ if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootP
 
 
 for _, Object in ipairs(ESPTable) do
-if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
+if Object then
+local GuiObj = Object:FindFirstChild("ESP_GUI")
+local GuiDistance = GuiObj.DistanceMarker
+local GuiTxt = GuiObj.Txt
 
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Visible = ShowDis
+GuiDistance.Visible = ShowDis
 
 if Workspace.CurrentCamera ~= nil then
 
@@ -146,18 +158,18 @@ if Workspace.CurrentCamera ~= nil then
 local FOV = Workspace.CurrentCamera.FieldOfView
 
 if FOV == 120 then
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").UIScale.Scale = 2
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 2
-elseif FOV == 80 then
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 1.5
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").UIScale.Scale = 1.5
-elseif FOV > 80  then
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 2.2
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").UIScale.Scale = 2.2
+GuiTxt.UIScale.Scale = 2.2
+GuiDistance.UIScale.Scale = 2.2
 
+elseif FOV == 80 then
+GuiTxt.UIScale.Scale = 1.5
+GuiDistance.UIScale.Scale = 1.5
+elseif FOV > 80  and FOV < 90 then
+GuiTxt.UIScale.Scale = 1.7
+GuiDistance.UIScale.Scale = 1.7
 elseif FOV == 70 then
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("Txt").UIScale.Scale = 1
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").UIScale.Scale = 1
+GuiTxt.UIScale.Scale = 1
+GuiDistance.UIScale.Scale = 1
 end
 
 
@@ -169,7 +181,7 @@ end
 local Pos = Object:IsA("Model") and Object:GetPivot().Position or Object:IsA("BasePart") and Object.Position or Vector3.new(0, 0, 0)
 
 local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - Pos).Magnitude
-Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker").Text = "[" .. math.floor(Distance) .. "m]" 
+GuiDistance.Text = "[" .. math.floor(Distance) .. "m]" 
 
 end
 
