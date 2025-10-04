@@ -90,14 +90,14 @@ TextLabel2.TextYAlignment = "Top"
 TextLabel2.Visible = ShowDis
 local UIScale = Instance.new("UIScale",TextLabel2)
 UIScale.Scale = 1
-
+task.spawn(function()
 Part.AncestryChanged(function(_, Parent)
 if not Parent then
 Library:RemoveESP(Part)
 end
 
 end)
-
+end)
 
 
 end
@@ -145,7 +145,8 @@ if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootP
 
 
 for _, Object in ipairs(ESPTable) do
-if Object then
+if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
+
 local GuiObj = Object:FindFirstChild("ESP_GUI")
 local GuiDistance = Object:FindFirstChild("ESP_GUI").DistanceMarker
 local GuiTxt = Object:FindFirstChild("ESP_GUI").Txt
