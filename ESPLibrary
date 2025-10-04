@@ -146,8 +146,8 @@ if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootP
 for _, Object in ipairs(ESPTable) do
 if Object then
 local GuiObj = Object:FindFirstChild("ESP_GUI")
-local GuiDistance = GuiObj.DistanceMarker
-local GuiTxt = GuiObj.Txt
+local GuiDistance = Object:FindFirstChild("ESP_GUI").DistanceMarker
+local GuiTxt = Object:FindFirstChild("ESP_GUI").Txt
 
 GuiDistance.Visible = ShowDis
 
