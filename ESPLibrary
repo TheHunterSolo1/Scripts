@@ -90,6 +90,13 @@ table.remove(TracersTable, Trace)
 break
 end
 end
+for _, Tracerobj in pairs(Part:GetDescendants()) do
+
+if Tracerobj.Name == "ESPBeam" or
+Tracerobj.Name == "ESP_Tracers" then
+Tracerobj:Destroy()
+end 
+end
 
 end
 
@@ -176,6 +183,14 @@ Object:FindFirstChild("ESP_System"):Destroy()
 
 ESPTable = {}
 end
+for _, Tracerobj in pairs(Object:GetDescendants()) do
+
+if Tracerobj.Name == "ESPBeam" or
+Tracerobj.Name == "ESP_Tracers" then
+Tracerobj:Destroy()
+end 
+end
+
 end
 for _, Tracer in pairs(TracersTable) do
 if Tracer then
@@ -240,7 +255,11 @@ for _, Tracer in pairs(TracersTable) do
 if Tracer then
 local Data = Object:FindFirstChild("ESP_System")
 Tracer.Enabled = EnableTracers
-Tracer.Color = ColorSequence.new(Data.FillColor)
+Tracer.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0,Data.FillColor),
+ColorSequenceKeypoint.new(1,Data.FillColor)
+}
+
 end
 end
 
