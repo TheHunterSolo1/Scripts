@@ -7,18 +7,65 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = game.Players.LocalPlayer
 
 local Updating = true
+local Attach
+
+if LocalPlayer.Character then
+ Attach = Instance.new("Attachment",LocalPlayer.Character)
+Attach.Name = "CharTracer"
 
 
+end
+LocalPlayer.CharacterAdded:Connect(function()
+
+task.wait(1)
+
+ Attach = Instance.new("Attachment",LocalPlayer.Character)
+Attach.Name = "CharTracer"
+
+end)
 
 
 local ESPTable = {}
-
+local TracersTable = {}
+local EnableTracers = true
 local ShowDis = ShowDis or false
 
 
 function Library:ShowDistance(Value)
 
 ShowDis = Value
+end
+function Library:SetTracers(Value)
+EnableTracers = Value
+end
+
+local function CreateTracer(Part)
+local TruePart
+if Part:IsA("BasePart") then
+TruePart = Part
+elseif Part:IsA("Model") then
+TruePart = Part:FindFirstChildWhichIsA("BasePart")
+end
+if TruePart and Attach then
+
+if TruePart:FindFirstChild("ESP_Tracers") then return end
+local AttachPart = Instance.new("Attachment",TruePart)
+AttachPart.Name = "ESP_Tracers"
+
+local Beam = Instance.new("Beam",TruePart)
+Beam.Attachment0 = Attach
+Beam.Attachment1 = AttachPart
+Beam.Enabled = false
+Beam.Name = "ESPBeam"
+table.insert(TracersTable,Beam)
+
+
+
+
+end
+
+
+
 end
 function Library:RemoveESP(Part)
 
@@ -29,7 +76,7 @@ break
 end
 end
 for _, v in ipairs(Part:GetChildren()) do
-if v.Name == "ESP_System" or v.Name == "ESP_GUI"  then
+if v.Name == "ESP_System" or v.Name == "ESP_GUI"  or v.Name == "ESPBeam" or v.Name == "ESP_Tracers" then
 v:Destroy()
 end
 end
@@ -41,9 +88,9 @@ function Library:AddESP(Part,Txt,Color)
 if Part:FindFirstChild("ESP_System") then return end
 
 
-
 table.insert(ESPTable, Part)
 
+CreateTracer(Part)
 
 local Highlight = Instance.new("Highlight",Part)
 Highlight.Name = "ESP_System"
@@ -96,7 +143,7 @@ Library:RemoveESP(Part)
 end
 end)
 
-
+return Data
 end
 
 
@@ -117,7 +164,14 @@ for _, Object in ipairs(ESPTable) do
 if Object then
 Object:FindFirstChild("ESP_GUI"):Destroy()
 Object:FindFirstChild("ESP_System"):Destroy()
+Object:FindFirstChild("ESPBeam"):Destroy()
+Object:FindFirstChild("ESP_Tracers"):Destroy()
 ESPTable = {}
+end
+end
+for _, Tracer in pairs(TracersTable) do
+if Tracer then
+Tracer:Destroy()
 end
 end
 
@@ -173,6 +227,14 @@ end
 
 
 end
+for _, Tracer in pairs(TracersTable) do
+if Tracer then
+Tracer.Enabled = EnableTracers
+Tracer.Color3 = ColorSequence.new(Object:FindFirstChild("ESP_System").Color)
+end
+end
+
+
 
 
 
