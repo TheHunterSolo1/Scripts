@@ -253,25 +253,14 @@ end
 
 
 end
---[[
-for i, T in pairs(TracersTable) do
-if T then
-local Tracer = TracersIndepenace[i]
-local Obj = ObjectsIndepenace[i]
-local Data = Obj:FindFirstChild("ESP_System")
+
+for _, Tracer in pairs(TracersTable) do
+if Tracer then
+
 Tracer.Enabled = EnableTracers
-if not Tracer:GetAttribute("ColorSetted") then
-Tracer.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0,Data.FillColor),
-ColorSequenceKeypoint.new(1,Data.FillColor)
-}
-Tracer:SetAttribute("ColorSetted",true)
-end
 
 end
 end
-]]
-
 
 
 
