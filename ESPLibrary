@@ -80,6 +80,12 @@ if v.Name == "ESP_System" or v.Name == "ESP_GUI"  or v.Name == "ESPBeam" or v.Na
 v:Destroy()
 end
 end
+for Trace, v in ipairs(TracersTable) do
+if v == Part then
+table.remove(TracersTable, Trace)
+break
+end
+end
 
 end
 
@@ -171,6 +177,7 @@ end
 for _, Tracer in pairs(TracersTable) do
 if Tracer then
 Tracer:Destroy()
+TracersTable = {}
 end
 end
 
