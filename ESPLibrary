@@ -57,6 +57,10 @@ Beam.Attachment0 = Attach
 Beam.Attachment1 = AttachPart
 Beam.Enabled = false
 Beam.Name = "ESPBeam"
+Beam.Width0 = 0.05
+Beam.Width1 = 0.05
+Beam.FaceCamera = true
+Beam.Color = ColorSequence.new(Color3.new(1, 1, 1))
 table.insert(TracersTable,Beam)
 
 
@@ -169,8 +173,7 @@ for _, Object in ipairs(ESPTable) do
 if Object then
 Object:FindFirstChild("ESP_GUI"):Destroy()
 Object:FindFirstChild("ESP_System"):Destroy()
-Object:FindFirstChild("ESPBeam"):Destroy()
-Object:FindFirstChild("ESP_Tracers"):Destroy()
+
 ESPTable = {}
 end
 end
@@ -235,8 +238,9 @@ end
 end
 for _, Tracer in pairs(TracersTable) do
 if Tracer then
+local Data = Object:FindFirstChild("ESP_System")
 Tracer.Enabled = EnableTracers
-Tracer.Color = ColorSequence.new(Object:FindFirstChild("ESP_System").FillColor)
+Tracer.Color = ColorSequence.new(Data.FillColor)
 end
 end
 
