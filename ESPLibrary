@@ -27,7 +27,7 @@ end)
 
 local ESPTable = {}
 local TracersTable = {}
-local EnableTracers = true
+local EnableTracers = EnableTracers or false 
 local ShowDis = ShowDis or false
 
 
