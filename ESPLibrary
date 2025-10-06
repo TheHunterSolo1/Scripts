@@ -208,7 +208,7 @@ local Time = 0
 Con = RunService.Heartbeat:Connect(function(dt)
 Time = Time + dt
 
-if Time > 0.05 then
+if Time > 0.15 then
 Time = 0
 
 if Updating == false then
@@ -255,10 +255,13 @@ for _, Tracer in pairs(TracersTable) do
 if Tracer then
 local Data = Object:FindFirstChild("ESP_System")
 Tracer.Enabled = EnableTracers
+if not Tracer:GetAttribute("ColorSetted") then
 Tracer.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(0,Data.FillColor),
 ColorSequenceKeypoint.new(1,Data.FillColor)
 }
+Tracer:SetAttribute("ColorSetted",true)
+end
 
 end
 end
