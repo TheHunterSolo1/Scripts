@@ -109,7 +109,7 @@ if Part:FindFirstChild("ESP_System") then return end
 
 table.insert(ESPTable, Part)
 
--- CreateTracer(Part)
+ CreateTracer(Part)
 
 local Highlight = Instance.new("Highlight",Part)
 Highlight.Name = "ESP_System"
@@ -237,8 +237,8 @@ if Workspace.CurrentCamera ~= nil then
 local FOV = Workspace.CurrentCamera.FieldOfView
 
 if FOV == 120 then
-GuiTxt.UIScale.Scale = 2.2
-GuiDistance.UIScale.Scale = 2.2
+GuiTxt.UIScale.Scale = 2.4
+GuiDistance.UIScale.Scale = 2.4
 
 elseif FOV == 80 then
 GuiTxt.UIScale.Scale = 1.5
