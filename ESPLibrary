@@ -109,7 +109,7 @@ if Part:FindFirstChild("ESP_System") then return end
 
 table.insert(ESPTable, Part)
 
-CreateTracer(Part)
+-- CreateTracer(Part)
 
 local Highlight = Instance.new("Highlight",Part)
 Highlight.Name = "ESP_System"
@@ -253,6 +253,7 @@ end
 
 
 end
+--[[
 for i, T in pairs(TracersTable) do
 if T then
 local Tracer = TracersIndepenace[i]
@@ -269,7 +270,7 @@ end
 
 end
 end
-
+]]
 
 
 
