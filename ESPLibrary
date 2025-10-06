@@ -27,6 +27,8 @@ end)
 
 local ESPTable = {}
 local TracersTable = {}
+local TracersIndepenace = {}
+local ObjectsIndepenace = {}
 local EnableTracers = EnableTracers or false 
 local ShowDis = ShowDis or false
 
@@ -251,9 +253,11 @@ end
 
 
 end
-for _, Tracer in pairs(TracersTable) do
-if Tracer then
-local Data = Object:FindFirstChild("ESP_System")
+for i, T in pairs(TracersTable) do
+if T then
+local Tracer = TracersIndepenace[i]
+local Obj = ObjectsIndepenace[i]
+local Data = Obj:FindFirstChild("ESP_System")
 Tracer.Enabled = EnableTracers
 if not Tracer:GetAttribute("ColorSetted") then
 Tracer.Color = ColorSequence.new{
