@@ -6,29 +6,28 @@ local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = game.Players.LocalPlayer
 
-local Updating = true
 local Attach
+local Cons = {}
 
-if LocalPlayer.Character then
+if LocalPlayer.Character and not LocalPlayer.Character:FindFirstChild("CharTracer") then
  Attach = Instance.new("Attachment",LocalPlayer.Character)
 Attach.Name = "CharTracer"
 
 
 end
-LocalPlayer.CharacterAdded:Connect(function()
+table.insert(Cons,LocalPlayer.CharacterAdded:Connect(function()
 
 task.wait(1)
 
  Attach = Instance.new("Attachment",LocalPlayer.Character)
 Attach.Name = "CharTracer"
 
-end)
+end))
 
 
 local ESPTable = {}
 local TracersTable = {}
-local TracersIndepenace = {}
-local ObjectsIndepenace = {}
+
 local EnableTracers = EnableTracers or false 
 local ShowDis = ShowDis or false
 
@@ -116,7 +115,7 @@ Highlight.FillColor = Color
 Highlight.Enabled = true 
 Highlight.Adornee = Part
 Highlight.FillTransparency = 0.7
-Highlight.OutlineTransparency = 0.4
+Highlight.OutlineTransparency = 0.7
 
 
 local BillboardGui = Instance.new("BillboardGui", Part)
@@ -132,7 +131,7 @@ local TextLabel = Instance.new("TextLabel", BillboardGui)
 TextLabel.Text = Txt
 TextLabel.TextSize = 23
 TextLabel.Size = UDim2.new(0, 1,0, 1)
-TextLabel.Font = Enum.Font.GothamBold
+TextLabel.Font = Enum.Font.Gotham
 TextLabel.TextColor3 = Color
 TextLabel.Name = "Txt"
 TextLabel.TextYAlignment = "Bottom"
@@ -149,7 +148,7 @@ TextLabel2.Size = UDim2.new(0, 1,0, 1)
 TextLabel2.TextColor3 = Color3.new(1, 1, 1)
 TextLabel2.Name = "DistanceMarker"
 TextLabel2.BackgroundTransparency = 1
-TextLabel2.Font = Enum.Font.GothamBold
+TextLabel2.Font = Enum.Font.Gotham
 TextLabel2.TextStrokeTransparency = 0
 TextLabel2.TextYAlignment = "Top"
 TextLabel2.Visible = ShowDis
@@ -175,8 +174,13 @@ end
 
 
 function Library:Unload()
+for _, con in pairs(Cons) do
+con:Disconnect()
 
-Updating = false
+
+end
+table.clear(Cons)
+
 for _, Object in ipairs(ESPTable) do
 if Object then
 Object:FindFirstChild("ESP_GUI"):Destroy()
@@ -204,18 +208,12 @@ getgenv().ESPLibrary = nil
 
 
 end
-local Con
-local Time = 0
-Con = RunService.Heartbeat:Connect(function(dt)
-Time = Time + dt
 
-if Time > 0.05 then
-Time = 0
 
-if Updating == false then
-Con:Disconnect()
-Con = nil
-end
+table.insert(Cons,RunService.Heartbeat:Connect(function(dt)
+
+
+
 
 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 
@@ -273,11 +271,10 @@ end
 
 end
 
-end 
 
 
 end
 
-end)
+end))
 
  return Library
