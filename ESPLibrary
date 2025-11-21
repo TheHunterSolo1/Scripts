@@ -58,8 +58,8 @@ Beam.Attachment0 = Attach
 Beam.Attachment1 = AttachPart
 Beam.Enabled = false
 Beam.Name = "ESPBeam"
-Beam.Width0 = 0.03
-Beam.Width1 = 0.03
+Beam.Width0 = 0.02
+Beam.Width1 = 0.02
 Beam.FaceCamera = true
 Beam.Color = ColorSequence.new(Color3.new(1, 1, 1))
 table.insert(TracersTable,Beam)
@@ -154,9 +154,12 @@ TextLabel2.TextYAlignment = "Top"
 TextLabel2.Visible = ShowDis
 local UIScale = Instance.new("UIScale",TextLabel2)
 UIScale.Scale = 1
-Part:GetPropertyChangedSignal("Parent"):Connect(function(Parent)
+local ParentCon 
+ParentCon = Part:GetPropertyChangedSignal("Parent"):Connect(function(Parent)
 if not Parent then
 Library:RemoveESP(Part)
+ParentCon:Disconnect()
+ParentCon = nil
 end
 end)
 
