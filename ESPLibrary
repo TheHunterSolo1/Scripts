@@ -2,282 +2,167 @@ local Library = {}
 getgenv().ESPLibrary = Library
 
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
-local LocalPlayer = game.Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
 
-local Attach
-local Cons = {}
+local ESPList = {}
+local LoopConnection = nil
+local Settings = {
+	Tracers = false,
+	Distance = false
+}
 
-if LocalPlayer.Character and not LocalPlayer.Character:FindFirstChild("CharTracer") then
- Attach = Instance.new("Attachment",LocalPlayer.Character)
-Attach.Name = "CharTracer"
+local hasDrawing = pcall(function() return Drawing.new("Line") end)
 
-
-end
-table.insert(Cons,LocalPlayer.CharacterAdded:Connect(function()
-
-task.wait(1)
-
- Attach = Instance.new("Attachment",LocalPlayer.Character)
-Attach.Name = "CharTracer"
-
-end))
-
-
-local ESPTable = {}
-local TracersTable = {}
-
-local EnableTracers = EnableTracers or false 
-local ShowDis = ShowDis or false
-
-
-function Library:ShowDistance(Value)
-
-ShowDis = Value
-end
-function Library:SetTracers(Value)
-EnableTracers = Value
+local function GetRoot(obj)
+	if obj:IsA("BasePart") then
+		return obj
+	elseif obj:IsA("Model") then
+		return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+	end
+	return nil
 end
 
-local function CreateTracer(Part)
-local TruePart
-if Part:IsA("BasePart") then
-TruePart = Part
-elseif Part:IsA("Model") then
-TruePart = Part:FindFirstChildWhichIsA("BasePart")
-end
-if TruePart and Attach then
-
-if TruePart:FindFirstChild("ESP_Tracers") then return end
-local AttachPart = Instance.new("Attachment",TruePart)
-AttachPart.Name = "ESP_Tracers"
-
-local Beam = Instance.new("Beam",TruePart)
-Beam.Attachment0 = Attach
-Beam.Attachment1 = AttachPart
-Beam.Enabled = false
-Beam.Name = "ESPBeam"
-Beam.Width0 = 0.02
-Beam.Width1 = 0.02
-Beam.FaceCamera = true
-Beam.Color = ColorSequence.new(Color3.new(1, 1, 1))
-table.insert(TracersTable,Beam)
-
-
-
-
+local function ClearObject(part)
+	if ESPList[part] then
+		local data = ESPList[part]
+		
+		if data.Highlight then data.Highlight:Destroy() end
+		if data.Gui then data.Gui:Destroy() end
+		
+		if data.Tracer then
+			data.Tracer.Visible = false
+			data.Tracer:Remove()
+		end
+		
+		if data.Signal then
+			data.Signal:Disconnect()
+		end
+		
+		ESPList[part] = nil
+	end
 end
 
-
-
-end
-function Library:RemoveESP(Part)
-
-for i, part in pairs(ESPTable) do
-if part == Part then
-table.remove(ESPTable, i)
-break
-end
-end
-for _, v in ipairs(Part:GetChildren()) do
-if v.Name == "ESP_System" or v.Name == "ESP_GUI"  or v.Name == "ESPBeam" or v.Name == "ESP_Tracers" then
-v:Destroy()
-end
-end
-for Trace, v in ipairs(TracersTable) do
-if v == Part then
-table.remove(TracersTable, Trace)
-break
-end
-end
-for _, Tracerobj in pairs(Part:GetDescendants()) do
-
-if Tracerobj.Name == "ESPBeam" or
-Tracerobj.Name == "ESP_Tracers" then
-Tracerobj:Destroy()
-end 
+function Library:SetTracers(state)
+	Settings.Tracers = state
 end
 
+function Library:ShowDistance(state)
+	Settings.Distance = state
 end
 
-
-function Library:AddESP(Part,Txt,Color)
-if Part:FindFirstChild("ESP_System") then return end
-
-
-table.insert(ESPTable, Part)
-CreateTracer(Part)
-
-local Highlight = Instance.new("Highlight",Part)
-Highlight.Name = "ESP_System"
-Highlight.FillColor = Color
-Highlight.Enabled = true 
-Highlight.Adornee = Part
-Highlight.FillTransparency = 0.7
-Highlight.OutlineTransparency = 0.7
-
-
-local BillboardGui = Instance.new("BillboardGui", Part)
-BillboardGui.Name = "ESP_GUI"
-BillboardGui.Size = UDim2.new(0, 1, 0, 1)
-BillboardGui.MaxDistance = math.huge
-BillboardGui.Enabled = true
-BillboardGui.AlwaysOnTop = true
-
-
-
-local TextLabel = Instance.new("TextLabel", BillboardGui)
-TextLabel.Text = Txt
-TextLabel.TextSize = 23
-TextLabel.Size = UDim2.new(0, 1,0, 1)
-TextLabel.Font = Enum.Font.Gotham
-TextLabel.TextColor3 = Color
-TextLabel.Name = "Txt"
-TextLabel.TextYAlignment = "Bottom"
-TextLabel.TextStrokeTransparency = 0
-TextLabel.BackgroundTransparency = 1
-
-local UIScale2 = Instance.new("UIScale",TextLabel)
-UIScale2.Scale = 1
-
-local TextLabel2 = Instance.new("TextLabel", BillboardGui)
-TextLabel2.Text = "[unknown]"
-TextLabel2.TextSize = 23
-TextLabel2.Size = UDim2.new(0, 1,0, 1)
-TextLabel2.TextColor3 = Color3.new(1, 1, 1)
-TextLabel2.Name = "DistanceMarker"
-TextLabel2.BackgroundTransparency = 1
-TextLabel2.Font = Enum.Font.Gotham
-TextLabel2.TextStrokeTransparency = 0
-TextLabel2.TextYAlignment = "Top"
-TextLabel2.Visible = ShowDis
-local UIScale = Instance.new("UIScale",TextLabel2)
-UIScale.Scale = 1
-local ParentCon 
-ParentCon = Part:GetPropertyChangedSignal("Parent"):Connect(function(Parent)
-if not Parent then
-Library:RemoveESP(Part)
-ParentCon:Disconnect()
-ParentCon = nil
-end
-end)
-
+function Library:RemoveESP(part)
+	ClearObject(part)
 end
 
-
-
-
-
-
-function Library:GenerateRandomString()
-return HttpService:GenerateGUID(false)
+function Library:AddESP(part, name, color)
+	if not part or ESPList[part] then return end
+	
+	local root = GetRoot(part)
+	if not root then return end
+	
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "ESPHighlight"
+	highlight.FillColor = color
+	highlight.OutlineColor = color
+	highlight.FillTransparency = 0.7
+	highlight.OutlineTransparency = 0.5
+	highlight.Adornee = part
+	highlight.Parent = part
+	
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "ESPInfo"
+	billboard.Adornee = root
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = part
+	
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.TextStrokeTransparency = 0
+	label.TextColor3 = color
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 14
+	label.Text = name
+	label.Parent = billboard
+	
+	local line = nil
+	if hasDrawing then
+		line = Drawing.new("Line")
+		line.Visible = false
+		line.Color = color
+		line.Thickness = 1
+		line.Transparency = 1
+	end
+	
+	local cleanupSignal = part.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			Library:RemoveESP(part)
+		end
+	end)
+	
+	ESPList[part] = {
+		Root = root,
+		Highlight = highlight,
+		Gui = billboard,
+		Label = label,
+		Tracer = line,
+		Color = color,
+		Signal = cleanupSignal,
+		Name = name
+	}
 end
-
-
 
 function Library:Unload()
-for _, con in pairs(Cons) do
-con:Disconnect()
-
-
-end
-table.clear(Cons)
-
-for _, Object in ipairs(ESPTable) do
-if Object then
-Object:FindFirstChild("ESP_GUI"):Destroy()
-Object:FindFirstChild("ESP_System"):Destroy()
-
-ESPTable = {}
-end
-for _, Tracerobj in pairs(Object:GetDescendants()) do
-
-if Tracerobj.Name == "ESPBeam" or
-Tracerobj.Name == "ESP_Tracers" then
-Tracerobj:Destroy()
-end 
+	if LoopConnection then 
+		LoopConnection:Disconnect() 
+	end
+	
+	for part, _ in pairs(ESPList) do
+		ClearObject(part)
+	end
+	
+	getgenv().ESPLibrary = nil
 end
 
-end
-for _, Tracer in pairs(TracersTable) do
-if Tracer then
-Tracer:Destroy()
-TracersTable = {}
-end
-end
+LoopConnection = RunService.RenderStepped:Connect(function()
+	local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return end
+	
+	local myPos = myRoot.Position
+	local viewSize = Camera.ViewportSize
+	
+	for part, data in pairs(ESPList) do
+		if data.Root and data.Root.Parent then
+			local targetPos = data.Root.Position
+			local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
+			local dist = (myPos - targetPos).Magnitude
+			
+			if Settings.Distance then
+				data.Label.Text = string.format("%s\n[%d]", data.Name, math.floor(dist))
+			else
+				data.Label.Text = data.Name
+			end
+			
+			if data.Tracer then
+				if Settings.Tracers and onScreen then
+					data.Tracer.From = Vector2.new(viewSize.X / 2, viewSize.Y)
+					data.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
+					data.Tracer.Color = data.Color
+					data.Tracer.Visible = true
+				else
+					data.Tracer.Visible = false
+				end
+			end
+		else
+			ClearObject(part)
+		end
+	end
+end)
 
-getgenv().ESPLibrary = nil
-
-
-end
-
-
-table.insert(Cons,RunService.Heartbeat:Connect(function(dt)
-
-
-
-
-if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-
-
-for _, Object in ipairs(ESPTable) do
-if Object and Object:FindFirstChild("ESP_GUI") and Object:FindFirstChild("ESP_GUI"):FindFirstChild("DistanceMarker") then
-
-local GuiObj = Object:FindFirstChild("ESP_GUI")
-local GuiDistance = Object:FindFirstChild("ESP_GUI").DistanceMarker
-local GuiTxt = Object:FindFirstChild("ESP_GUI").Txt
-
-GuiDistance.Visible = ShowDis
-
-if Workspace.CurrentCamera ~= nil then
-
-
-
-local FOV = Workspace.CurrentCamera.FieldOfView
-
-if FOV == 120 then
-GuiTxt.UIScale.Scale = 2.4
-GuiDistance.UIScale.Scale = 2.4
-
-elseif FOV == 80 then
-GuiTxt.UIScale.Scale = 1.5
-GuiDistance.UIScale.Scale = 1.5
-elseif FOV > 80  and FOV < 90 then
-GuiTxt.UIScale.Scale = 1.7
-GuiDistance.UIScale.Scale = 1.7
-elseif FOV == 70 then
-GuiTxt.UIScale.Scale = 1
-GuiDistance.UIScale.Scale = 1
-end
-
-
-end
-
-for _, Tracer in pairs(TracersTable) do
-if Tracer then
-
-Tracer.Enabled = EnableTracers
-
-end
-end
-
-
-
-
-local Pos = Object:IsA("Model") and Object:GetPivot().Position or Object:IsA("BasePart") and Object.Position or Vector3.new(0, 0, 0)
-
-local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - Pos).Magnitude
-GuiDistance.Text = "[" .. math.floor(Distance) .. "m]" 
-
-end
-
-end
-
-
-
-end
-
-end))
-
- return Library
+return Library
