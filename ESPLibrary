@@ -196,7 +196,6 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 	
 	local myPos = myRoot.Position
 	local viewSize = Camera.ViewportSize
-	local center = Vector2_new(viewSize.X / 2, viewSize.Y / 2)
 	
 	local currentFOV = Camera.FieldOfView
 	local dynamicSize = Math_floor(Settings.BaseSize * (currentFOV / 70))
@@ -249,11 +248,18 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 					local ang = Math_atan2(-rel.Y, rel.X)
 					local deg = Math_deg(ang)
 					
-					local radius = Math_min(viewSize.X, viewSize.Y) * 0.45
+					local radius_scale = 0.40 
 					
-					local indicatorPos = center + Vector2_new(Math_cos(ang) * radius, Math_sin(ang) * radius)
+					local x_scale = 0.5 + Math_cos(ang) * radius_scale
+					local y_scale = 0.5 + Math_sin(ang) * radius_scale
 					
-					data.Indicator.Position = UDim2.new(0, indicatorPos.X - (data.Indicator.Size.X.Offset / 2), 0, indicatorPos.Y - (data.Indicator.Size.Y.Offset / 2))
+					data.Indicator.Position = UDim2.new(
+						x_scale, 
+						-data.Indicator.Size.X.Offset / 2, 
+						y_scale, 
+						-data.Indicator.Size.Y.Offset / 2
+					)
+					
 					data.Indicator.Rotation = deg
 					data.Indicator.Visible = true
 				elseif data.Indicator then
