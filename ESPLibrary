@@ -4,6 +4,7 @@ getgenv().ESPLibrary = Library
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -13,65 +14,28 @@ local LoopConnection = nil
 local Settings = {
 	Tracers = false,
 	Distance = false,
-	BaseSize = 15
+	BaseSize = 21
 }
 
 local Vector2_new = Vector2.new
-local Vector3_new = Vector3.new
 local Math_floor = math.floor
-local Math_atan2 = math.atan2
-local Math_cos = math.cos
-local Math_sin = math.sin
-local Math_min = math.min
-local Math_deg = math.deg
-
-local DrawingLib = {
-	Line = Drawing.new("Line"),
-	Triangle = Drawing.new("Triangle")
-}
-DrawingLib.Line:Remove()
-DrawingLib.Triangle:Remove()
+local Drawing_new = Drawing and Drawing.new
 
 local function GetRoot(obj)
-	if obj:IsA("BasePart") then
-		return obj
-	elseif obj:IsA("Model") then
-		return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-	end
+	if obj:IsA("BasePart") then return obj end
+	if obj:IsA("Model") then return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart") end
 	return nil
 end
 
 local function ClearObject(part)
-	if ESPList[part] then
-		local data = ESPList[part]
-		
+	local data = ESPList[part]
+	if data then
 		if data.Highlight then data.Highlight:Destroy() end
 		if data.Gui then data.Gui:Destroy() end
-		
-		if data.Tracer then
-			data.Tracer.Visible = false
-			data.Tracer:Remove()
-		end
-
-		if data.Signal then
-			data.Signal:Disconnect()
-		end
-		
+		if data.Tracer then data.Tracer:Remove() end
+		if data.Signal then data.Signal:Disconnect() end
 		ESPList[part] = nil
 	end
-end
-
-function Library:GenerateRandomString()
-	local length = math.random(10, 20)
-	local charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	local result = ""
-	
-	for i = 1, length do
-		local rand = math.random(1, #charset)
-		result = result .. string.sub(charset, rand, rand)
-	end
-	
-	return result
 end
 
 function Library:SetTracers(state)
@@ -97,48 +61,46 @@ function Library:AddESP(part, name, color)
 	if not root then return end
 	
 	local highlight = Instance.new("Highlight")
-	highlight.Name = "ESPHighlight"
+	highlight.Name = "ESPH"
 	highlight.FillColor = color
 	highlight.OutlineColor = color
 	highlight.FillTransparency = 0.7
 	highlight.OutlineTransparency = 0.5
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	highlight.Adornee = part
-	highlight.Enabled = true
+	highlight.Enabled = false
 	highlight.Parent = part
 	
 	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "ESPInfo"
+	billboard.Name = "ESP"
 	billboard.Adornee = root
-	billboard.Size = UDim2.new(0, 200, 0, 60) 
-	billboard.StudsOffset = Vector3_new(0, 3.5, 0)
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
 	billboard.AlwaysOnTop = true
-	billboard.Enabled = true
+	billboard.Enabled = false
 	billboard.Parent = part
 	
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.new(1, 0, 1, 0)
-	label.TextStrokeTransparency = 0
 	label.TextColor3 = color
-	label.Font = Enum.Font.Gotham
+	label.TextStrokeTransparency = 0
+	label.Font = Enum.Font.GothamBold
 	label.TextSize = Settings.BaseSize
 	label.Text = name
 	label.Parent = billboard
 	
-	local line = nil
-
-	local success, _ = pcall(function()
-		line = Drawing.new("Line")
-		line.Visible = false
-		line.Color = color
-		line.Thickness = 1
-		line.Transparency = 1
-	end)
+	local tracer = nil
+	if Drawing_new then
+		tracer = Drawing_new("Line")
+		tracer.Visible = false
+		tracer.Color = color
+		tracer.Thickness = 1
+		tracer.Transparency = 1
+	end
 	
-	local cleanupSignal = part.AncestryChanged:Connect(function(_, parent)
-		if not parent then
-			Library:RemoveESP(part)
-		end
+	local signal = part.AncestryChanged:Connect(function(_, parent)
+		if not parent then Library:RemoveESP(part) end
 	end)
 	
 	ESPList[part] = {
@@ -146,22 +108,18 @@ function Library:AddESP(part, name, color)
 		Highlight = highlight,
 		Gui = billboard,
 		Label = label,
-		Tracer = line,
+		Tracer = tracer,
+		Name = name,
 		Color = color,
-		Signal = cleanupSignal,
-		Name = name
+		Signal = signal,
+		LastDist = -1,
+		Visible = false
 	}
 end
 
 function Library:Unload()
-	if LoopConnection then 
-		LoopConnection:Disconnect() 
-	end
-	
-	for part, _ in pairs(ESPList) do
-		ClearObject(part)
-	end
-	
+	if LoopConnection then LoopConnection:Disconnect() end
+	for part, _ in pairs(ESPList) do ClearObject(part) end
 	getgenv().ESPLibrary = nil
 end
 
@@ -171,12 +129,12 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 	
 	local myPos = myRoot.Position
 	local viewSize = Camera.ViewportSize
+	local center = Vector2_new(viewSize.X / 2, viewSize.Y)
 	
 	local currentFOV = Camera.FieldOfView
 	local dynamicSize = Math_floor(Settings.BaseSize * (currentFOV / 70))
-	if dynamicSize < 12 then dynamicSize = 12 end
-	if dynamicSize > 40 then dynamicSize = 40 end
-	
+	dynamicSize = (dynamicSize < 10) and 10 or (dynamicSize > 40) and 40 or dynamicSize
+
 	for part, data in pairs(ESPList) do
 		if data.Root and data.Root.Parent then
 			local targetPos = data.Root.Position
@@ -184,33 +142,45 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 			local dist = (myPos - targetPos).Magnitude
 			
 			if onScreen then
-				if not data.Highlight.Enabled then data.Highlight.Enabled = true end
-				if not data.Gui.Enabled then data.Gui.Enabled = true end
+				if not data.Visible then
+					data.Visible = true
+					data.Highlight.Enabled = true
+					data.Gui.Enabled = true
+				end
 
 				if data.Label.TextSize ~= dynamicSize then
 					data.Label.TextSize = dynamicSize
 				end
 				
+				local intDist = Math_floor(dist)
 				if Settings.Distance then
-					data.Label.Text = string.format("%s\n[%d]", data.Name, Math_floor(dist))
+					if data.LastDist ~= intDist then
+						data.LastDist = intDist
+						data.Label.Text = data.Name .. "\n[" .. intDist .. "]"
+					end
 				else
-					data.Label.Text = data.Name
+					if data.LastDist ~= -2 then
+						data.LastDist = -2
+						data.Label.Text = data.Name
+					end
 				end
 				
 				if data.Tracer then
 					if Settings.Tracers then
-						data.Tracer.From = Vector2_new(viewSize.X / 2, viewSize.Y)
+						data.Tracer.From = center
 						data.Tracer.To = Vector2_new(screenPos.X, screenPos.Y)
-						data.Tracer.Color = data.Color
-						data.Tracer.Visible = true
+						if not data.Tracer.Visible then data.Tracer.Visible = true end
 					else
-						data.Tracer.Visible = false
+						if data.Tracer.Visible then data.Tracer.Visible = false end
 					end
 				end
 			else
-				if data.Highlight.Enabled then data.Highlight.Enabled = false end
-				if data.Gui.Enabled then data.Gui.Enabled = false end
-				if data.Tracer then data.Tracer.Visible = false end
+				if data.Visible then
+					data.Visible = false
+					data.Highlight.Enabled = false
+					data.Gui.Enabled = false
+					if data.Tracer then data.Tracer.Visible = false end
+				end
 			end
 		else
 			ClearObject(part)
