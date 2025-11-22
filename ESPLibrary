@@ -1,4 +1,4 @@
-local Library = {}
+Local Library = {}
 getgenv().ESPLibrary = Library
 
 local RunService = game:GetService("RunService")
@@ -24,6 +24,7 @@ local Math_atan2 = math.atan2
 local Math_cos = math.cos
 local Math_sin = math.sin
 local Math_min = math.min
+local Math_deg = math.deg
 
 local DrawingLib = {
 	Line = Drawing.new("Line"),
@@ -47,17 +48,13 @@ local function ClearObject(part)
 		
 		if data.Highlight then data.Highlight:Destroy() end
 		if data.Gui then data.Gui:Destroy() end
+		if data.Indicator then data.Indicator:Destroy() end
 		
 		if data.Tracer then
 			data.Tracer.Visible = false
 			data.Tracer:Remove()
 		end
 
-		if data.Arrow then
-			data.Arrow.Visible = false
-			data.Arrow:Remove()
-		end
-		
 		if data.Signal then
 			data.Signal:Disconnect()
 		end
@@ -89,6 +86,14 @@ end
 
 function Library:SetArrows(state)
 	Settings.Arrows = state
+	
+	if not state then
+		for _, data in pairs(ESPList) do
+			if data.Indicator then
+				data.Indicator.Visible = false
+			end
+		end
+	end
 end
 
 function Library:SetBaseSize(size)
@@ -134,8 +139,17 @@ function Library:AddESP(part, name, color)
 	label.Text = name
 	label.Parent = billboard
 	
+	local indicator = Instance.new("ImageLabel")
+	indicator.Name = "OffscreenIndicator"
+	indicator.Size = UDim2.new(0, 32, 0, 32)
+	indicator.BackgroundTransparency = 1
+	indicator.Image = "rbxassetid://80246768534622"
+	indicator.ImageColor3 = color
+	indicator.ZIndex = 10
+	indicator.Visible = false
+	indicator.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	
 	local line = nil
-	local arrow = nil
 
 	local success, _ = pcall(function()
 		line = Drawing.new("Line")
@@ -143,13 +157,6 @@ function Library:AddESP(part, name, color)
 		line.Color = color
 		line.Thickness = 1
 		line.Transparency = 1
-
-		arrow = Drawing.new("Triangle")
-		arrow.Visible = false
-		arrow.Color = color
-		arrow.Filled = true
-		arrow.Transparency = 1
-		arrow.Thickness = 1
 	end)
 	
 	local cleanupSignal = part.AncestryChanged:Connect(function(_, parent)
@@ -164,7 +171,7 @@ function Library:AddESP(part, name, color)
 		Gui = billboard,
 		Label = label,
 		Tracer = line,
-		Arrow = arrow,
+		Indicator = indicator,
 		Color = color,
 		Signal = cleanupSignal,
 		Name = name
@@ -218,8 +225,8 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 					data.Label.Text = data.Name
 				end
 				
-				if data.Arrow and data.Arrow.Visible then
-					data.Arrow.Visible = false
+				if data.Indicator and data.Indicator.Visible then
+					data.Indicator.Visible = false
 				end
 
 				if data.Tracer then
@@ -237,26 +244,20 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 				if data.Gui.Enabled then data.Gui.Enabled = false end
 				if data.Tracer then data.Tracer.Visible = false end
 
-				if data.Arrow and Settings.Arrows then
+				if data.Indicator and Settings.Arrows then
 					local rel = camCFrame:PointToObjectSpace(targetPos)
 					local ang = Math_atan2(-rel.Y, rel.X)
+					local deg = Math_deg(ang)
 					
-					local radius = Math_min(viewSize.X, viewSize.Y) * 0.35
+					local radius = Math_min(viewSize.X, viewSize.Y) * 0.45
 					
-					local arrowPos = center + Vector2_new(Math_cos(ang) * radius, Math_sin(ang) * radius)
+					local indicatorPos = center + Vector2_new(Math_cos(ang) * radius, Math_sin(ang) * radius)
 					
-					local size = 18
-					local p1 = arrowPos + Vector2_new(Math_cos(ang) * size, Math_sin(ang) * size)
-					local p2 = arrowPos + Vector2_new(Math_cos(ang + 2.6) * (size * 0.7), Math_sin(ang + 2.6) * (size * 0.7))
-					local p3 = arrowPos + Vector2_new(Math_cos(ang - 2.6) * (size * 0.7), Math_sin(ang - 2.6) * (size * 0.7))
-					
-					data.Arrow.PointA = p1
-					data.Arrow.PointB = p2
-					data.Arrow.PointC = p3
-					data.Arrow.Color = data.Color
-					data.Arrow.Visible = true
-				elseif data.Arrow then
-					data.Arrow.Visible = false
+					data.Indicator.Position = UDim2.new(0, indicatorPos.X - (data.Indicator.Size.X.Offset / 2), 0, indicatorPos.Y - (data.Indicator.Size.Y.Offset / 2))
+					data.Indicator.Rotation = deg
+					data.Indicator.Visible = true
+				elseif data.Indicator then
+					data.Indicator.Visible = false
 				end
 			end
 		else
