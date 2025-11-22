@@ -99,6 +99,7 @@ function Library:AddESP(part, name, color)
 	highlight.FillTransparency = 0.7
 	highlight.OutlineTransparency = 0.5
 	highlight.Adornee = part
+	highlight.Enabled = true
 	highlight.Parent = part
 	
 	local billboard = Instance.new("BillboardGui")
@@ -107,6 +108,7 @@ function Library:AddESP(part, name, color)
 	billboard.Size = UDim2.new(0, 200, 0, 60) 
 	billboard.StudsOffset = Vector3.new(0, 3.5, 0)
 	billboard.AlwaysOnTop = true
+	billboard.Enabled = true
 	billboard.Parent = part
 	
 	local label = Instance.new("TextLabel")
@@ -187,46 +189,57 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 			local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
 			local dist = (myPos - targetPos).Magnitude
 			
-			if data.Label.TextSize ~= dynamicSize then
-				data.Label.TextSize = dynamicSize
-			end
-			
-			if Settings.Distance then
-				data.Label.Text = string.format("%s\n[%d]", data.Name, math.floor(dist))
-			else
-				data.Label.Text = data.Name
-			end
-			
-			if data.Tracer then
-				if Settings.Tracers and onScreen then
-					data.Tracer.From = Vector2.new(viewSize.X / 2, viewSize.Y)
-					data.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
-					data.Tracer.Color = data.Color
-					data.Tracer.Visible = true
-				else
-					data.Tracer.Visible = false
-				end
-			end
+			if onScreen then
+				if not data.Highlight.Enabled then data.Highlight.Enabled = true end
+				if not data.Gui.Enabled then data.Gui.Enabled = true end
 
-			if data.Arrow then
-				if Settings.Arrows and not onScreen then
+				if data.Label.TextSize ~= dynamicSize then
+					data.Label.TextSize = dynamicSize
+				end
+				
+				if Settings.Distance then
+					data.Label.Text = string.format("%s\n[%d]", data.Name, math.floor(dist))
+				else
+					data.Label.Text = data.Name
+				end
+				
+				if data.Arrow then
+					data.Arrow.Visible = false
+				end
+
+				if data.Tracer then
+					if Settings.Tracers then
+						data.Tracer.From = Vector2.new(viewSize.X / 2, viewSize.Y)
+						data.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
+						data.Tracer.Color = data.Color
+						data.Tracer.Visible = true
+					else
+						data.Tracer.Visible = false
+					end
+				end
+			else
+				if data.Highlight.Enabled then data.Highlight.Enabled = false end
+				if data.Gui.Enabled then data.Gui.Enabled = false end
+				if data.Tracer then data.Tracer.Visible = false end
+
+				if data.Arrow and Settings.Arrows then
 					local proj = Camera.CFrame:PointToObjectSpace(targetPos)
-					local ang = math.atan2(-proj.Y, proj.X)
+					local ang = math.atan2(proj.Y, proj.X)
 					local radius = math.min(viewSize.X, viewSize.Y) * 0.4
 					
-					local arrowPos = center + Vector2.new(math.cos(ang) * radius, math.sin(ang) * radius)
+					local arrowPos = center + Vector2.new(math.cos(ang) * radius, -math.sin(ang) * radius)
 					
 					local size = 16
-					local p1 = arrowPos + Vector2.new(math.cos(ang) * size, math.sin(ang) * size)
-					local p2 = arrowPos + Vector2.new(math.cos(ang + 2.5) * (size * 0.6), math.sin(ang + 2.5) * (size * 0.6))
-					local p3 = arrowPos + Vector2.new(math.cos(ang - 2.5) * (size * 0.6), math.sin(ang - 2.5) * (size * 0.6))
+					local p1 = arrowPos + Vector2.new(math.cos(ang) * size, -math.sin(ang) * size)
+					local p2 = arrowPos + Vector2.new(math.cos(ang + 2.5) * (size * 0.6), -math.sin(ang + 2.5) * (size * 0.6))
+					local p3 = arrowPos + Vector2.new(math.cos(ang - 2.5) * (size * 0.6), -math.sin(ang - 2.5) * (size * 0.6))
 					
 					data.Arrow.PointA = p1
 					data.Arrow.PointB = p2
 					data.Arrow.PointC = p3
 					data.Arrow.Color = data.Color
 					data.Arrow.Visible = true
-				else
+				elseif data.Arrow then
 					data.Arrow.Visible = false
 				end
 			end
