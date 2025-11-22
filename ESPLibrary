@@ -13,6 +13,7 @@ local LoopConnection = nil
 local Settings = {
 	Tracers = false,
 	Distance = false,
+	Arrows = false,
 	BaseSize = 15
 }
 
@@ -37,6 +38,11 @@ local function ClearObject(part)
 		if data.Tracer then
 			data.Tracer.Visible = false
 			data.Tracer:Remove()
+		end
+
+		if data.Arrow then
+			data.Arrow.Visible = false
+			data.Arrow:Remove()
 		end
 		
 		if data.Signal then
@@ -66,6 +72,10 @@ end
 
 function Library:ShowDistance(state)
 	Settings.Distance = state
+end
+
+function Library:SetArrows(state)
+	Settings.Arrows = state
 end
 
 function Library:SetBaseSize(size)
@@ -110,12 +120,21 @@ function Library:AddESP(part, name, color)
 	label.Parent = billboard
 	
 	local line = nil
+	local arrow = nil
+
 	if hasDrawing then
 		line = Drawing.new("Line")
 		line.Visible = false
 		line.Color = color
 		line.Thickness = 1
 		line.Transparency = 1
+
+		arrow = Drawing.new("Triangle")
+		arrow.Visible = false
+		arrow.Color = color
+		arrow.Filled = true
+		arrow.Transparency = 1
+		arrow.Thickness = 1
 	end
 	
 	local cleanupSignal = part.AncestryChanged:Connect(function(_, parent)
@@ -130,6 +149,7 @@ function Library:AddESP(part, name, color)
 		Gui = billboard,
 		Label = label,
 		Tracer = line,
+		Arrow = arrow,
 		Color = color,
 		Signal = cleanupSignal,
 		Name = name
@@ -154,6 +174,7 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 	
 	local myPos = myRoot.Position
 	local viewSize = Camera.ViewportSize
+	local center = Vector2.new(viewSize.X / 2, viewSize.Y / 2)
 	
 	local currentFOV = Camera.FieldOfView
 	local dynamicSize = math.floor(Settings.BaseSize * (currentFOV / 70))
@@ -184,6 +205,29 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 					data.Tracer.Visible = true
 				else
 					data.Tracer.Visible = false
+				end
+			end
+
+			if data.Arrow then
+				if Settings.Arrows and not onScreen then
+					local relative = Camera.CFrame:PointToObjectSpace(targetPos)
+					local angle = math.atan2(relative.Y, relative.X)
+					
+					local radius = math.min(viewSize.X, viewSize.Y) * 0.4
+					local arrowPos = center + Vector2.new(math.cos(angle) * radius, -math.sin(angle) * radius)
+					
+					local arrowSize = 15
+					local p1 = arrowPos + Vector2.new(math.cos(angle) * arrowSize, -math.sin(angle) * arrowSize)
+					local p2 = arrowPos + Vector2.new(math.cos(angle + 2.5) * (arrowSize / 2), -math.sin(angle + 2.5) * (arrowSize / 2))
+					local p3 = arrowPos + Vector2.new(math.cos(angle - 2.5) * (arrowSize / 2), -math.sin(angle - 2.5) * (arrowSize / 2))
+
+					data.Arrow.PointA = p1
+					data.Arrow.PointB = p2
+					data.Arrow.PointC = p3
+					data.Arrow.Color = data.Color
+					data.Arrow.Visible = true
+				else
+					data.Arrow.Visible = false
 				end
 			end
 		else
