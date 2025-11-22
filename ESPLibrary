@@ -210,17 +210,17 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 
 			if data.Arrow then
 				if Settings.Arrows and not onScreen then
-					local relative = Camera.CFrame:PointToObjectSpace(targetPos)
-					local angle = math.atan2(relative.Y, relative.X)
-					
+					local proj = Camera.CFrame:PointToObjectSpace(targetPos)
+					local ang = math.atan2(-proj.Y, proj.X)
 					local radius = math.min(viewSize.X, viewSize.Y) * 0.4
-					local arrowPos = center + Vector2.new(math.cos(angle) * radius, -math.sin(angle) * radius)
 					
-					local arrowSize = 15
-					local p1 = arrowPos + Vector2.new(math.cos(angle) * arrowSize, -math.sin(angle) * arrowSize)
-					local p2 = arrowPos + Vector2.new(math.cos(angle + 2.5) * (arrowSize / 2), -math.sin(angle + 2.5) * (arrowSize / 2))
-					local p3 = arrowPos + Vector2.new(math.cos(angle - 2.5) * (arrowSize / 2), -math.sin(angle - 2.5) * (arrowSize / 2))
-
+					local arrowPos = center + Vector2.new(math.cos(ang) * radius, math.sin(ang) * radius)
+					
+					local size = 16
+					local p1 = arrowPos + Vector2.new(math.cos(ang) * size, math.sin(ang) * size)
+					local p2 = arrowPos + Vector2.new(math.cos(ang + 2.5) * (size * 0.6), math.sin(ang + 2.5) * (size * 0.6))
+					local p3 = arrowPos + Vector2.new(math.cos(ang - 2.5) * (size * 0.6), math.sin(ang - 2.5) * (size * 0.6))
+					
 					data.Arrow.PointA = p1
 					data.Arrow.PointB = p2
 					data.Arrow.PointC = p3
