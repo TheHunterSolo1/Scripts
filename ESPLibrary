@@ -12,7 +12,8 @@ local ESPList = {}
 local LoopConnection = nil
 local Settings = {
 	Tracers = false,
-	Distance = false
+	Distance = false,
+	BaseSize = 15
 }
 
 local hasDrawing = pcall(function() return Drawing.new("Line") end)
@@ -46,12 +47,29 @@ local function ClearObject(part)
 	end
 end
 
+function Library:GenerateRandomString()
+	local length = math.random(10, 20)
+	local charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	local result = ""
+	
+	for i = 1, length do
+		local rand = math.random(1, #charset)
+		result = result .. string.sub(charset, rand, rand)
+	end
+	
+	return result
+end
+
 function Library:SetTracers(state)
 	Settings.Tracers = state
 end
 
 function Library:ShowDistance(state)
 	Settings.Distance = state
+end
+
+function Library:SetBaseSize(size)
+	Settings.BaseSize = size
 end
 
 function Library:RemoveESP(part)
@@ -76,8 +94,8 @@ function Library:AddESP(part, name, color)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "ESPInfo"
 	billboard.Adornee = root
-	billboard.Size = UDim2.new(0, 200, 0, 50)
-	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.Size = UDim2.new(0, 200, 0, 60) 
+	billboard.StudsOffset = Vector3.new(0, 3.5, 0)
 	billboard.AlwaysOnTop = true
 	billboard.Parent = part
 	
@@ -87,7 +105,7 @@ function Library:AddESP(part, name, color)
 	label.TextStrokeTransparency = 0
 	label.TextColor3 = color
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 14
+	label.TextSize = Settings.BaseSize
 	label.Text = name
 	label.Parent = billboard
 	
@@ -137,11 +155,20 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 	local myPos = myRoot.Position
 	local viewSize = Camera.ViewportSize
 	
+	local currentFOV = Camera.FieldOfView
+	local dynamicSize = math.floor(Settings.BaseSize * (currentFOV / 70))
+	if dynamicSize < 12 then dynamicSize = 12 end
+	if dynamicSize > 40 then dynamicSize = 40 end
+
 	for part, data in pairs(ESPList) do
 		if data.Root and data.Root.Parent then
 			local targetPos = data.Root.Position
 			local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
 			local dist = (myPos - targetPos).Magnitude
+			
+			if data.Label.TextSize ~= dynamicSize then
+				data.Label.TextSize = dynamicSize
+			end
 			
 			if Settings.Distance then
 				data.Label.Text = string.format("%s\n[%d]", data.Name, math.floor(dist))
