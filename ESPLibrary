@@ -1,4 +1,4 @@
-Local Library = {}
+local Library = {}
 getgenv().ESPLibrary = Library
 
 local RunService = game:GetService("RunService")
