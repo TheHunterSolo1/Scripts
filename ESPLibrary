@@ -17,7 +17,20 @@ local Settings = {
 	BaseSize = 15
 }
 
-local hasDrawing = pcall(function() return Drawing.new("Line") end)
+local Vector2_new = Vector2.new
+local Vector3_new = Vector3.new
+local Math_floor = math.floor
+local Math_atan2 = math.atan2
+local Math_cos = math.cos
+local Math_sin = math.sin
+local Math_min = math.min
+
+local DrawingLib = {
+	Line = Drawing.new("Line"),
+	Triangle = Drawing.new("Triangle")
+}
+DrawingLib.Line:Remove()
+DrawingLib.Triangle:Remove()
 
 local function GetRoot(obj)
 	if obj:IsA("BasePart") then
@@ -106,7 +119,7 @@ function Library:AddESP(part, name, color)
 	billboard.Name = "ESPInfo"
 	billboard.Adornee = root
 	billboard.Size = UDim2.new(0, 200, 0, 60) 
-	billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+	billboard.StudsOffset = Vector3_new(0, 3.5, 0)
 	billboard.AlwaysOnTop = true
 	billboard.Enabled = true
 	billboard.Parent = part
@@ -124,7 +137,7 @@ function Library:AddESP(part, name, color)
 	local line = nil
 	local arrow = nil
 
-	if hasDrawing then
+	local success, _ = pcall(function()
 		line = Drawing.new("Line")
 		line.Visible = false
 		line.Color = color
@@ -137,7 +150,7 @@ function Library:AddESP(part, name, color)
 		arrow.Filled = true
 		arrow.Transparency = 1
 		arrow.Thickness = 1
-	end
+	end)
 	
 	local cleanupSignal = part.AncestryChanged:Connect(function(_, parent)
 		if not parent then
@@ -176,12 +189,14 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 	
 	local myPos = myRoot.Position
 	local viewSize = Camera.ViewportSize
-	local center = Vector2.new(viewSize.X / 2, viewSize.Y / 2)
+	local center = Vector2_new(viewSize.X / 2, viewSize.Y / 2)
 	
 	local currentFOV = Camera.FieldOfView
-	local dynamicSize = math.floor(Settings.BaseSize * (currentFOV / 70))
+	local dynamicSize = Math_floor(Settings.BaseSize * (currentFOV / 70))
 	if dynamicSize < 12 then dynamicSize = 12 end
 	if dynamicSize > 40 then dynamicSize = 40 end
+	
+	local camCFrame = Camera.CFrame
 
 	for part, data in pairs(ESPList) do
 		if data.Root and data.Root.Parent then
@@ -198,19 +213,19 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 				end
 				
 				if Settings.Distance then
-					data.Label.Text = string.format("%s\n[%d]", data.Name, math.floor(dist))
+					data.Label.Text = string.format("%s\n[%d]", data.Name, Math_floor(dist))
 				else
 					data.Label.Text = data.Name
 				end
 				
-				if data.Arrow then
+				if data.Arrow and data.Arrow.Visible then
 					data.Arrow.Visible = false
 				end
 
 				if data.Tracer then
 					if Settings.Tracers then
-						data.Tracer.From = Vector2.new(viewSize.X / 2, viewSize.Y)
-						data.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
+						data.Tracer.From = Vector2_new(viewSize.X / 2, viewSize.Y)
+						data.Tracer.To = Vector2_new(screenPos.X, screenPos.Y)
 						data.Tracer.Color = data.Color
 						data.Tracer.Visible = true
 					else
@@ -223,16 +238,17 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 				if data.Tracer then data.Tracer.Visible = false end
 
 				if data.Arrow and Settings.Arrows then
-					local proj = Camera.CFrame:PointToObjectSpace(targetPos)
-					local ang = math.atan2(proj.Y, proj.X)
-					local radius = math.min(viewSize.X, viewSize.Y) * 0.4
+					local rel = camCFrame:PointToObjectSpace(targetPos)
+					local ang = Math_atan2(-rel.Y, rel.X)
 					
-					local arrowPos = center + Vector2.new(math.cos(ang) * radius, -math.sin(ang) * radius)
+					local radius = Math_min(viewSize.X, viewSize.Y) * 0.35
 					
-					local size = 16
-					local p1 = arrowPos + Vector2.new(math.cos(ang) * size, -math.sin(ang) * size)
-					local p2 = arrowPos + Vector2.new(math.cos(ang + 2.5) * (size * 0.6), -math.sin(ang + 2.5) * (size * 0.6))
-					local p3 = arrowPos + Vector2.new(math.cos(ang - 2.5) * (size * 0.6), -math.sin(ang - 2.5) * (size * 0.6))
+					local arrowPos = center + Vector2_new(Math_cos(ang) * radius, Math_sin(ang) * radius)
+					
+					local size = 18
+					local p1 = arrowPos + Vector2_new(Math_cos(ang) * size, Math_sin(ang) * size)
+					local p2 = arrowPos + Vector2_new(Math_cos(ang + 2.6) * (size * 0.7), Math_sin(ang + 2.6) * (size * 0.7))
+					local p3 = arrowPos + Vector2_new(Math_cos(ang - 2.6) * (size * 0.7), Math_sin(ang - 2.6) * (size * 0.7))
 					
 					data.Arrow.PointA = p1
 					data.Arrow.PointB = p2
