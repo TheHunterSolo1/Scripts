@@ -22,7 +22,7 @@ local Settings = {
 	Tracers = false,
 	Distance = false,
 	BaseSize = 21,
-	MaxDistance = 2500
+	MaxDistance = math.huge 
 }
 
 local function GetRoot(obj)
