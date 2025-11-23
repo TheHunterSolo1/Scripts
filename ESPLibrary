@@ -4,27 +4,29 @@ getgenv().ESPLibrary = Library
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
-
-local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local V2 = Vector2.new
+local V3 = Vector3.new
+local UDim2_new = UDim2.new
+local Math_floor = math.floor
+local Math_min = math.min
+local Math_max = math.max
+local WTVP = Camera.WorldToViewportPoint
+local Drawing_new = Drawing and Drawing.new
 
 local ESPList = {}
 local LoopConnection = nil
 local Settings = {
 	Tracers = false,
 	Distance = false,
-	BaseSize = 21
+	BaseSize = 21,
+	MaxDistance = 2500
 }
 
-local Vector2_new = Vector2.new
-local Math_floor = math.floor
-local Drawing_new = Drawing and Drawing.new
-
 local function GetRoot(obj)
-	if obj:IsA("BasePart") then return obj end
-	if obj:IsA("Model") then return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart") end
-	return nil
+	return obj:IsA("BasePart") and obj or (obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
 end
 
 local function ClearObject(part)
@@ -38,30 +40,19 @@ local function ClearObject(part)
 	end
 end
 
-function Library:SetTracers(state)
-	Settings.Tracers = state
-end
-
-function Library:ShowDistance(state)
-	Settings.Distance = state
-end
-
-function Library:SetBaseSize(size)
-	Settings.BaseSize = size
-end
-
-function Library:RemoveESP(part)
-	ClearObject(part)
-end
+function Library:SetTracers(state) Settings.Tracers = state end
+function Library:ShowDistance(state) Settings.Distance = state end
+function Library:SetBaseSize(size) Settings.BaseSize = size end
+function Library:SetMaxDistance(dist) Settings.MaxDistance = dist end
+function Library:RemoveESP(part) ClearObject(part) end
 
 function Library:AddESP(part, name, color)
 	if not part or ESPList[part] then return end
-	
 	local root = GetRoot(part)
 	if not root then return end
 	
 	local highlight = Instance.new("Highlight")
-	highlight.Name = "ESPH"
+	highlight.Name = "H"
 	highlight.FillColor = color
 	highlight.OutlineColor = color
 	highlight.FillTransparency = 0.7
@@ -72,17 +63,17 @@ function Library:AddESP(part, name, color)
 	highlight.Parent = part
 	
 	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "ESP"
+	billboard.Name = "B"
 	billboard.Adornee = root
-	billboard.Size = UDim2.new(0, 200, 0, 50)
-	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.Size = UDim2_new(0, 200, 0, 50)
+	billboard.StudsOffset = V3(0, 3, 0)
 	billboard.AlwaysOnTop = true
 	billboard.Enabled = false
 	billboard.Parent = part
 	
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
-	label.Size = UDim2.new(1, 0, 1, 0)
+	label.Size = UDim2_new(1, 0, 1, 0)
 	label.TextColor3 = color
 	label.TextStrokeTransparency = 0
 	label.Font = Enum.Font.GothamBold
@@ -90,7 +81,7 @@ function Library:AddESP(part, name, color)
 	label.Text = name
 	label.Parent = billboard
 	
-	local tracer = nil
+	local tracer
 	if Drawing_new then
 		tracer = Drawing_new("Line")
 		tracer.Visible = false
@@ -110,76 +101,96 @@ function Library:AddESP(part, name, color)
 		Label = label,
 		Tracer = tracer,
 		Name = name,
-		Color = color,
 		Signal = signal,
-		LastDist = -1,
-		Visible = false
+		CacheDist = -1,
+		CacheVis = false,
+		CacheSize = -1
 	}
 end
 
 function Library:Unload()
 	if LoopConnection then LoopConnection:Disconnect() end
-	for part, _ in pairs(ESPList) do ClearObject(part) end
+	LoopConnection = nil
+	for part in pairs(ESPList) do ClearObject(part) end
+	table.clear(ESPList)
 	getgenv().ESPLibrary = nil
 end
 
 LoopConnection = RunService.RenderStepped:Connect(function()
-	local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-	if not myRoot then return end
+	local char = LocalPlayer.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
 	
-	local myPos = myRoot.Position
+	local myPos = root.Position
 	local viewSize = Camera.ViewportSize
-	local center = Vector2_new(viewSize.X / 2, viewSize.Y)
+	local center = V2(viewSize.X / 2, viewSize.Y)
+	local fov = Camera.FieldOfView
 	
-	local currentFOV = Camera.FieldOfView
-	local dynamicSize = Math_floor(Settings.BaseSize * (currentFOV / 70))
-	dynamicSize = (dynamicSize < 10) and 10 or (dynamicSize > 40) and 40 or dynamicSize
+	local baseSize = Settings.BaseSize
+	local showDist = Settings.Distance
+	local showTrace = Settings.Tracers
+	local maxDist = Settings.MaxDistance
+	local maxDistSq = maxDist * maxDist
+	
+	local dynSize = Math_floor(baseSize * (fov / 70))
+	dynSize = Math_max(10, Math_min(40, dynSize))
 
 	for part, data in pairs(ESPList) do
-		if data.Root and data.Root.Parent then
+		if data.Root.Parent then
 			local targetPos = data.Root.Position
-			local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
-			local dist = (myPos - targetPos).Magnitude
+			local diff = myPos - targetPos
+			local distSq = diff.X*diff.X + diff.Y*diff.Y + diff.Z*diff.Z
 			
-			if onScreen then
-				if not data.Visible then
-					data.Visible = true
-					data.Highlight.Enabled = true
-					data.Gui.Enabled = true
-				end
-
-				if data.Label.TextSize ~= dynamicSize then
-					data.Label.TextSize = dynamicSize
-				end
-				
-				local intDist = Math_floor(dist)
-				if Settings.Distance then
-					if data.LastDist ~= intDist then
-						data.LastDist = intDist
-						data.Label.Text = data.Name .. "\n[" .. intDist .. "]"
-					end
-				else
-					if data.LastDist ~= -2 then
-						data.LastDist = -2
-						data.Label.Text = data.Name
-					end
-				end
-				
-				if data.Tracer then
-					if Settings.Tracers then
-						data.Tracer.From = center
-						data.Tracer.To = Vector2_new(screenPos.X, screenPos.Y)
-						if not data.Tracer.Visible then data.Tracer.Visible = true end
-					else
-						if data.Tracer.Visible then data.Tracer.Visible = false end
-					end
-				end
-			else
-				if data.Visible then
-					data.Visible = false
+			if distSq > maxDistSq then
+				if data.CacheVis then
+					data.CacheVis = false
 					data.Highlight.Enabled = false
 					data.Gui.Enabled = false
 					if data.Tracer then data.Tracer.Visible = false end
+				end
+			else
+				local screenPos, onScreen = WTVP(Camera, targetPos)
+				
+				if onScreen then
+					if not data.CacheVis then
+						data.CacheVis = true
+						data.Highlight.Enabled = true
+						data.Gui.Enabled = true
+					end
+
+					if data.CacheSize ~= dynSize then
+						data.CacheSize = dynSize
+						data.Label.TextSize = dynSize
+					end
+					
+					local realDist = math.sqrt(distSq)
+					local intDist = Math_floor(realDist)
+					
+					if data.CacheDist ~= intDist then
+						data.CacheDist = intDist
+						if showDist then
+							data.Label.Text = data.Name .. "\n[" .. intDist .. "]"
+						else
+							data.Label.Text = data.Name
+						end
+					end
+					
+					if data.Tracer then
+						if showTrace then
+							data.Tracer.From = center
+							data.Tracer.To = V2(screenPos.X, screenPos.Y)
+							if not data.Tracer.Visible then data.Tracer.Visible = true end
+						else
+							if data.Tracer.Visible then data.Tracer.Visible = false end
+						end
+					end
+				else
+					if data.CacheVis then
+						data.CacheVis = false
+						data.Highlight.Enabled = false
+						data.Gui.Enabled = false
+						if data.Tracer then data.Tracer.Visible = false end
+					end
 				end
 			end
 		else
