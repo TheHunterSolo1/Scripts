@@ -40,83 +40,7 @@ local function ClearObject(part)
 	end
 end
 
-function Library:SetTracers(state) Settings.Tracers = state end
-function Library:ShowDistance(state) Settings.Distance = state end
-function Library:SetBaseSize(size) Settings.BaseSize = size end
-function Library:SetMaxDistance(dist) Settings.MaxDistance = dist end
-function Library:RemoveESP(part) ClearObject(part) end
-
-function Library:AddESP(part, name, color)
-	if not part or ESPList[part] then return end
-	local root = GetRoot(part)
-	if not root then return end
-	
-	local highlight = Instance.new("Highlight")
-	highlight.Name = "H"
-	highlight.FillColor = color
-	highlight.OutlineColor = color
-	highlight.FillTransparency = 0.7
-	highlight.OutlineTransparency = 0.5
-	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-	highlight.Adornee = part
-	highlight.Enabled = false
-	highlight.Parent = part
-	
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "B"
-	billboard.Adornee = root
-	billboard.Size = UDim2_new(0, 200, 0, 50)
-	billboard.StudsOffset = V3(0, 3, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Enabled = false
-	billboard.Parent = part
-	
-	local label = Instance.new("TextLabel")
-	label.BackgroundTransparency = 1
-	label.Size = UDim2_new(1, 0, 1, 0)
-	label.TextColor3 = color
-	label.TextStrokeTransparency = 0
-	label.Font = Enum.Font.GothamBold
-	label.TextSize = Settings.BaseSize
-	label.Text = name
-	label.Parent = billboard
-	
-	local tracer
-	if Drawing_new then
-		tracer = Drawing_new("Line")
-		tracer.Visible = false
-		tracer.Color = color
-		tracer.Thickness = 1
-		tracer.Transparency = 1
-	end
-	
-	local signal = part.AncestryChanged:Connect(function(_, parent)
-		if not parent then Library:RemoveESP(part) end
-	end)
-	
-	ESPList[part] = {
-		Root = root,
-		Highlight = highlight,
-		Gui = billboard,
-		Label = label,
-		Tracer = tracer,
-		Name = name,
-		Signal = signal,
-		CacheDist = -1,
-		CacheVis = false,
-		CacheSize = -1
-	}
-end
-
-function Library:Unload()
-	if LoopConnection then LoopConnection:Disconnect() end
-	LoopConnection = nil
-	for part in pairs(ESPList) do ClearObject(part) end
-	table.clear(ESPList)
-	getgenv().ESPLibrary = nil
-end
-
-LoopConnection = RunService.RenderStepped:Connect(function()
+local function UpdateESP()
 	local char = LocalPlayer.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
 	if not root then return end
@@ -197,6 +121,86 @@ LoopConnection = RunService.RenderStepped:Connect(function()
 			ClearObject(part)
 		end
 	end
-end)
+end
+
+function Library:SetTracers(state) Settings.Tracers = state end
+function Library:ShowDistance(state) Settings.Distance = state end
+function Library:SetBaseSize(size) Settings.BaseSize = size end
+function Library:SetMaxDistance(dist) Settings.MaxDistance = dist end
+function Library:RemoveESP(part) ClearObject(part) end
+
+function Library:AddESP(part, name, color)
+	if not part or ESPList[part] then return end
+	local root = GetRoot(part)
+	if not root then return end
+	
+    if not LoopConnection then
+        LoopConnection = RunService.RenderStepped:Connect(UpdateESP)
+    end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "H"
+	highlight.FillColor = color
+	highlight.OutlineColor = color
+	highlight.FillTransparency = 0.7
+	highlight.OutlineTransparency = 0.5
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.Adornee = part
+	highlight.Enabled = false
+	highlight.Parent = part
+	
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "B"
+	billboard.Adornee = root
+	billboard.Size = UDim2_new(0, 200, 0, 50)
+	billboard.StudsOffset = V3(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Enabled = false
+	billboard.Parent = part
+	
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2_new(1, 0, 1, 0)
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = Settings.BaseSize
+	label.Text = name
+	label.Parent = billboard
+	
+	local tracer
+	if Drawing_new then
+		tracer = Drawing_new("Line")
+		tracer.Visible = false
+		tracer.Color = color
+		tracer.Thickness = 1
+		tracer.Transparency = 1
+	end
+	
+	local signal = part.AncestryChanged:Connect(function(_, parent)
+		if not parent then Library:RemoveESP(part) end
+	end)
+	
+	ESPList[part] = {
+		Root = root,
+		Highlight = highlight,
+		Gui = billboard,
+		Label = label,
+		Tracer = tracer,
+		Name = name,
+		Signal = signal,
+		CacheDist = -1,
+		CacheVis = false,
+		CacheSize = -1
+	}
+end
+
+function Library:Unload()
+	if LoopConnection then LoopConnection:Disconnect() end
+	LoopConnection = nil
+	for part in pairs(ESPList) do ClearObject(part) end
+	table.clear(ESPList)
+	getgenv().ESPLibrary = nil
+end
 
 return Library
