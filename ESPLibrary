@@ -20,7 +20,7 @@ local Settings = {
 	Tracers = false,
 	Distance = false,
 	MaxDistance = 12000,
-	TextSize = 22
+	TextSize = 23
 }
 
 local function GetRoot(model)
@@ -99,6 +99,14 @@ function Library:RemoveESP(part)
 		Cache[part] = nil
 	end
 end
+function Library:IsAlreadyESPED(Part)
+if Part:FindFirstChild("BillboardGui") and Part:FindFirstChild("Highlight") and Part:FindFirstChild("BillboardGui"):FindFirstChild("TextLabel") then
+return true
+else
+return false
+end
+end
+
 
 function Library:AddESP(part, name, color)
 	if not part or Cache[part] then return end
