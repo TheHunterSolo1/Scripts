@@ -39,6 +39,7 @@ WaypointFolder.Name = Pathfinding:GenerateRandomString()
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
 local OldPart = nil
+local path
 
 function Pathfinding:CreateWaypoint(CF)
 local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
@@ -72,6 +73,8 @@ end
 if OldMode == nil then
 OldMode = getgenv().Mode
 end
+if path then return end
+
  
 if LocalPlayer.Character then
 local GetRealPosition = Part:IsA("BasePart") and Part.Position or Part:IsA("Model") and Part:GetPivot().Position or nil
@@ -81,7 +84,7 @@ return
 end
 local dis = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
 if dis < 2 then return end
-local path = PathfindingService:CreatePath({
+ path = PathfindingService:CreatePath({
 AgentRadius = getgenv().AgentRadius,
 AgentHeight = getgenv().AgentHeight,
 WaypointSpacing = 3,
@@ -98,7 +101,11 @@ for _, waypoint in pairs(waypoints) do
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
 for i, waypoint in pairs(waypoints) do
-
+local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
+if Distance < 3 then
+path = nil
+break
+end
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
@@ -109,6 +116,7 @@ LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
 Pathfinding:RemoveWaypoints()
 OldPart = Part 
+path = nil
 break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 
@@ -122,6 +130,7 @@ task.wait()
 if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 and not  LocalPlayer.Character.Humanoid.Jump then
 if ShouldStop then return end
 Pathfinding:WalkTo(Part)
+path = nil
 break
 end
 LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
