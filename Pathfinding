@@ -1,161 +1,147 @@
 local Pathfinding = {}
 
 local PathfindingService = game:GetService("PathfindingService")
-local WaypointFolder = Instance.new("Folder",game:GetService("Workspace"))
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
-getgenv().Mode = getgenv().Mode or "Both" 
 
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
 
+local WaypointFolder = Instance.new("Folder")
+WaypointFolder.Name = "PathfindingVisuals"
+WaypointFolder.Parent = Workspace
 
-
-
+getgenv().Mode = getgenv().Mode or "Both"
 getgenv().AgentRadius = getgenv().AgentRadius or 2
-
-getgenv().AgentHeight = getgenv().AgentHeight or 1
-
-
+getgenv().AgentHeight = getgenv().AgentHeight or 5
 getgenv().CanJump = getgenv().CanJump or true
-
 getgenv().CanClimb = getgenv().CanClimb or true
 
+local CurrentPathID = 0
+local CurrentTarget = nil
 
-function Pathfinding:GenerateRandomString()
+LocalPlayer.CharacterAdded:Connect(function(NewChar)
+    Character = NewChar
+    Humanoid = NewChar:WaitForChild("Humanoid")
+    RootPart = NewChar:WaitForChild("HumanoidRootPart")
+end)
 
-local Chars = "abcdefghijklnmgxyzADCERGHDYYIJRDCCSXFOPPGRD123456789"
-
-local Word = ""
-
-for i = 1, 25 do
-local Letter = math.random(1, #Chars)
-
-Word = Word .. Chars:sub(Letter,Letter)
+function Pathfinding:ClearWaypoints()
+    WaypointFolder:ClearAllChildren()
 end
 
-return Word
+function Pathfinding:CreateVisual(Position)
+    local Part = Instance.new("Part")
+    Part.Shape = Enum.PartType.Ball
+    Part.Material = Enum.Material.Neon
+    Part.Size = Vector3.new(1.5, 1.5, 1.5)
+    Part.Position = Position
+    Part.Anchored = true
+    Part.CanCollide = false
+    Part.CanQuery = false
+    Part.CanTouch = false
+    Part.Color = Color3.fromRGB(255, 0, 0)
+    Part.Parent = WaypointFolder
+    return Part
 end
 
-WaypointFolder.Name = Pathfinding:GenerateRandomString()
-
-local LocalPlayer = game:GetService("Players").LocalPlayer
-
-local OldPart = nil
-
-
-function Pathfinding:CreateWaypoint(CF)
-local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
- Part.CanTouch = false 
-Part.CanQuery = false
-Part.Shape = "Ball" 
-Part.Position = CF 
-Part.Color = Color3.new(1, 0, 0)
-Part.Size = Vector3.new(1.5, 1, 1.5) 
-Part.Anchored = true
-Debris:AddItem(Part, 2)
-
+function Pathfinding:GetPosition(Target)
+    if typeof(Target) == "Vector3" then
+        return Target
+    elseif typeof(Target) == "Instance" then
+        if Target:IsA("BasePart") then
+            return Target.Position
+        elseif Target:IsA("Model") then
+            return Target:GetPivot().Position
+        end
+    end
+    return nil
 end
-function Pathfinding:RemoveWaypoints()
-WaypointFolder:ClearAllChildren()
-end
-local ShouldStop = false
 
 function Pathfinding:ForceStop()
-ShouldStop = true
-WaypointFolder:ClearAllChildren()
-repeat task.wait() 
-LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
-until LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.4
-task.wait(1)
-ShouldStop = false
+    CurrentPathID = CurrentPathID + 1
+    CurrentTarget = nil
+    Humanoid:MoveTo(RootPart.Position)
+    Pathfinding:ClearWaypoints()
 end
 
-local OldMode
-local IsWalking = false
-function Pathfinding:WalkTo(Part)
-if OldPart ~= Part then
-IsWalking = false
-end
-if IsWalking then return end
-IsWalking = true
-if OldPart == nil then
-OldPart = Part
-end
-if OldMode == nil then
-OldMode = getgenv().Mode
+function Pathfinding:WalkTo(Target)
+    CurrentPathID = CurrentPathID + 1
+    local MyPathID = CurrentPathID
+    CurrentTarget = Target
+
+    task.spawn(function()
+        local TargetPos = Pathfinding:GetPosition(Target)
+        if not TargetPos then return end
+
+        while MyPathID == CurrentPathID do
+            if not Character or not RootPart or not Humanoid then break end
+            
+            TargetPos = Pathfinding:GetPosition(Target)
+            local Distance = (RootPart.Position - TargetPos).Magnitude
+
+            if Distance < 3 then
+                Humanoid:MoveTo(TargetPos)
+                break
+            end
+
+            local Path = PathfindingService:CreatePath({
+                AgentRadius = getgenv().AgentRadius,
+                AgentHeight = getgenv().AgentHeight,
+                AgentCanJump = getgenv().CanJump,
+                AgentCanClimb = getgenv().CanClimb,
+                WaypointSpacing = 4,
+                Costs = {
+                    Water = 20
+                }
+            })
+
+            local Success, ErrorMessage = pcall(function()
+                Path:ComputeAsync(RootPart.Position, TargetPos)
+            end)
+
+            if Success and Path.Status == Enum.PathStatus.Success then
+                Pathfinding:ClearWaypoints()
+                local Waypoints = Path:GetWaypoints()
+                
+                if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
+                    for _, Point in ipairs(Waypoints) do
+                        Pathfinding:CreateVisual(Point.Position)
+                    end
+                end
+
+                for i, Point in ipairs(Waypoints) do
+                    if MyPathID ~= CurrentPathID then return end
+                    if i == 1 then continue end
+
+                    if Point.Action == Enum.PathWaypointAction.Jump and getgenv().CanJump then
+                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                    end
+
+                    Humanoid:MoveTo(Point.Position)
+
+                    local MoveSuccess = Humanoid.MoveToFinished:Wait()
+                    local CurrentPos = RootPart.Position
+                    local WaypointDist = (CurrentPos - Point.Position).Magnitude
+
+                    if not MoveSuccess or WaypointDist > 5 then
+                        break
+                    end
+                end
+            else
+                task.wait(0.5)
+            end
+            
+            task.wait()
+        end
+        
+        if MyPathID == CurrentPathID then
+            Pathfinding:ClearWaypoints()
+        end
+    end)
 end
 
-
- 
-if LocalPlayer.Character then
-local GetRealPosition = Part:IsA("BasePart") and Part.Position or Part:IsA("Model") and Part:GetPivot().Position or nil
-if GetRealPosition == nil then
-print("bro get a real part or real model and stop trolling")
-return
-end
-task.spawn(function()
-repeat task.wait() until (LocalPlayer.Character.HumanoidRootPart.Position  - GetRealPosition).Magnitude < 6 
-IsWalking = false
-
-end)
-local dis = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
-if dis < 2 then return end
-local  path = PathfindingService:CreatePath({
-AgentRadius = getgenv().AgentRadius,
-AgentHeight = getgenv().AgentHeight,
-WaypointSpacing = 3,
-AgentCanJump = getgenv().CanJump,
-AgentCanClimb = getgenv().CanClimb
-})
-path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
-
-if path.Status == Enum.PathStatus.Success then  
-Pathfinding:RemoveWaypoints()
-local waypoints = path:GetWaypoints()
-for _, waypoint in pairs(waypoints) do
-if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
-Pathfinding:CreateWaypoint(waypoint.Position)
-end
-if getgenv().Mode == "Walk" then
-Pathfinding:RemoveWaypoints()
-end
-
-end
-for i, waypoint in pairs(waypoints) do
-if not IsWalking then 
-break end 
-if OldMode ~= getgenv().Mode then
-OldMode = getgenv().Mode
-break
-end
-if ShouldStop then break end
-if waypoint.Action == Enum.PathWaypointAction.Jump then 
-LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
-if OldPart ~= Part then
-Pathfinding:RemoveWaypoints()
-OldPart = Part 
-
-break end
-
-local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if CloseCheck > 4 then
-if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
-LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
-task.wait()
-if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 then
-IsWalking = false
-Pathfinding:WalkTo(Part)
-
-break
-
-end
-
-LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
-end
-end
-
-end
-
-end
-
-end
-end
 return Pathfinding
