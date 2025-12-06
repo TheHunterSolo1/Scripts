@@ -46,9 +46,9 @@ local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
  Part.CanTouch = false 
 Part.CanQuery = false
 Part.Shape = "Ball" 
-Part.Position = CF + Vector3.new(0, 2, 0)
+Part.Position = CF 
 Part.Color = Color3.new(1, 0, 0)
-Part.Size = Vector3.new(1, 1, 1) 
+Part.Size = Vector3.new(1.5, 1, 1.5) 
 Part.Anchored = true
 Debris:AddItem(Part, 2)
 
@@ -103,7 +103,7 @@ for _, waypoint in pairs(waypoints) do
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
-if getgenv().Mode == "Walk" and WaypointFolder:GetChildren() > 0 then
+if getgenv().Mode == "Walk" then
 Pathfinding:RemoveWaypoints()
 end
 
