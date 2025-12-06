@@ -88,7 +88,7 @@ if CloseCheck > 6 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
-task.wait(0.3)
+task.wait()
 if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.3 then 
 Pathfinding:WalkTo(Part)
 break
