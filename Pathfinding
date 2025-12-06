@@ -49,7 +49,7 @@ Part.Shape = "Ball"
 Part.Position = CF 
 Part.Color = Color3.new(1, 0, 0)
 Part.Size = Vector3.new(1, 1, 1) Part.Anchored = true
-Debris:AddItem(Part, 10)
+Debris:AddItem(Part, 2)
 
 end
 function Pathfinding:RemoveWaypoints()
@@ -60,7 +60,9 @@ local ShouldStop = false
 function Pathfinding:ForceStop()
 ShouldStop = true
 WaypointFolder:ClearAllChildren()
+repeat task.wait() 
 LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
+until LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.4
 task.wait(1)
 ShouldStop = false
 end
@@ -118,7 +120,7 @@ if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 
 end
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if CloseCheck > 6 then
+if CloseCheck > 4 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
