@@ -43,7 +43,7 @@ Part.Shape = "Ball"
 Part.Position = CF 
 Part.Color = Color3.new(1, 0, 0)
 Part.Size = Vector3.new(1, 1, 1) Part.Anchored = true
-Debris:AddItem(Part, 2)
+Debris:AddItem(Part, 10)
 
 end
 function Pathfinding:RemoveWaypoints()
@@ -73,7 +73,8 @@ path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPositio
 
 if path.Status == Enum.PathStatus.Success then  
 Pathfinding:RemoveWaypoints()
-for i, waypoint in ipairs(path:GetWaypoints()) do 
+local waypoints = path:GetWaypoints()
+for _, waypoint in pairs(waypoints) do
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
