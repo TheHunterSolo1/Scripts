@@ -69,7 +69,13 @@ ShouldStop = false
 end
 
 local OldMode
+local IsWalking = false
 function Pathfinding:WalkTo(Part)
+if OldPart ~= Part then
+IsWalking = false
+end
+if IsWalking then return end
+IsWalking = true
 if OldPart == nil then
 OldPart = Part
 end
@@ -85,6 +91,11 @@ if GetRealPosition == nil then
 print("bro get a real part or real model and stop trolling")
 return
 end
+task.spawn(function()
+repeat task.wait() until (LocalPlayer.Character.HumanoidRootPart.Position  - GetRealPosition).Magnitude < 6 
+IsWalking = false
+
+end)
 local dis = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
 if dis < 2 then return end
 local  path = PathfindingService:CreatePath({
@@ -109,7 +120,8 @@ end
 
 end
 for i, waypoint in pairs(waypoints) do
-
+if not IsWalking then 
+break end 
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
@@ -127,7 +139,12 @@ local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.P
 if CloseCheck > 4 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
+task.wait()
+if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 then
+Pathfinding:WalkTo(Part)
+break
 
+end
 
 LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
 end
