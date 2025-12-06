@@ -39,7 +39,7 @@ WaypointFolder.Name = Pathfinding:GenerateRandomString()
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
 local OldPart = nil
-local path
+
 
 function Pathfinding:CreateWaypoint(CF)
 local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
@@ -73,7 +73,7 @@ end
 if OldMode == nil then
 OldMode = getgenv().Mode
 end
-if path then return end
+
 
  
 if LocalPlayer.Character then
@@ -84,7 +84,7 @@ return
 end
 local dis = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
 if dis < 2 then return end
- path = PathfindingService:CreatePath({
+local  path = PathfindingService:CreatePath({
 AgentRadius = getgenv().AgentRadius,
 AgentHeight = getgenv().AgentHeight,
 WaypointSpacing = 3,
@@ -101,11 +101,7 @@ for _, waypoint in pairs(waypoints) do
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
 for i, waypoint in pairs(waypoints) do
-local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
-if Distance < 3 then
-path = nil
-break
-end
+
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
@@ -116,7 +112,7 @@ LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
 Pathfinding:RemoveWaypoints()
 OldPart = Part 
-path = nil
+
 break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 
@@ -127,9 +123,9 @@ if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
 task.wait()
-if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 and not  LocalPlayer.Character.Humanoid.Jump then
+if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 and not (LocalPlayer.Character.Humanoid:GetState() == Enum.HumanoidStateType.Jumping or LocalPlayer.Character.Humanoid:GetState() == Enum.HumanoidStateType.FreeFall) then
 if ShouldStop then return end
-path = nil
+
 Pathfinding:WalkTo(Part)
 
 break
