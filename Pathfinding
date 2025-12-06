@@ -46,9 +46,10 @@ local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
  Part.CanTouch = false 
 Part.CanQuery = false
 Part.Shape = "Ball" 
-Part.Position = CF 
+Part.Position = CF + Vector3.new(0, 2, 0)
 Part.Color = Color3.new(1, 0, 0)
-Part.Size = Vector3.new(1, 1, 1) Part.Anchored = true
+Part.Size = Vector3.new(1, 1, 1) 
+Part.Anchored = true
 Debris:AddItem(Part, 2)
 
 end
@@ -99,8 +100,13 @@ if path.Status == Enum.PathStatus.Success then
 Pathfinding:RemoveWaypoints()
 local waypoints = path:GetWaypoints()
 for _, waypoint in pairs(waypoints) do
-
+if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
+end
+if getgenv().Mode == "Walk" and WaypointFolder:GetChildren() > 0 then
+Pathfinding:RemoveWaypoints()
+end
+
 end
 for i, waypoint in pairs(waypoints) do
 
@@ -116,22 +122,13 @@ Pathfinding:RemoveWaypoints()
 OldPart = Part 
 
 break end
-if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 
-end
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
 if CloseCheck > 4 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
-task.wait()
-if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 1 then
-if ShouldStop then return end
 
-Pathfinding:WalkTo(Part)
-
-break
-end
 LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
 end
 end
