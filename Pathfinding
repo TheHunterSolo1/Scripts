@@ -29,7 +29,7 @@ end
 return Word
 end
 
-WaypointFolder.Name = GenerateRandomString()
+WaypointFolder.Name = Pathfinding:GenerateRandomString()
 
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
@@ -72,15 +72,16 @@ AgentCanClimb = true
 path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
 
 if path.Status == Enum.PathStatus.Success then  
-RemoveWaypoints()
+Pathfinding:RemoveWaypoints()
 for i, waypoint in ipairs(path:GetWaypoints()) do 
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
-RemoveWaypoints()
+Pathfinding:RemoveWaypoints()
+OldPart = Part 
 break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
-CreateWaypoint(waypoint.Position)
+Pathfinding:CreateWaypoint(waypoint.Position)
 end
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
 if CloseCheck > 6 then
