@@ -14,7 +14,7 @@ getgenv().AgentRadius = getgenv().AgentRadius or 2
 getgenv().AgentHeight = getgenv().AgentHeight or 1
 
 
-getgenv().CanJump = getgenv().CanJump or false
+getgenv().CanJump = getgenv().CanJump or true
 
 getgenv().CanClimb = getgenv().CanClimb or true
 
@@ -123,7 +123,7 @@ if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
 task.wait()
-if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 and not (LocalPlayer.Character.Humanoid:GetState() == Enum.HumanoidStateType.Jumping or LocalPlayer.Character.Humanoid:GetState() == Enum.HumanoidStateType.Freefall or LocalPlayer.Character.Humanoid:GetState() == Enum.HumanoidStateType.FallingDown)  then
+if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 1 then
 if ShouldStop then return end
 
 Pathfinding:WalkTo(Part)
