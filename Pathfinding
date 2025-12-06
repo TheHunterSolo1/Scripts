@@ -58,10 +58,16 @@ LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Pos
 task.wait(0.4)
 ShouldStop = false
 end
+
+local OldMode
 function Pathfinding:WalkTo(Part)
 if OldPart == nil then
 OldPart = Part
 end
+if OldMode == nil then
+OldMode = getgenv().Mode
+end
+ 
 if LocalPlayer.Character then
 local GetRealPosition = Part:IsA("BasePart") and Part.Position or Part:IsA("Model") and Part:GetPivot().Position or nil
 if GetRealPosition == nil then
@@ -87,6 +93,11 @@ for _, waypoint in pairs(waypoints) do
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
 for i, waypoint in pairs(waypoints) do
+
+if OldMode ~= getgenv().Mode then
+OldMode = getgenv().Mode
+break
+end
 if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
