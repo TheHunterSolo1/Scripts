@@ -14,6 +14,11 @@ getgenv().AgentRadius = getgenv().AgentRadius or 2
 getgenv().AgentHeight = getgenv().AgentHeight or 1
 
 
+getgenv().CanJump = getgenv().CanJump or false
+
+getgenv().CanClimb = getgenv().CanClimb or true
+
+
 function Pathfinding:GenerateRandomString()
 
 local Chars = "abcdefghijklnmgxyzADCERGHDYYIJRDCCSXFOPPGRD123456789"
@@ -55,7 +60,7 @@ function Pathfinding:ForceStop()
 ShouldStop = true
 WaypointFolder:ClearAllChildren()
 LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
-task.wait(0.4)
+task.wait(1)
 ShouldStop = false
 end
 
@@ -80,8 +85,8 @@ local path = PathfindingService:CreatePath({
 AgentRadius = getgenv().AgentRadius,
 AgentHeight = getgenv().AgentHeight,
 WaypointSpacing = 3,
-AgentCanJump = true,
-AgentCanClimb = true
+AgentCanJump = getgenv().CanJump,
+AgentCanClimb = getgenv().CanClimb
 })
 path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
 
