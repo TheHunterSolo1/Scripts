@@ -75,6 +75,9 @@ if path.Status == Enum.PathStatus.Success then
 Pathfinding:RemoveWaypoints()
 local waypoints = path:GetWaypoints()
 for _, waypoint in pairs(waypoints) do
+Pathfinding:CreateWaypoint(waypoint.Position)
+end
+for i, waypoint in pairs(waypoints) do
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
@@ -82,7 +85,7 @@ Pathfinding:RemoveWaypoints()
 OldPart = Part 
 break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
-Pathfinding:CreateWaypoint(waypoint.Position)
+
 end
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
 if CloseCheck > 6 then
