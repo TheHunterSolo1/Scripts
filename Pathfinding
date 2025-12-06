@@ -129,8 +129,9 @@ LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 task.wait()
 if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 and not  LocalPlayer.Character.Humanoid.Jump then
 if ShouldStop then return end
-Pathfinding:WalkTo(Part)
 path = nil
+Pathfinding:WalkTo(Part)
+
 break
 end
 LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
