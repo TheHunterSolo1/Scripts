@@ -49,7 +49,15 @@ end
 function Pathfinding:RemoveWaypoints()
 WaypointFolder:ClearAllChildren()
 end
+local ShouldStop = false
 
+function Pathfinding:ForceStop()
+ShouldStop = true
+WaypointFolder:ClearAllChildren()
+LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
+task.wait(0.4)
+ShouldStop = false
+end
 function Pathfinding:WalkTo(Part)
 if OldPart == nil then
 OldPart = Part
@@ -75,9 +83,11 @@ if path.Status == Enum.PathStatus.Success then
 Pathfinding:RemoveWaypoints()
 local waypoints = path:GetWaypoints()
 for _, waypoint in pairs(waypoints) do
+
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
 for i, waypoint in pairs(waypoints) do
+if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
