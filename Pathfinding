@@ -119,7 +119,7 @@ if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
 task.wait()
-if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 and not then LocalPlayer.Character.Humanoid.Jump
+if LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.5 and not  LocalPlayer.Character.Humanoid.Jump then
 if ShouldStop then return end
 Pathfinding:WalkTo(Part)
 break
