@@ -157,9 +157,13 @@ Connection = RunService.RenderStepped:Connect(function()
 if data.Gui.Enabled then
 				data.Gui.Enabled = false
 				data.Highlight.Enabled = false
-				if data.Tracer then data.Tracer.Visible = false end
- end
 end
+				if data.Tracer then data.Tracer.Visible = false 
+end 
+
+end
+ end
+
 
 		local objPos = objRoot.Position
 		local distVec = (objPos - myPos)
