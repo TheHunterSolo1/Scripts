@@ -45,6 +45,7 @@ function Pathfinding:CreateWaypoint(CF)
 local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
  Part.CanTouch = false 
 Part.CanQuery = false
+Part.Rotation = Vector3.new(0, 0, 90)
 Part.Shape = "Ball" 
 Part.Position = CF 
 Part.Color = Color3.new(1, 0, 0)
