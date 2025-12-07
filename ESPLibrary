@@ -153,7 +153,12 @@ Connection = RunService.RenderStepped:Connect(function()
 
 	for _, data in pairs(Cache) do
 		local objRoot = data.Root
-		if not objRoot or not objRoot.Parent then continue end
+		if not objRoot or not objRoot.Parent then 
+if data.Gui.Enabled then
+				data.Gui.Enabled = false
+				data.Highlight.Enabled = false
+				if data.Tracer then data.Tracer.Visible = false end
+ end
 
 		local objPos = objRoot.Position
 		local distVec = (objPos - myPos)
