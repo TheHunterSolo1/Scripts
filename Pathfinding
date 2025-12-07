@@ -108,7 +108,7 @@ WaypointSpacing = 3,
 AgentCanJump = getgenv().CanJump,
 AgentCanClimb = getgenv().CanClimb
 })
-path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
+path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 2, 0),GetRealPosition)
 
 if path.Status == Enum.PathStatus.Success then  
 Pathfinding:RemoveWaypoints()
@@ -133,6 +133,7 @@ if waypoint.Action == Enum.PathWaypointAction.Jump then
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
 Pathfinding:RemoveWaypoints()
+Pathfinding:WalkTo(Part)
 OldPart = Part 
 
 break end
@@ -143,7 +144,8 @@ if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
 if LastPos then
-if (LocalPlayer.Character.HumanoidRootPart.Position - LastPos).Magnitude < 4 then
+task.wait()
+if (LocalPlayer.Character.HumanoidRootPart.Position - LastPos).Magnitude < 1 then
 OldPart = nil
 Pathfinding:WalkTo(Part)
 break
