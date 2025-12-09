@@ -64,13 +64,24 @@ ShouldStop = true
 WaypointFolder:ClearAllChildren()
 repeat task.wait() 
 LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
-until LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 0.4
+until LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 1
 task.wait(1)
 ShouldStop = false
 end
 
 local OldMode
+local LastPos
+task.spawn(function()
+while task.wait(0.6) do
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+LastPos = LocalPlayer.Character.HumanoidRootPart.Position
+end
+end
 
+end)
+
+
+getgenv().Path = getgenv().Path or nil
 
 function Pathfinding:WalkTo(Part)
 if OldPart == Part then
@@ -83,6 +94,8 @@ end
 if OldMode == nil then
 OldMode = getgenv().Mode
 end
+
+if getgenv().Path then return end
 
 
  
@@ -102,8 +115,15 @@ WaypointSpacing = 3,
 AgentCanJump = getgenv().CanJump,
 AgentCanClimb = getgenv().CanClimb
 })
-
+getgenv().Path = path
 path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
+
+task.spawn(function()
+repeat task.wait()
+until (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude < 6 
+getgenv().Path = nil
+
+end)
 
 if path.Status == Enum.PathStatus.Success then  
 Pathfinding:RemoveWaypoints()
@@ -129,7 +149,6 @@ if waypoint.Action == Enum.PathWaypointAction.Jump then
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 if OldPart ~= Part then
 Pathfinding:RemoveWaypoints()
-Pathfinding:WalkTo(Part)
 OldPart = Part 
 
 break end
@@ -138,8 +157,12 @@ local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.P
 if CloseCheck > 7 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
-
-
+if LastPos then 
+if (LocalPlayer.Character.HumanoidRootPart.Position - LastPos).Magnitude < 3 then
+getgenv().Path = nil
+break 
+end
+end
 
 LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
 end
