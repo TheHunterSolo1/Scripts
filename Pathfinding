@@ -62,9 +62,8 @@ local ShouldStop = false
 function Pathfinding:ForceStop()
 ShouldStop = true
 WaypointFolder:ClearAllChildren()
-repeat task.wait() 
+
 LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
-until LocalPlayer.Character.Humanoid.MoveDirection.Magnitude < 1
 task.wait(1)
 ShouldStop = false
 end
@@ -119,6 +118,9 @@ task.spawn(function()
 repeat task.wait()
 until (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude < 6 
 path = nil
+if Part == nil then
+OldPart = nil
+end
 
 end)
 
