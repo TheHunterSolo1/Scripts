@@ -3,7 +3,7 @@ local Pathfinding = {}
 local PathfindingService = game:GetService("PathfindingService")
 local WaypointFolder = Instance.new("Folder",game:GetService("Workspace"))
 local Debris = game:GetService("Debris")
-getgenv().Mode = getgenv().Mode or "Both" 
+getgenv().Mode = getgenv().Mode or "Walk" 
 
 
 
@@ -158,12 +158,8 @@ local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.P
 if CloseCheck > 7 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
-if LastPos then 
-if (LocalPlayer.Character.HumanoidRootPart.Position - LastPos).Magnitude < 3 then
-getgenv().Path = nil
-break 
-end
-end
+
+
 
 LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
 end
