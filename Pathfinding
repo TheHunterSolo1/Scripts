@@ -62,8 +62,9 @@ local ShouldStop = false
 function Pathfinding:ForceStop()
 ShouldStop = true
 WaypointFolder:ClearAllChildren()
-
+task.spawn(function()
 LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
+end)
 task.wait(1)
 ShouldStop = false
 end
@@ -73,7 +74,7 @@ local OldMode
 
 
 
-local path
+
 local FakeWaypoints = nil
 
 function Pathfinding:WalkTo(Part)
@@ -91,7 +92,7 @@ if OldMode == nil then
 OldMode = getgenv().Mode
 end
 
-if path then return end
+
 
 
  
@@ -114,26 +115,20 @@ AgentCanClimb = getgenv().CanClimb
 
 path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
 
-task.spawn(function()
-repeat task.wait()
-until (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude < 6 
-path = nil
-if Part == nil then
-OldPart = nil
-end
 
-end)
 
 
 if path.Status == Enum.PathStatus.Success then  
 Pathfinding:RemoveWaypoints()
 local waypoints = path:GetWaypoints()
+if not FakeWaypoints then
 FakeWaypoints = waypoints
+end
 for _, waypoint in pairs(waypoints) do
-if path == nil then
-break end
+
 if FakeWaypoints ~= waypoints then 
 FakeWaypoints = waypoints
+Pathfinding:RemoveWaypoints()
 break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
@@ -144,8 +139,7 @@ end
 
 end
 for i, waypoint in pairs(waypoints) do
-if path == nil then
-break end
+
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
