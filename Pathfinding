@@ -19,13 +19,13 @@ getgenv().CanJump = getgenv().CanJump or true
 getgenv().CanClimb = getgenv().CanClimb or true
 
 
-function Pathfinding:GenerateRandomString()
+function Pathfinding:GenerateRandomString(Times)
 
 local Chars = "abcdefghijklnmgxyzADCERGHDYYIJRDCCSXFOPPGRD123456789"
 
 local Word = ""
 
-for i = 1, 25 do
+for i = 1, Times do
 local Letter = math.random(1, #Chars)
 
 Word = Word .. Chars:sub(Letter,Letter)
@@ -34,7 +34,7 @@ end
 return Word
 end
 
-WaypointFolder.Name = Pathfinding:GenerateRandomString()
+WaypointFolder.Name = Pathfinding:GenerateRandomString(9)
 
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
@@ -74,7 +74,7 @@ local OldMode
 
 
 
-
+local OldPath = nil
 local FakeWaypoints = nil
 
 function Pathfinding:WalkTo(Part)
@@ -120,15 +120,18 @@ path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPositio
 
 if path.Status == Enum.PathStatus.Success then  
 Pathfinding:RemoveWaypoints()
-local waypoints = path:GetWaypoints()
-if not FakeWaypoints then
-FakeWaypoints = waypoints
+if OldPath == nil then 
+OldPath = Pathfinding:GenerateRandomString(10)
 end
+local NewPath = OldPath
+
+local waypoints = path:GetWaypoints()
+
 for _, waypoint in pairs(waypoints) do
 
-if FakeWaypoints ~= waypoints then 
-FakeWaypoints = waypoints
+if NewPath ~= OldPath then
 Pathfinding:RemoveWaypoints()
+NewPath = OldPath
 break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
@@ -139,7 +142,9 @@ end
 
 end
 for i, waypoint in pairs(waypoints) do
-
+if NewPath ~= OldPath then
+Pathfinding:RemoveWaypoints()
+break end
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
