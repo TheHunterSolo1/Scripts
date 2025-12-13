@@ -78,6 +78,7 @@ local OldPath = nil
 local FakeWaypoints = nil
 
 function Pathfinding:WalkTo(Part)
+--[[
 if OldPart == Part then
 
 return end
@@ -88,6 +89,7 @@ end
 if OldPart == nil then
 OldPart = Part
 end
+]]
 if OldMode == nil then
 OldMode = getgenv().Mode
 end
@@ -152,12 +154,13 @@ end
 if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
+--[[
 if OldPart ~= Part then
 Pathfinding:RemoveWaypoints()
 OldPart = Part 
 
 break end
-
+]]
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
 if CloseCheck > 9 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
