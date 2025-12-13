@@ -144,7 +144,7 @@ break
 end
 if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
-LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
+LocalPlayer.Character.Humanoid.Jump  = true end
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
 if  CloseCheck < 9 then
 
