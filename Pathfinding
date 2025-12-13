@@ -132,6 +132,7 @@ local waypoints = path:GetWaypoints()
 for _, waypoint in pairs(waypoints) do
 
 if NewPath ~= OldPath then
+print("Not Same Path")
 Pathfinding:RemoveWaypoints()
 NewPath = OldPath
 break end
