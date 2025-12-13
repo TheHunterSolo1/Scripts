@@ -145,19 +145,18 @@ end
 if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid.Jump  = true end
---[[
+
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck < 9 then
-]]
+if  CloseCheck > 9 and CloseCheck < 15 then
+
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
 
 
 LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
---[[
+
 end
-]]
 end
 
 end
