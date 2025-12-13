@@ -156,5 +156,7 @@ end
 end
 
 end
+task.delay(0.3,function()
+end)
 end
 return Pathfinding
