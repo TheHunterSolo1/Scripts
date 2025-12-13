@@ -74,11 +74,12 @@ local OldMode
 
 
 
-local OldPath = nil
 
+local Id = 0
 
 function Pathfinding:WalkTo(Part)
-
+Id = Id + 1
+local NewId = Id
 
 if OldMode == nil then
 OldMode = getgenv().Mode
@@ -112,20 +113,13 @@ path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPositio
 
 if path.Status == Enum.PathStatus.Success then  
 Pathfinding:RemoveWaypoints()
-if OldPath == nil then 
-OldPath = Pathfinding:GenerateRandomString(10)
-end
-local NewPath = OldPath
+
 
 local waypoints = path:GetWaypoints()
 
 for _, waypoint in pairs(waypoints) do
 
-if NewPath ~= OldPath then
-print("Not Same Path")
-Pathfinding:RemoveWaypoints()
-NewPath = OldPath
-break end
+if NewId ~= Id then break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
@@ -135,9 +129,7 @@ end
 
 end
 for i, waypoint in pairs(waypoints) do
-if NewPath ~= OldPath then
-Pathfinding:RemoveWaypoints()
-break end
+if NewId ~= Id then break end
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
@@ -147,7 +139,7 @@ if waypoint.Action == Enum.PathWaypointAction.Jump then
 LocalPlayer.Character.Humanoid.Jump  = true end
 
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck > 9 and CloseCheck < 15 then
+if  CloseCheck > 9 then
 
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
