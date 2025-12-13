@@ -38,7 +38,7 @@ WaypointFolder.Name = Pathfinding:GenerateRandomString(9)
 
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
-local OldPart = nil
+
 
 
 function Pathfinding:CreateWaypoint(CF)
@@ -51,7 +51,7 @@ Part.Position = CF
 Part.Color = Color3.new(1, 0, 0)
 Part.Size = Vector3.new(1.5, 1, 1.5) 
 Part.Anchored = true
-Debris:AddItem(Part, 15)
+
 
 end
 function Pathfinding:RemoveWaypoints()
@@ -79,16 +79,6 @@ local OldPath = nil
 
 function Pathfinding:WalkTo(Part)
 
-if OldPart == Part then
-
-return end
-if OldPart ~= Part then
-path = nil 
-end
-
-if OldPart == nil then
-OldPart = Part
-end
 
 if OldMode == nil then
 OldMode = getgenv().Mode
@@ -155,13 +145,6 @@ end
 if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
-
-if OldPart ~= Part then
-Pathfinding:RemoveWaypoints()
-OldPart = Part 
-
-break end
-
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
 if CloseCheck > 9 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
