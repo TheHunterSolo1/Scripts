@@ -100,7 +100,7 @@ if dis < 2 then return end
  local path = PathfindingService:CreatePath({
 AgentRadius = getgenv().AgentRadius,
 AgentHeight = getgenv().AgentHeight,
-WaypointSpacing = 4,
+WaypointSpacing = 3,
 AgentCanJump = getgenv().CanJump,
 AgentCanClimb = getgenv().CanClimb
 })
@@ -141,7 +141,7 @@ if waypoint.Action == Enum.PathWaypointAction.Jump then
 LocalPlayer.Character.Humanoid.Jump  = true end
 
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck > 15 then
+if  CloseCheck > 6 then
 
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
