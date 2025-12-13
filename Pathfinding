@@ -146,7 +146,8 @@ if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if CloseCheck > 9 then
+if CloseCheck > 9 and CloseCheck < 10 then
+
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
