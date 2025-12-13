@@ -119,7 +119,7 @@ local waypoints = path:GetWaypoints()
 
 for _, waypoint in pairs(waypoints) do
 
-if NewId ~= Id then break end
+if NewId ~= Id then return end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
@@ -129,7 +129,7 @@ end
 
 end
 for i, waypoint in pairs(waypoints) do
-if NewId ~= Id then break end
+if NewId ~= Id then return end
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
