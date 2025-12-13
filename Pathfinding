@@ -75,11 +75,10 @@ local OldMode
 
 
 
-local Id = 0
+
 
 function Pathfinding:WalkTo(Part)
-Id = Id + 1
-local NewId = Id
+
 
 if OldMode == nil then
 OldMode = getgenv().Mode
@@ -106,6 +105,8 @@ AgentCanJump = getgenv().CanJump,
 AgentCanClimb = getgenv().CanClimb
 })
 
+
+
 path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
 
 
@@ -119,7 +120,7 @@ local waypoints = path:GetWaypoints()
 
 for _, waypoint in pairs(waypoints) do
 
-if NewId ~= Id then return end
+
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
@@ -129,7 +130,8 @@ end
 
 end
 for i, waypoint in pairs(waypoints) do
-if NewId ~= Id then return end
+
+
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
@@ -139,7 +141,7 @@ if waypoint.Action == Enum.PathWaypointAction.Jump then
 LocalPlayer.Character.Humanoid.Jump  = true end
 
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck > 2 then
+if  CloseCheck > 6 then
 
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
@@ -156,7 +158,7 @@ end
 end
 
 end
-task.delay(0.3,function()
+task.delay(0.1,function()
 end)
 end
 return Pathfinding
