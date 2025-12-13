@@ -78,7 +78,7 @@ local OldPath = nil
 
 
 function Pathfinding:WalkTo(Part)
---[[
+
 if OldPart == Part then
 
 return end
@@ -89,7 +89,7 @@ end
 if OldPart == nil then
 OldPart = Part
 end
-]]
+
 if OldMode == nil then
 OldMode = getgenv().Mode
 end
@@ -107,7 +107,7 @@ end
 
 local dis = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
 if dis < 2 then return end
-  path = PathfindingService:CreatePath({
+ local path = PathfindingService:CreatePath({
 AgentRadius = getgenv().AgentRadius,
 AgentHeight = getgenv().AgentHeight,
 WaypointSpacing = 3,
@@ -155,13 +155,13 @@ end
 if ShouldStop then break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
---[[
+
 if OldPart ~= Part then
 Pathfinding:RemoveWaypoints()
 OldPart = Part 
 
 break end
-]]
+
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
 if CloseCheck > 9 then
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
