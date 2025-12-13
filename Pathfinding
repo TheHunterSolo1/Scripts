@@ -100,7 +100,7 @@ if dis < 2 then return end
  local path = PathfindingService:CreatePath({
 AgentRadius = getgenv().AgentRadius,
 AgentHeight = getgenv().AgentHeight,
-WaypointSpacing = 3,
+WaypointSpacing = 4,
 AgentCanJump = getgenv().CanJump,
 AgentCanClimb = getgenv().CanClimb
 })
