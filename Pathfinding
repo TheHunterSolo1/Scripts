@@ -19,13 +19,13 @@ getgenv().CanJump = getgenv().CanJump or true
 getgenv().CanClimb = getgenv().CanClimb or true
 
 
-function Pathfinding:GenerateRandomString(Times)
+function Pathfinding:GenerateRandomString(Time)
 
 local Chars = "abcdefghijklnmgxyzADCERGHDYYIJRDCCSXFOPPGRD123456789"
 
 local Word = ""
 
-for i = 1, Times do
+for i = 1, Time do
 local Letter = math.random(1, #Chars)
 
 Word = Word .. Chars:sub(Letter,Letter)
@@ -39,7 +39,7 @@ WaypointFolder.Name = Pathfinding:GenerateRandomString(9)
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
 local OldPart = nil
-getgenv().Path = nil
+
 
 function Pathfinding:CreateWaypoint(CF)
 local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
@@ -75,7 +75,7 @@ local OldMode
 
 
 local OldPath = nil
-local FakeWaypoints = nil
+
 
 function Pathfinding:WalkTo(Part)
 --[[
