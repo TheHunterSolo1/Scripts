@@ -61,7 +61,10 @@ local ShouldStop = false
 
 function Pathfinding:ForceStop()
 ShouldStop = true
+repeat task.wait(0.1)
+
 WaypointFolder:ClearAllChildren()
+until  #WaypointFolder:GetChildren() < 1
 task.spawn(function()
 LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
 end)
@@ -119,7 +122,9 @@ Pathfinding:RemoveWaypoints()
 local waypoints = path:GetWaypoints()
 
 for _, waypoint in pairs(waypoints) do
-
+if ShouldStop then
+Pathfinding:RemoveWaypoints()
+ break end
 
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
@@ -136,7 +141,9 @@ if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
 break
 end
-if ShouldStop then break end
+if ShouldStop then
+Pathfinding:RemoveWaypoints()
+ break end
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid.Jump  = true end
 
