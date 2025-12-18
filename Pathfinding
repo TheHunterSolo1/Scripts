@@ -1,25 +1,26 @@
+
 local Pathfinding = {}
 
 local RunService = game:GetService("RunService")
 local PathfindingService = game:GetService("PathfindingService")
 local WaypointFolder = Instance.new("Folder",game:GetService("Workspace"))
 local Debris = game:GetService("Debris")
-getgenv().Mode = getgenv().Mode or "Walk" 
 
 
 
 
 
-getgenv().AgentRadius = getgenv().AgentRadius or 2
 
-getgenv().AgentHeight = getgenv().AgentHeight or 1
+ PathConfig = {
+Mode = "Walk",
+AgentRadius = 2,
+AgentHeight = 1,
+CanJump = true,
+CanClimb = true,
+WaypointColor = Color3.new(1, 0, 0)
 
 
-getgenv().CanJump = getgenv().CanJump or true
-
-getgenv().CanClimb = getgenv().CanClimb or true
-
-
+}
 function Pathfinding:GenerateRandomString(Time)
 
 local Chars = "abcdefghijklnmgxyzADCERGHDYYIJRDCCSXFOPPGRD123456789"
@@ -49,7 +50,7 @@ Part.CanQuery = false
 Part.Rotation = Vector3.new(0, 0, 90)
 Part.Shape = "Ball" 
 Part.Position = CF 
-Part.Color = Color3.new(1, 0, 0)
+Part.Color = Config.WaypointColor
 Part.Size = Vector3.new(1.5, 1, 1.5) 
 Part.Anchored = true
 
@@ -85,7 +86,7 @@ function Pathfinding:WalkTo(Part)
 
 
 if OldMode == nil then
-OldMode = getgenv().Mode
+OldMode = Config.Mode
 end
 
 
@@ -102,11 +103,11 @@ end
 local dis = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
 if dis < 2 then return end
  local path = PathfindingService:CreatePath({
-AgentRadius = getgenv().AgentRadius,
-AgentHeight = getgenv().AgentHeight,
+AgentRadius = Config.AgentRadius,
+AgentHeight = Config.AgentHeight,
 WaypointSpacing = 3,
-AgentCanJump = getgenv().CanJump,
-AgentCanClimb = getgenv().CanClimb
+AgentCanJump = Config.CanJump,
+AgentCanClimb = Config.CanClimb
 })
 
 
@@ -127,6 +128,7 @@ BreakPath = false
 end
 Pathfinding:RemoveWaypoints()
 
+repeat task.wait() until not BreakPath
 
 local waypoints = path:GetWaypoints()
 
@@ -135,10 +137,10 @@ if ShouldStop then
 Pathfinding:RemoveWaypoints()
  break end
 if BreakPath then break end
-if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
+if Config.Mode == "Show" or Config.Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
-if getgenv().Mode == "Walk" then
+if Config.Mode == "Walk" then
 Pathfinding:RemoveWaypoints()
 end
 
@@ -146,8 +148,8 @@ end
 for i, waypoint in pairs(waypoints) do
 if BreakPath then break end
 
-if OldMode ~= getgenv().Mode then
-OldMode = getgenv().Mode
+if OldMode ~= Config.Mode then
+OldMode = Config.Mode
 break
 end
 if ShouldStop then
@@ -156,10 +158,10 @@ Pathfinding:RemoveWaypoints()
 
 
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck > 7 then
+if  CloseCheck > 3 then
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid.Jump  = true end
-if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
+if Config.Mode == "Walk" or Config.Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
 
