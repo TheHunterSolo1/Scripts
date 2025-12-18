@@ -118,6 +118,81 @@ path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPositio
 if path.Status == Enum.PathStatus.Success then  
 if not BreakPath then
 BreakPath = true
+
+task.wait()
+BreakPath = false 
+
+end
+end
+Pathfinding:RemoveWaypoints()
+
+
+local waypoints = path:GetWaypoints()
+
+for _, waypoint in pairs(waypoints) do
+if ShouldStop then
+Pathfinding:RemoveWaypoints()
+ break end
+if BreakPath then break end
+if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
+Pathfinding:CreateWaypoint(waypoint.Position)
+end
+if getgenv().Mode == "Walk" then
+Pathfinding:RemoveWaypoints()
+end
+
+end
+for i, waypoint in pairs(waypoints) do
+if BreakPath then break end
+
+if OldMode ~= getgenv().Mode then
+OldMode = getgenv().Mode
+break
+end
+if ShouldStop then
+Pathfinding:RemoveWaypoints()
+ break end
+
+
+local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
+if  CloseCheck > 7 then
+if waypoint.Action == Enum.PathWaypointAction.Jump then 
+LocalPlayer.Character.Humanoid.Jump  = true end
+if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
+LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
+
+
+
+LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
+
+end
+end
+
+end
+
+end
+
+end
+task.delay(0.3,function()
+end)
+end
+return Pathfinding
+AgentHeight = getgenv().AgentHeight,
+WaypointSpacing = 3,
+AgentCanJump = getgenv().CanJump,
+AgentCanClimb = getgenv().CanClimb
+})
+
+
+
+path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
+
+
+
+
+if path.Status == Enum.PathStatus.Success then  
+if not BreakPath then
+BreakPath = true
 task.spawn(function()
 task.wait(0.2)
 BreakPath = false 
