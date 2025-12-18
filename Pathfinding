@@ -144,12 +144,12 @@ end
 if ShouldStop then
 Pathfinding:RemoveWaypoints()
  break end
-if waypoint.Action == Enum.PathWaypointAction.Jump then 
-LocalPlayer.Character.Humanoid.Jump  = true end
+
 
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck > 6 then
-
+if  CloseCheck > 8 then
+if waypoint.Action == Enum.PathWaypointAction.Jump then 
+LocalPlayer.Character.Humanoid.Jump  = true end
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
 LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
 
