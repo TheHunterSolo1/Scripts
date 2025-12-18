@@ -73,7 +73,7 @@ ShouldStop = false
 end
 
 local OldMode
-
+local BreakPath = false
 
 
 
@@ -116,6 +116,14 @@ path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPositio
 
 
 if path.Status == Enum.PathStatus.Success then  
+if not BreakPath then
+BreakPath = true
+task.spawn(function()
+task.wait(0.2)
+BreakPath = false 
+
+end)
+end
 Pathfinding:RemoveWaypoints()
 
 
@@ -125,7 +133,7 @@ for _, waypoint in pairs(waypoints) do
 if ShouldStop then
 Pathfinding:RemoveWaypoints()
  break end
-
+if BreakPath then break end
 if getgenv().Mode == "Show" or getgenv().Mode == "Both" then
 Pathfinding:CreateWaypoint(waypoint.Position)
 end
@@ -135,7 +143,7 @@ end
 
 end
 for i, waypoint in pairs(waypoints) do
-
+if BreakPath then break end
 
 if OldMode ~= getgenv().Mode then
 OldMode = getgenv().Mode
@@ -147,7 +155,7 @@ Pathfinding:RemoveWaypoints()
 
 
 local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck > 8 then
+if  CloseCheck > 7 then
 if waypoint.Action == Enum.PathWaypointAction.Jump then 
 LocalPlayer.Character.Humanoid.Jump  = true end
 if getgenv().Mode == "Walk" or getgenv().Mode == "Both" then
