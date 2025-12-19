@@ -55,7 +55,7 @@ local function CreateVisuals(part, color, name)
 	txt.BackgroundTransparency = 1
 	txt.Size = UDim2.new(1, 0, 1, 0)
 	txt.TextColor3 = color
-	txt.Font = Enum.Font.GothamBlack
+	txt.Font = Enum.Font.Highway
 	txt.TextSize = Settings.TextSize
 	txt.Text = name
 	txt.TextStrokeTransparency = 1
@@ -175,11 +175,18 @@ end
 				data.Highlight.Enabled = false
 				if data.Tracer then data.Tracer.Visible = false end
 			end
-			--continue
+			
 		end
 
 		local screenPos, onScreen = WTVP(Camera, objPos)
 
+if Camera.FieldOfView == 120 then
+
+data.Label.TextSize = 28
+
+elseif Camera.FieldOfView == 70 then
+data.Label.TextSize = 23
+end
 		if onScreen then
 			if not data.Gui.Enabled then
 				data.Gui.Enabled = true
