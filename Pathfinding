@@ -73,6 +73,11 @@ end)
 task.wait(1)
 ShouldStop = false
 end
+local Status = nil
+
+function Pathfinding:GetPathStatus()
+return Status
+end
 
 local OldMode
 local BreakPath = false
@@ -115,7 +120,7 @@ AgentCanClimb = Config.CanClimb
 path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
 
 
-
+Status = path.Status
 
 if path.Status == Enum.PathStatus.Success then  
 if not BreakPath then
@@ -180,4 +185,3 @@ task.delay(0.3,function()
 end)
 end
 return Pathfinding
-
