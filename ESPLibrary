@@ -23,7 +23,7 @@ local Settings = {
     Tracers = false,
     Distance = false,
     MaxDistance = 5000,
-    TextSize = 16,
+    TextSize = 23,
     Font = Enum.Font.GothamBold
 }
 
@@ -149,6 +149,7 @@ local function Update()
     Camera = Workspace.CurrentCamera
     local viewportSize = Camera.ViewportSize
     local centerPos = Vector2New(viewportSize.X / 2, viewportSize.Y)
+    local currentFOV = Camera.FieldOfView
     
     for _, data in pairs(Cache) do
         local rootPart = data.Root
@@ -174,6 +175,8 @@ local function Update()
         if onScreen then
             data.Gui.Enabled = true
             data.Highlight.Enabled = true
+            
+            data.Label.TextSize = Settings.TextSize * (currentFOV / 70)
 
             if Settings.Distance then
                 local distMath = Round(distance)
