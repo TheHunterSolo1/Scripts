@@ -166,7 +166,7 @@ end
 
 
 		local objPos = objRoot.Position
-		local distVec = (objPos - cam.CFrame.Position)
+		local distVec = (objPos - camCFrame.Position)
 		local dist = distVec.Magnitude
 
 		if dist > maxDist then
