@@ -1,187 +1,154 @@
-
 local Pathfinding = {}
 
-local RunService = game:GetService("RunService")
 local PathfindingService = game:GetService("PathfindingService")
-local WaypointFolder = Instance.new("Folder",game:GetService("Workspace"))
-local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
+local WaypointFolder = Workspace:FindFirstChild("PathfindingWaypoints") or Instance.new("Folder", Workspace)
+WaypointFolder.Name = "PathfindingWaypoints"
+WaypointFolder:ClearAllChildren()
 
-
-
-
-
- Config = {
-Mode = "Walk",
-AgentRadius = 2,
-AgentHeight = 1,
-CanJump = true,
-CanClimb = true,
-WaypointColor = Color3.new(1, 0, 0)
-
-
+Config = {
+	Mode = "Walk",
+	AgentRadius = 2,
+	AgentHeight = 1,
+	CanJump = true,
+	CanClimb = true,
+	WaypointColor = Color3.new(1, 0, 0)
 }
-function Pathfinding:GenerateRandomString(Time)
 
-local Chars = "abcdefghijklnmgxyzADCERGHDYYIJRDCCSXFOPPGRD123456789"
+local CurrentSessionID = 0
+local CurrentWaypoints = {}
 
-local Word = ""
-
-for i = 1, Time do
-local Letter = math.random(1, #Chars)
-
-Word = Word .. Chars:sub(Letter,Letter)
+local function CreateVisual(Position)
+	local Part = Instance.new("Part")
+	Part.Name = "Waypoint"
+	Part.Shape = Enum.PartType.Ball
+	Part.Material = Enum.Material.Neon
+	Part.Size = Vector3.new(1.5, 1.5, 1.5)
+	Part.Position = Position
+	Part.Color = Config.WaypointColor
+	Part.Anchored = true
+	Part.CanCollide = false
+	Part.CanTouch = false
+	Part.CanQuery = false
+	Part.CastShadow = false
+	Part.Parent = WaypointFolder
+	table.insert(CurrentWaypoints, Part)
 end
 
-return Word
+function Pathfinding:ClearWaypoints()
+	for _, Part in ipairs(CurrentWaypoints) do
+		Part:Destroy()
+	end
+	table.clear(CurrentWaypoints)
 end
-
-WaypointFolder.Name = Pathfinding:GenerateRandomString(9)
-
-local LocalPlayer = game:GetService("Players").LocalPlayer
-
-
-
-
-function Pathfinding:CreateWaypoint(CF)
-local Part = Instance.new("Part", WaypointFolder) Part.CanCollide = false
- Part.CanTouch = false 
-Part.CanQuery = false
-Part.Rotation = Vector3.new(0, 0, 90)
-Part.Shape = "Ball" 
-Part.Position = CF 
-Part.Color = Config.WaypointColor
-Part.Size = Vector3.new(1.5, 1, 1.5) 
-Part.Anchored = true
-
-
-end
-function Pathfinding:RemoveWaypoints()
-WaypointFolder:ClearAllChildren()
-end
-local ShouldStop = false
-
-function Pathfinding:ForceStop()
-ShouldStop = true
-repeat task.wait(0.1)
-
-WaypointFolder:ClearAllChildren()
-until  #WaypointFolder:GetChildren() < 1
-task.spawn(function()
-LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
-end)
-task.wait(1)
-ShouldStop = false
-end
-local Status = nil
 
 function Pathfinding:GetPathStatus()
-return Status
+	return "Active"
 end
 
-local OldMode
-local BreakPath = false
-
-
-
-
-
-
-function Pathfinding:WalkTo(Part)
-
-
-if OldMode == nil then
-OldMode = Config.Mode
+function Pathfinding:ForceStop()
+	CurrentSessionID = CurrentSessionID + 1
+	Pathfinding:ClearWaypoints()
+	local LocalPlayer = Players.LocalPlayer
+	if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+		LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
+	end
 end
 
+function Pathfinding:WalkTo(Target)
+	CurrentSessionID = CurrentSessionID + 1
+	local MySessionID = CurrentSessionID
 
+	local LocalPlayer = Players.LocalPlayer
+	if not LocalPlayer or not LocalPlayer.Character then return end
+	
+	local RootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	local Humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+	if not RootPart or not Humanoid then return end
 
+	local TargetPosition
+	if typeof(Target) == "Vector3" then
+		TargetPosition = Target
+	elseif typeof(Target) == "Instance" then
+		if Target:IsA("BasePart") then
+			TargetPosition = Target.Position
+		elseif Target:IsA("Model") then
+			TargetPosition = Target:GetPivot().Position
+		end
+	end
 
- 
-if LocalPlayer.Character then
-local GetRealPosition = Part:IsA("BasePart") and Part.Position or Part:IsA("Model") and Part:GetPivot().Position or Part.Parent:IsA("Model") and Part.Parent:FindFirstChildWhichIsA("BasePart") or nil
-if GetRealPosition == nil then
-print("bro get a real part or real model and stop trolling")
-return
+	if not TargetPosition then return end
+
+	local Path = PathfindingService:CreatePath({
+		AgentRadius = Config.AgentRadius,
+		AgentHeight = Config.AgentHeight,
+		AgentCanJump = Config.CanJump,
+		AgentCanClimb = Config.CanClimb,
+		WaypointSpacing = 3
+	})
+
+	local Success, ErrorMessage = pcall(function()
+		Path:ComputeAsync(RootPart.Position, TargetPosition)
+	end)
+
+	if not Success or Path.Status ~= Enum.PathStatus.Success then return end
+
+	if MySessionID ~= CurrentSessionID then return end
+
+	Pathfinding:ClearWaypoints()
+	
+	local Waypoints = Path:GetWaypoints()
+
+	if Config.Mode == "Show" or Config.Mode == "Both" then
+		for _, Point in ipairs(Waypoints) do
+			CreateVisual(Point.Position)
+		end
+	end
+
+	if Config.Mode == "Show" then return end
+
+	task.spawn(function()
+		for i, Point in ipairs(Waypoints) do
+			if MySessionID ~= CurrentSessionID then return end
+
+			local WaypointPosition = Point.Position
+			
+			if Point.Action == Enum.PathWaypointAction.Jump and Config.CanJump then
+				Humanoid.Jump = true
+			end
+
+			Humanoid:MoveTo(WaypointPosition)
+
+			local Reached = false
+			local MoveConnection
+			
+			MoveConnection = Humanoid.MoveToFinished:Connect(function()
+				Reached = true
+			end)
+
+			while not Reached do
+				if MySessionID ~= CurrentSessionID then 
+					if MoveConnection then MoveConnection:Disconnect() end
+					return 
+				end
+				
+				if (RootPart.Position - WaypointPosition).Magnitude < 3 then
+					Reached = true
+				end
+				
+				task.wait()
+			end
+			
+			if MoveConnection then MoveConnection:Disconnect() end
+		end
+		
+		if MySessionID == CurrentSessionID then
+			Pathfinding:ClearWaypoints()
+		end
+	end)
 end
 
-local dis = (LocalPlayer.Character.HumanoidRootPart.Position - GetRealPosition).Magnitude
-if dis < 2 then return end
- local path = PathfindingService:CreatePath({
-AgentRadius = Config.AgentRadius,
-AgentHeight = Config.AgentHeight,
-WaypointSpacing = 2,
-AgentCanJump = Config.CanJump,
-AgentCanClimb = Config.CanClimb
-})
-
-
-
-path:ComputeAsync(LocalPlayer.Character.HumanoidRootPart.Position,GetRealPosition)
-
-
-Status = path.Status
-
-if path.Status == Enum.PathStatus.Success then  
-if not BreakPath then
-BreakPath = true
-
-RunService.Heartbeat:Wait()
-BreakPath = false 
-
-
-end
-Pathfinding:RemoveWaypoints()
-
-repeat task.wait() until not BreakPath
-
-local waypoints = path:GetWaypoints()
-
-for _, waypoint in pairs(waypoints) do
-if ShouldStop then
-Pathfinding:RemoveWaypoints()
- break end
-if BreakPath then break end
-if Config.Mode == "Show" or Config.Mode == "Both" then
-Pathfinding:CreateWaypoint(waypoint.Position)
-end
-if Config.Mode == "Walk" then
-Pathfinding:RemoveWaypoints()
-end
-
-end
-for i, waypoint in pairs(waypoints) do
-if BreakPath then break end
-
-if OldMode ~= Config.Mode then
-OldMode = Config.Mode
-break
-end
-if ShouldStop then
-Pathfinding:RemoveWaypoints()
- break end
-
-
-local CloseCheck = (LocalPlayer.Character.HumanoidRootPart.Position - waypoint.Position).Magnitude
-if  CloseCheck > 1 then
-if waypoint.Action == Enum.PathWaypointAction.Jump then 
-LocalPlayer.Character.Humanoid.Jump  = true end
-if Config.Mode == "Walk" or Config.Mode == "Both" then
-LocalPlayer.Character.Humanoid:MoveTo(waypoint.Position)
-
-
-
-LocalPlayer.Character.Humanoid.MoveToFinished:Wait()
-
-end
-end
-
-end
-
-end
-
-end
-task.delay(0.3,function()
-end)
-end
 return Pathfinding
