@@ -1,0 +1,292 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local PathfindingModule = {}
+PathfindingModule.__index = PathfindingModule
+
+local SETTINGS = {
+	AgentRadius = 2,
+	AgentHeight = 5,
+	JumpHeight = 7,
+	MaxSlopeAngle = 45,
+	NodeSpacing = 3,
+	MaxIterations = 2500,
+	YieldFrequency = 200,
+	ReachThreshold = 1.5,
+	StuckThreshold = 0.5,
+	Visualize = true
+}
+
+local Heap = {}
+function Heap.new() return {Items = {}, Count = 0} end
+function Heap.push(heap, item)
+	heap.Count += 1
+	heap.Items[heap.Count] = item
+	local i = heap.Count
+	while i > 1 do
+		local p = math.floor(i / 2)
+		if heap.Items[i].F < heap.Items[p].F then
+			heap.Items[i], heap.Items[p] = heap.Items[p], heap.Items[i]
+			i = p
+		else
+			break
+		end
+	end
+end
+function Heap.pop(heap)
+	local first = heap.Items[1]
+	heap.Items[1] = heap.Items[heap.Count]
+	heap.Items[heap.Count] = nil
+	heap.Count -= 1
+	local i = 1
+	while true do
+		local c1 = i * 2
+		local c2 = i * 2 + 1
+		local swap = 0
+		if c1 <= heap.Count then
+			swap = c1
+			if c2 <= heap.Count and heap.Items[c2].F < heap.Items[c1].F then
+				swap = c2
+			end
+			if heap.Items[swap].F < heap.Items[i].F then
+				heap.Items[i], heap.Items[swap] = heap.Items[swap], heap.Items[i]
+				i = swap
+			else
+				break
+			end
+		else
+			break
+		end
+	end
+	return first
+end
+
+local function GetGround(pos, filter)
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = filter
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	
+	local result = Workspace:Raycast(pos + Vector3.new(0, 2, 0), Vector3.new(0, -15, 0), params)
+	return result
+end
+
+local function CheckSight(p1, p2, filter)
+	local dir = p2 - p1
+	if dir.Magnitude < 0.1 then return true end
+	
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = filter
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	
+	local res = Workspace:Raycast(p1 + Vector3.new(0, 1, 0), dir, params)
+	return res == nil
+end
+
+local function Visualize(path)
+	local f = Workspace:FindFirstChild("PF_Debug") or Instance.new("Folder")
+	f.Name = "PF_Debug"
+	f.Parent = Workspace
+	f:ClearAllChildren()
+	
+	for i, node in ipairs(path) do
+		local p = Instance.new("Part")
+		p.Size = Vector3.new(0.5, 0.5, 0.5)
+		p.Position = node.Position
+		p.Anchored = true
+		p.CanCollide = false
+		p.Material = Enum.Material.Neon
+		p.Color = Color3.fromRGB(0, 255, 255)
+		p.Parent = f
+		if i < #path then
+			local b = Instance.new("Part")
+			local dist = (path[i+1].Position - node.Position).Magnitude
+			b.Size = Vector3.new(0.2, 0.2, dist)
+			b.CFrame = CFrame.lookAt(node.Position, path[i+1].Position) * CFrame.new(0, 0, -dist/2)
+			b.Anchored = true
+			b.CanCollide = false
+			b.Color = Color3.fromRGB(255, 255, 0)
+			b.Parent = f
+		end
+	end
+end
+
+function PathfindingModule:Compute(startPos, endPos, character)
+	local open = Heap.new()
+	local closed = {}
+	local filter = {character, Workspace:FindFirstChild("PF_Debug")}
+	
+	local groundStart = GetGround(startPos, filter)
+	local groundEnd = GetGround(endPos, filter)
+	if not groundStart or not groundEnd then return nil end
+	
+	local startNode = {
+		Position = groundStart.Position,
+		G = 0,
+		H = (groundStart.Position - groundEnd.Position).Magnitude,
+		Parent = nil
+	}
+	startNode.F = startNode.G + startNode.H
+	Heap.push(open, startNode)
+	
+	local iter = 0
+	local closest = startNode
+	
+	while open.Count > 0 do
+		iter += 1
+		if iter > SETTINGS.MaxIterations then break end
+		if iter % SETTINGS.YieldFrequency == 0 then task.wait() end
+		
+		local current = Heap.pop(open)
+		local k = string.format("%.1f_%.1f_%.1f", current.Position.X, current.Position.Y, current.Position.Z)
+		
+		if closed[k] then continue end
+		closed[k] = true
+		
+		if (current.Position - groundEnd.Position).Magnitude < SETTINGS.NodeSpacing then
+			closest = current
+			break
+		end
+		
+		if current.H < closest.H then closest = current end
+		
+		for x = -1, 1 do
+			for z = -1, 1 do
+				if x == 0 and z == 0 then continue end
+				
+				local off = Vector3.new(x, 0, z).Unit * SETTINGS.NodeSpacing
+				local checkPos = current.Position + off
+				local hit = GetGround(checkPos, filter)
+				
+				if hit then
+					local slope = math.deg(math.acos(hit.Normal.Y))
+					if slope <= SETTINGS.MaxSlopeAngle then
+						local dy = hit.Position.Y - current.Position.Y
+						
+						if dy <= SETTINGS.JumpHeight then
+							local params = RaycastParams.new()
+							params.FilterDescendantsInstances = filter
+							local rayRes = Workspace:Raycast(current.Position + Vector3.new(0,1,0), hit.Position - current.Position, params)
+							
+							if not rayRes then
+								local g = current.G + (current.Position - hit.Position).Magnitude
+								local h = (hit.Position - groundEnd.Position).Magnitude
+								local node = {
+									Position = hit.Position,
+									G = g, H = h, F = g + h,
+									Parent = current,
+									Jump = dy > 1.5
+								}
+								Heap.push(open, node)
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	local path = {}
+	local curr = closest
+	while curr do
+		table.insert(path, 1, curr)
+		curr = curr.Parent
+	end
+	
+	local smoothed = {path[1]}
+	local idx = 1
+	while idx < #path do
+		local nextIdx = idx + 1
+		for i = #path, idx + 2, -1 do
+			if CheckSight(path[idx].Position, path[i].Position, filter) then
+				nextIdx = i
+				break
+			end
+		end
+		table.insert(smoothed, path[nextIdx])
+		idx = nextIdx
+	end
+	
+	return smoothed
+end
+
+local activeJob = nil
+
+function PathfindingModule:MoveTo(targetPos)
+	if activeJob then activeJob = nil end
+	
+	local player = Players.LocalPlayer
+	local char = player.Character
+	if not char then return end
+	local hum = char:FindFirstChild("Humanoid")
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root then return end
+	
+	local jobId = game:GetService("HttpService"):GenerateGUID(false)
+	activeJob = jobId
+	
+	task.spawn(function()
+		local path = self:Compute(root.Position, targetPos, char)
+		if not path or #path == 0 then return end
+		
+		if SETTINGS.Visualize then Visualize(path) end
+		
+		for i, node in ipairs(path) do
+			if activeJob ~= jobId then break end
+			
+			local stuckTime = 0
+			local lastPos = root.Position
+			
+			if node.Jump or (node.Position.Y > root.Position.Y + 2) then
+				hum.Jump = true
+			end
+			
+			local reached = false
+			local conn
+			conn = RunService.Heartbeat:Connect(function(dt)
+				if activeJob ~= jobId then
+					conn:Disconnect()
+					return
+				end
+				
+				local dir = (node.Position - root.Position)
+				local dist2d = Vector3.new(dir.X, 0, dir.Z).Magnitude
+				
+				if dist2d < SETTINGS.ReachThreshold then
+					reached = true
+					conn:Disconnect()
+					return
+				end
+				
+				hum:MoveTo(node.Position)
+				
+				if (root.Position - lastPos).Magnitude < 0.05 then
+					stuckTime += dt
+					if stuckTime > SETTINGS.StuckThreshold then
+						hum.Jump = true
+						stuckTime = 0 
+					end
+				else
+					stuckTime = 0
+				end
+				lastPos = root.Position
+			end)
+			
+			while not reached and activeJob == jobId do
+				task.wait()
+			end
+		end
+	end)
+end
+
+function PathfindingModule:Stop()
+	activeJob = nil
+	local char = Players.LocalPlayer.Character
+	if char and char:FindFirstChild("Humanoid") then
+		char.Humanoid:MoveTo(char.HumanoidRootPart.Position)
+	end
+	local f = Workspace:FindFirstChild("PF_Debug")
+	if f then f:Destroy() end
+end
+
+return PathfindingModule
