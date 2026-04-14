@@ -4,6 +4,8 @@ getgenv().ESPLibrary = Library
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
@@ -12,8 +14,10 @@ local Cache = {}
 local Connection = nil
 
 local Vector2New = Vector2.new
+local Vector3New = Vector3.new
 local Color3New = Color3.new
 local DrawingNew = Drawing and Drawing.new
+local Floor = math.floor
 
 local Settings = {
     Tracers = false,
@@ -21,12 +25,53 @@ local Settings = {
     MaxDistance = 5000,
     TextSize = 23,
     Font = Enum.Font.GothamBold,
-    TracerThickness = 1
+    TracerThickness = 1,
+    FadeTime = 0.5
 }
 
-local function GetRoot(model)
-    if model:IsA("BasePart") then return model end
-    return model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
+local function GetPosition(obj)
+    if obj:IsA("BasePart") then
+        return obj.Position
+    elseif obj:IsA("Model") then
+        local rp = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+        return rp and rp.Position
+    elseif obj:IsA("Attachment") then
+        return obj.WorldPosition
+    end
+    return nil
+end
+
+local function GetAdornee(obj)
+    if obj:IsA("Model") then
+        return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+    end
+    return obj
+end
+
+local function FadeEffect(data, visible, instant)
+    local targetTrans = visible and 0 or 1
+    local dur = instant and 0 or Settings.FadeTime
+    local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    
+    if data.Highlight then
+        TweenService:Create(data.Highlight, info, {
+            FillTransparency = visible and 0.6 or 1,
+            OutlineTransparency = targetTrans
+        }):Play()
+    end
+    
+    TweenService:Create(data.Label, info, {
+        TextTransparency = targetTrans,
+        TextStrokeTransparency = visible and 0.2 or 1
+    }):Play()
+
+    if data.Tracer then
+        TweenService:Create(data.Tracer, info, {
+            Transparency = visible and 1 or 0
+        }):Play()
+    end
+    
+    if instant then return end
 end
 
 function Library:SetFont(font)
@@ -43,29 +88,34 @@ function Library:SetTracersSize(num)
     end
 end
 
+function Library:SetFadeTime(num) Settings.FadeTime = num end
 function Library:SetTracers(bool) Settings.Tracers = bool end
 function Library:ShowDistance(bool) Settings.Distance = bool end
 function Library:SetMaxDistance(num) Settings.MaxDistance = num end
 
-local function CreateVisuals(part, color, name)
-    local root = GetRoot(part)
-    if not root or root:IsDescendantOf(LocalPlayer.Character) then return nil end
+local function CreateVisuals(obj, color, name)
+    local adornee = GetAdornee(obj)
+    if not adornee or obj:IsDescendantOf(LocalPlayer.Character) then return nil end
 
-    local highlight = Instance.new("Highlight")
-    highlight.FillColor = color
-    highlight.OutlineColor = Color3New(1, 1, 1)
-    highlight.FillTransparency = 0.5
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.Adornee = part
-    highlight.Enabled = false
-    highlight.Parent = CoreGui -- Optimized parent
+    local highlight = nil
+    if obj:IsA("Model") or obj:IsA("BasePart") then
+        highlight = Instance.new("Highlight")
+        highlight.FillColor = color
+        highlight.OutlineColor = Color3New(1, 1, 1)
+        highlight.FillTransparency = 1
+        highlight.OutlineTransparency = 1
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Adornee = obj
+        highlight.Enabled = false
+        highlight.Parent = CoreGui
+    end
 
     local billboard = Instance.new("BillboardGui")
     billboard.Size = UDim2.new(0, 200, 0, 50)
-    billboard.StudsOffset = Vector3New(0, 3, 0)
+    billboard.StudsOffset = Vector3New(0, 2.5, 0)
     billboard.AlwaysOnTop = true
     billboard.Enabled = false
-    billboard.Adornee = root
+    billboard.Adornee = adornee
     billboard.Parent = CoreGui
 
     local label = Instance.new("TextLabel")
@@ -74,8 +124,10 @@ local function CreateVisuals(part, color, name)
     label.TextColor3 = color
     label.Font = Settings.Font
     label.TextSize = Settings.TextSize
-    label.Text = name
-    label.TextStrokeTransparency = 0
+    label.Text = ""
+    label.TextTransparency = 1
+    label.TextStrokeTransparency = 1
+    label.TextStrokeColor3 = Color3New(0, 0, 0)
     label.Parent = billboard
 
     local tracer = nil
@@ -84,96 +136,87 @@ local function CreateVisuals(part, color, name)
         tracer.Visible = false
         tracer.Color = color
         tracer.Thickness = Settings.TracerThickness
-        tracer.Transparency = 1
+        tracer.Transparency = 0
     end
 
     return {
-        Root = root,
+        Object = obj,
         Highlight = highlight,
         Gui = billboard,
         Label = label,
         Tracer = tracer,
         Name = name,
-        Active = false
+        Active = false,
+        LastText = ""
     }
 end
 
-function Library:AddESP(part, name, color)
-    if not part or Cache[part] then return end
-    local data = CreateVisuals(part, color, name)
-    if data then Cache[part] = data end
+function Library:AddESP(obj, name, color)
+    if not obj or Cache[obj] then return end
+    local data = CreateVisuals(obj, color, name)
+    if data then 
+        Cache[obj] = data 
+        obj.AncestryChanged:Connect(function(_, parent)
+            if not parent then Library:RemoveESP(obj) end
+        end)
+        FadeEffect(data, true, false)
+    end
 end
 
-function Library:RemoveESP(part)
-    local data = Cache[part]
+function Library:RemoveESP(obj)
+    local data = Cache[obj]
     if data then
-        data.Highlight:Destroy()
-        data.Gui:Destroy()
-        if data.Tracer then data.Tracer:Remove() end
-        Cache[part] = nil
+        FadeEffect(data, false, false)
+        Cache[obj] = nil
+        task.delay(Settings.FadeTime, function()
+            if data.Highlight then data.Highlight:Destroy() end
+            data.Gui:Destroy()
+            if data.Tracer then data.Tracer:Remove() end
+        end)
     end
 end
 
 local function Update()
+    Camera = Workspace.CurrentCamera
     local CamCF = Camera.CFrame
     local CamPos = CamCF.Position
     local ViewportSize = Camera.ViewportSize
     local Center = Vector2New(ViewportSize.X / 2, ViewportSize.Y)
     
-    for part, data in pairs(Cache) do
-        local root = data.Root
-        if not root or not root.Parent then
-            if data.Active then
-                data.Active = false
-                data.Gui.Enabled = false
-                data.Highlight.Enabled = false
-                if data.Tracer then data.Tracer.Visible = false end
-            end
-            continue
-        end
+    for obj, data in pairs(Cache) do
+        local pos = GetPosition(obj)
+        if not pos then continue end
 
-        local pos = root.Position
         local dist = (CamPos - pos).Magnitude
-
-        if dist > Settings.MaxDistance then
-            if data.Active then
-                data.Active = false
-                data.Gui.Enabled = false
-                data.Highlight.Enabled = false
-                if data.Tracer then data.Tracer.Visible = false end
-            end
-            continue
-        end
-
         local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
 
-        if onScreen then
+        if onScreen and dist <= Settings.MaxDistance then
             if not data.Active then
                 data.Active = true
                 data.Gui.Enabled = true
-                data.Highlight.Enabled = true
+                if data.Highlight then data.Highlight.Enabled = true end
+                if data.Tracer then data.Tracer.Visible = true end
             end
 
-            if Settings.Distance then
-                data.Label.Text = data.Name .. "\n[" .. math.floor(dist) .. "]"
-            else
-                data.Label.Text = data.Name
+            local currentText = Settings.Distance and (data.Name .. " [" .. Floor(dist) .. "m]") or data.Name
+            if data.LastText ~= currentText then
+                data.Label.Text = currentText
+                data.LastText = currentText
             end
 
             if data.Tracer then
                 if Settings.Tracers then
-                    data.Tracer.Visible = true
                     data.Tracer.From = Center
                     data.Tracer.To = Vector2New(screenPos.X, screenPos.Y)
                 else
-                    data.Tracer.Visible = false
+                    data.Tracer.Transparency = 0
                 end
             end
         else
             if data.Active then
                 data.Active = false
                 data.Gui.Enabled = false
-                data.Highlight.Enabled = false
+                if data.Highlight then data.Highlight.Enabled = false end
                 if data.Tracer then data.Tracer.Visible = false end
             end
         end
@@ -184,7 +227,12 @@ Connection = RunService.RenderStepped:Connect(Update)
 
 function Library:Unload()
     if Connection then Connection:Disconnect() end
-    for part in pairs(Cache) do Library:RemoveESP(part) end
+    for obj, data in pairs(Cache) do 
+        if data.Highlight then data.Highlight:Destroy() end
+        data.Gui:Destroy()
+        if data.Tracer then data.Tracer:Remove() end
+    end
+    table.clear(Cache)
     getgenv().ESPLibrary = nil
 end
 
