@@ -30,10 +30,11 @@ local Settings = {
 }
 
 local function GetPosition(obj)
+    if not obj:IsDescendantOf(game) then return nil end
     if obj:IsA("BasePart") then
         return obj.Position
     elseif obj:IsA("Model") then
-        local rp = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+        local rp = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")
         return rp and rp.Position
     elseif obj:IsA("Attachment") then
         return obj.WorldPosition
@@ -43,7 +44,7 @@ end
 
 local function GetAdornee(obj)
     if obj:IsA("Model") then
-        return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+        return obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")
     end
     return obj
 end
@@ -70,8 +71,6 @@ local function FadeEffect(data, visible, instant)
             Transparency = visible and 1 or 0
         }):Play()
     end
-    
-    if instant then return end
 end
 
 function Library:SetFont(font)
@@ -111,8 +110,8 @@ local function CreateVisuals(obj, color, name)
     end
 
     local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 200, 0, 50)
-    billboard.StudsOffset = Vector3New(0, 2.5, 0)
+    billboard.Size = UDim2.new(0, 250, 0, 60)
+    billboard.StudsOffset = Vector3New(0, 2.8, 0)
     billboard.AlwaysOnTop = true
     billboard.Enabled = false
     billboard.Adornee = adornee
@@ -147,7 +146,8 @@ local function CreateVisuals(obj, color, name)
         Tracer = tracer,
         Name = name,
         Active = false,
-        LastText = ""
+        LastText = "",
+        Adornee = adornee
     }
 end
 
@@ -166,6 +166,7 @@ end
 function Library:RemoveESP(obj)
     local data = Cache[obj]
     if data then
+        data.Active = false
         FadeEffect(data, false, false)
         Cache[obj] = nil
         task.delay(Settings.FadeTime, function()
@@ -180,9 +181,12 @@ local function Update()
     Camera = Workspace.CurrentCamera
     local CamCF = Camera.CFrame
     local CamPos = CamCF.Position
+    local CamFOV = Camera.FieldOfView
     local ViewportSize = Camera.ViewportSize
     local Center = Vector2New(ViewportSize.X / 2, ViewportSize.Y)
     
+    local fovScale = CamFOV / 70
+
     for obj, data in pairs(Cache) do
         local pos = GetPosition(obj)
         if not pos then continue end
@@ -197,6 +201,8 @@ local function Update()
                 if data.Highlight then data.Highlight.Enabled = true end
                 if data.Tracer then data.Tracer.Visible = true end
             end
+
+            data.Label.TextSize = Settings.TextSize * fovScale
 
             local currentText = Settings.Distance and (data.Name .. " [" .. Floor(dist) .. "m]") or data.Name
             if data.LastText ~= currentText then
