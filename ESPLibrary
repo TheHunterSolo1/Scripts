@@ -20,13 +20,13 @@ local DrawingNew = Drawing and Drawing.new
 local Floor = math.floor
 
 local Settings = {
-    Tracers = false,
-    Distance = false,
+    Tracers = true,
+    Distance = true,
     MaxDistance = 5000,
     TextSize = 24,
     Font = Enum.Font.GothamBold,
     TracerThickness = 1.5,
-    FadeTime = 0.4
+    FadeTime = 0.5
 }
 
 local function GetAdornee(obj)
