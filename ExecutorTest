@@ -1,7 +1,5 @@
 local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local function run(f, ...)
@@ -31,7 +29,7 @@ local function checkProximity()
 		fireproximityprompt(prompt, 0)
 	end)
 	
-	task.wait(0.1)
+	task.wait(0.5)
 	
 	connection:Disconnect()
 	folder:Destroy()
@@ -45,25 +43,27 @@ local function checkTouch()
 	local lp = Players.LocalPlayer
 	local char = lp.Character or lp.CharacterAdded:Wait()
 	local root = char:WaitForChild("HumanoidRootPart", 5)
-	local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
 	
-	if not root or not torso then return false end
+	local testPart = Instance.new("Part", Workspace)
+	testPart.CanCollide = false
+	testPart.Transparency = 1
+	testPart.Position = root.Position + Vector3.new(0, 5, 0)
 	
-	local hit = false
-	local connection = root.Touched:Connect(function(obj)
-		if obj == torso then hit = true end
+	local hitDetected = false
+	local connection = testPart.Touched:Connect(function()
+		hitDetected = true
 	end)
 	
 	pcall(function()
-		firetouchinterest(root, torso, 0)
-		task.wait()
-		firetouchinterest(root, torso, 1)
+		firetouchinterest(root, testPart, 0)
 	end)
 	
-	task.wait(0.1)
-	connection:Disconnect()
+	task.wait(0.5)
 	
-	return hit
+	connection:Disconnect()
+	testPart:Destroy()
+	
+	return hitDetected
 end
 
 local function checkRequire()
@@ -81,23 +81,21 @@ end
 local function checkSignal()
 	if not replicatesignal then return false end
 	
-	local rem = Instance.new("RemoteEvent", ReplicatedStorage)
+	local part = Instance.new("Part", Workspace)
 	local received = false
 	
-	local connection = rem.OnClientEvent:Connect(function(arg)
-		if arg == "test_signal" then
-			received = true
-		end
+	local connection = part.Touched:Connect(function()
+		received = true
 	end)
 	
 	pcall(function()
-		replicatesignal(rem, "test_signal")
+		replicatesignal(part.Touched)
 	end)
 	
-	task.wait(0.1)
+	task.wait(0.5)
 	
 	connection:Disconnect()
-	rem:Destroy()
+	part:Destroy()
 	
 	return received
 end
