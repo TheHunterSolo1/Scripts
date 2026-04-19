@@ -79,27 +79,7 @@ local function checkRequire()
 end
 
 local function checkSignal()
-	if not replicatesignal then return false end
-	
-	local bindable = Instance.new("BindableEvent")
-	local received = false
-	
-	local connection = bindable.Event:Connect(function(arg)
-		if arg == "test" then
-			received = true
-		end
-	end)
-	
-	pcall(function()
-		replicatesignal(bindable.Event, "test")
-	end)
-	
-	task.wait(0.5)
-	
-	connection:Disconnect()
-	bindable:Destroy()
-	
-	return received
+	return type(replicatesignal) == "function"
 end
 
 local function checkHook()
