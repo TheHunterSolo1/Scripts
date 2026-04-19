@@ -2,10 +2,13 @@ local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
 local function safeCall(func, ...)
 	local success = pcall(func, ...)
 	return success
 end
+
 local function testFireProximityPrompt()
 	local folder = Instance.new("Folder")
 	folder.Name = "ExecutorSupportTest"
@@ -35,6 +38,7 @@ local function testFireProximityPrompt()
 	folder:Destroy()
 	return triggered
 end
+
 local function testFireTouchInterest()
 	local folder = Instance.new("Folder")
 	folder.Name = "ExecutorSupportTest"
@@ -49,14 +53,12 @@ local function testFireTouchInterest()
 	partB.Parent = folder
 	local transmitter = Instance.new("TouchTransmitter")
 	transmitter.Parent = partA
-	local receiver = Instance.new("TouchReceiver")
-	receiver.Parent = partB
 	local touched = false
-	local conn = receiver.Touched:Connect(function()
+	local conn = partB.Touched:Connect(function()
 		touched = true
 	end)
 	local success = pcall(function()
-		firetouchinterest(transmitter, receiver, 0)
+		firetouchinterest(Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart"), partB, 0)
 	end)
 	if success then
 		local start = os.clock()
@@ -68,16 +70,37 @@ local function testFireTouchInterest()
 	folder:Destroy()
 	return touched
 end
+
 local function testRequire()
-	local module = Instance.new("ModuleScript")
-	module.Source = "return true"
-	module.Parent = Workspace
+	local playerModule = Players.LocalPlayer:WaitForChild("PlayerScripts"):FindFirstChild("PlayerModule")
+	if playerModule then
+		local success, result = pcall(function()
+			return require(playerModule)
+		end)
+		if success and type(result) == "table" then
+			return true
+		end
+	end
+	for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+		if obj:IsA("ModuleScript") then
+			local success, result = pcall(function()
+				return require(obj)
+			end)
+			if success and type(result) ~= "nil" then
+				return true
+			end
+		end
+	end
+	local dummy = Instance.new("ModuleScript")
+	dummy.Source = "return {__test = true}"
+	dummy.Parent = Workspace
 	local success, result = pcall(function()
-		return require(module)
+		return require(dummy)
 	end)
-	module:Destroy()
-	return success and result == true
+	dummy:Destroy()
+	return success and type(result) == "table" and result.__test == true
 end
+
 local function testReplicateSignal()
 	local remote = Instance.new("RemoteEvent")
 	remote.Parent = ReplicatedStorage
@@ -87,9 +110,11 @@ local function testReplicateSignal()
 	remote:Destroy()
 	return success
 end
+
 Support.fireproximityprompt = safeCall(testFireProximityPrompt) and true or false
 Support.firetouchinterest = safeCall(testFireTouchInterest) and true or false
 Support.require = safeCall(testRequire) and true or false
 Support.replicatesignal = safeCall(testReplicateSignal) and true or false
+
 getgenv().ExecutorSupport = Support
 return Support
