@@ -45,29 +45,23 @@ local function checkTouch()
 	local lp = Players.LocalPlayer
 	local char = lp.Character or lp.CharacterAdded:Wait()
 	local root = char:WaitForChild("HumanoidRootPart", 5)
-	if not root then return false end
+	local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
 	
-	local folder = Instance.new("Folder", Workspace)
-	local tPart = Instance.new("Part", folder)
-	tPart.Anchored = true
-	tPart.CanCollide = false
-	tPart.Position = root.Position + Vector3.new(0, 20, 0)
+	if not root or not torso then return false end
 	
 	local hit = false
-	local connection = tPart.Touched:Connect(function(obj)
-		if obj == root then hit = true end
+	local connection = root.Touched:Connect(function(obj)
+		if obj == torso then hit = true end
 	end)
 	
 	pcall(function()
-		firetouchinterest(root, tPart, 0)
+		firetouchinterest(root, torso, 0)
 		task.wait()
-		firetouchinterest(root, tPart, 1)
+		firetouchinterest(root, torso, 1)
 	end)
 	
 	task.wait(0.1)
-	
 	connection:Disconnect()
-	folder:Destroy()
 	
 	return hit
 end
@@ -86,10 +80,26 @@ end
 
 local function checkSignal()
 	if not replicatesignal then return false end
+	
 	local rem = Instance.new("RemoteEvent", ReplicatedStorage)
-	local ok = pcall(replicatesignal, rem, "test")
+	local received = false
+	
+	local connection = rem.OnClientEvent:Connect(function(arg)
+		if arg == "test_signal" then
+			received = true
+		end
+	end)
+	
+	pcall(function()
+		replicatesignal(rem, "test_signal")
+	end)
+	
+	task.wait(0.1)
+	
+	connection:Disconnect()
 	rem:Destroy()
-	return ok
+	
+	return received
 end
 
 local function checkHook()
