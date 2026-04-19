@@ -4,179 +4,146 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
-local function safeCall(func, ...)
-	local success = pcall(func, ...)
-	return success
+local function run(f, ...)
+	local ok, res = pcall(f, ...)
+	return ok and res
 end
 
-local function green(text)
-	return "\27[32m" .. text .. "\27[0m"
-end
-
-local function red(text)
-	return "\27[31m" .. text .. "\27[0m"
-end
-
-local function testFireProximityPrompt()
-	local folder = Instance.new("Folder")
-	folder.Name = "ExecutorSupportTest"
-	folder.Parent = Workspace
-	local part = Instance.new("Part")
+local function checkProximity()
+	if not fireproximityprompt then return false end
+	
+	local folder = Instance.new("Folder", Workspace)
+	local part = Instance.new("Part", folder)
 	part.Anchored = true
-	part.Position = Vector3.new(0, 1e6, 0)
-	part.Parent = folder
-	local prompt = Instance.new("ProximityPrompt")
+	part.Position = Vector3.new(0, 5000, 0)
+	
+	local prompt = Instance.new("ProximityPrompt", part)
+	prompt.Enabled = true
 	prompt.MaxActivationDistance = 1000
 	prompt.RequiresLineOfSight = false
-	prompt.Parent = part
-	local triggered = false
-	local conn = prompt.Triggered:Connect(function()
-		triggered = true
+	
+	local done = false
+	local connection = prompt.Triggered:Connect(function()
+		done = true
 	end)
-	local success = pcall(function()
+	
+	pcall(function()
 		fireproximityprompt(prompt, 0)
 	end)
-	if success then
-		local start = os.clock()
-		repeat
-			RunService.Heartbeat:Wait()
-		until triggered or os.clock() - start > 0.5
-	end
-	conn:Disconnect()
+	
+	task.wait(0.1)
+	
+	connection:Disconnect()
 	folder:Destroy()
-	return triggered
+	
+	return done
 end
 
-local function testFireTouchInterest()
-	local folder = Instance.new("Folder")
-	folder.Name = "ExecutorSupportTest"
-	folder.Parent = Workspace
-	local partA = Instance.new("Part")
-	partA.Anchored = true
-	partA.Position = Vector3.new(0, 1e6, 0)
-	partA.Parent = folder
-	local partB = Instance.new("Part")
-	partB.Anchored = true
-	partB.Position = Vector3.new(0, 1e6, 0)
-	partB.Parent = folder
-	local transmitter = Instance.new("TouchTransmitter")
-	transmitter.Parent = partA
-	local touched = false
-	local conn = partB.Touched:Connect(function()
-		touched = true
+local function checkTouch()
+	if not firetouchinterest then return false end
+	
+	local lp = Players.LocalPlayer
+	local char = lp.Character or lp.CharacterAdded:Wait()
+	local root = char:WaitForChild("HumanoidRootPart", 5)
+	if not root then return false end
+	
+	local folder = Instance.new("Folder", Workspace)
+	local tPart = Instance.new("Part", folder)
+	tPart.Anchored = true
+	tPart.CanCollide = false
+	tPart.Position = root.Position + Vector3.new(0, 20, 0)
+	
+	local hit = false
+	local connection = tPart.Touched:Connect(function(obj)
+		if obj == root then hit = true end
 	end)
-	local character = Players.LocalPlayer.Character
-	if not character then
-		folder:Destroy()
-		return false
-	end
-	local hrp = character:WaitForChild("HumanoidRootPart", 2)
-	if not hrp then
-		folder:Destroy()
-		return false
-	end
-	local success = pcall(function()
-		firetouchinterest(hrp, partB, 0)
+	
+	pcall(function()
+		firetouchinterest(root, tPart, 0)
+		task.wait()
+		firetouchinterest(root, tPart, 1)
 	end)
-	if success then
-		local start = os.clock()
-		repeat
-			RunService.Heartbeat:Wait()
-		until touched or os.clock() - start > 0.5
-	end
-	conn:Disconnect()
+	
+	task.wait(0.1)
+	
+	connection:Disconnect()
 	folder:Destroy()
-	return touched
+	
+	return hit
 end
 
-local function testRequire()
-	local playerModule = Players.LocalPlayer:WaitForChild("PlayerScripts"):FindFirstChild("PlayerModule")
-	if playerModule then
-		local success, result = pcall(function()
-			return require(playerModule)
-		end)
-		if success and type(result) == "table" then
-			return true
+local function checkRequire()
+	local scripts = Players.LocalPlayer:FindFirstChild("PlayerScripts")
+	if scripts then
+		local mod = scripts:FindFirstChild("PlayerModule")
+		if mod then
+			local ok, res = pcall(require, mod)
+			return ok and type(res) == "table"
 		end
 	end
-	for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-		if obj:IsA("ModuleScript") then
-			local success, result = pcall(function()
-				return require(obj)
-			end)
-			if success and type(result) ~= "nil" then
+	return false
+end
+
+local function checkSignal()
+	if not replicatesignal then return false end
+	local rem = Instance.new("RemoteEvent", ReplicatedStorage)
+	local ok = pcall(replicatesignal, rem, "test")
+	rem:Destroy()
+	return ok
+end
+
+local function checkHook()
+	if not hookmetamethod then return false end
+	
+	local testObj = game
+	local called = false
+	local original
+	
+	local ok = pcall(function()
+		original = hookmetamethod(testObj, "__index", function(self, key)
+			if key == "DetectionTest" then
+				called = true
 				return true
 			end
-		end
-	end
-	local dummy = Instance.new("ModuleScript")
-	dummy.Source = "return {__test = true}"
-	dummy.Parent = Workspace
-	local success, result = pcall(function()
-		return require(dummy)
-	end)
-	dummy:Destroy()
-	return success and type(result) == "table" and result.__test == true
-end
-
-local function testReplicateSignal()
-	local remote = Instance.new("RemoteEvent")
-	remote.Parent = ReplicatedStorage
-	local success = pcall(function()
-		replicatesignal(remote, "test")
-	end)
-	remote:Destroy()
-	return success
-end
-
-local function testHookMetaMethod()
-	local obj = {}
-	local mt = {
-		__index = function(t, k)
-			return "original"
-		end
-	}
-	setmetatable(obj, mt)
-	local hooked = false
-	local success = pcall(function()
-		local old = hookmetamethod(obj, "__index", function(...)
-			hooked = true
-			return old(...)
+			return original(self, key)
 		end)
 	end)
-	if not success then return false end
-	local _ = obj.someKey
-	return hooked
+	
+	if ok then
+		local _ = testObj.DetectionTest
+		hookmetamethod(testObj, "__index", original)
+	end
+	
+	return called
 end
 
 local tests = {
-	{name = "fireproximityprompt", func = testFireProximityPrompt},
-	{name = "firetouchinterest", func = testFireTouchInterest},
-	{name = "require", func = testRequire},
-	{name = "replicatesignal", func = testReplicateSignal},
-	{name = "hookmetamethod", func = testHookMetaMethod}
+	{id = "fireproximityprompt", run = checkProximity},
+	{id = "firetouchinterest", run = checkTouch},
+	{id = "require", run = checkRequire},
+	{id = "replicatesignal", run = checkSignal},
+	{id = "hookmetamethod", run = checkHook}
 }
 
-local passed = 0
-local total = #tests
+local score = 0
+print("--- Starting compatibility check ---")
 
-print("Executor Support Test Results:")
-print("-----------------------------")
-
-for _, test in ipairs(tests) do
-	local success = safeCall(test.func)
-	Support[test.name] = success and true or false
-	if success then
-		passed = passed + 1
-		print(test.name .. ": " .. green("✓ Yes"))
-	else
-		print(test.name .. ": " .. red("✗ No"))
-	end
+for _, t in pairs(tests) do
+	local success = run(t.run)
+	Support[t.id] = success or false
+	
+	local icon = success and "🟢" or "🔴"
+	print(icon .. " " .. t.id)
+	
+	if success then score = score + 1 end
 end
 
-local percent = math.floor((passed / total) * 100)
-print("-----------------------------")
-print("Supported: " .. passed .. "/" .. total .. " (" .. percent .. "%)")
+local resultStr = string.format("Results: %d/%d (%d%%)", score, #tests, math.floor((score / #tests) * 100))
+print("-----------------------------------")
+print(resultStr)
 
-getgenv().ExecutorSupport = Support
+if getgenv then
+	getgenv().ExecutorSupport = Support
+end
+
 return Support
