@@ -9,6 +9,14 @@ local function safeCall(func, ...)
 	return success
 end
 
+local function green(text)
+	return "\27[32m" .. text .. "\27[0m"
+end
+
+local function red(text)
+	return "\27[31m" .. text .. "\27[0m"
+end
+
 local function testFireProximityPrompt()
 	local folder = Instance.new("Folder")
 	folder.Name = "ExecutorSupportTest"
@@ -57,8 +65,18 @@ local function testFireTouchInterest()
 	local conn = partB.Touched:Connect(function()
 		touched = true
 	end)
+	local character = Players.LocalPlayer.Character
+	if not character then
+		folder:Destroy()
+		return false
+	end
+	local hrp = character:WaitForChild("HumanoidRootPart", 2)
+	if not hrp then
+		folder:Destroy()
+		return false
+	end
 	local success = pcall(function()
-		firetouchinterest(Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart"), partB, 0)
+		firetouchinterest(hrp, partB, 0)
 	end)
 	if success then
 		local start = os.clock()
@@ -111,10 +129,54 @@ local function testReplicateSignal()
 	return success
 end
 
-Support.fireproximityprompt = safeCall(testFireProximityPrompt) and true or false
-Support.firetouchinterest = safeCall(testFireTouchInterest) and true or false
-Support.require = safeCall(testRequire) and true or false
-Support.replicatesignal = safeCall(testReplicateSignal) and true or false
+local function testHookMetaMethod()
+	local obj = {}
+	local mt = {
+		__index = function(t, k)
+			return "original"
+		end
+	}
+	setmetatable(obj, mt)
+	local hooked = false
+	local success = pcall(function()
+		local old = hookmetamethod(obj, "__index", function(...)
+			hooked = true
+			return old(...)
+		end)
+	end)
+	if not success then return false end
+	local _ = obj.someKey
+	return hooked
+end
+
+local tests = {
+	{name = "fireproximityprompt", func = testFireProximityPrompt},
+	{name = "firetouchinterest", func = testFireTouchInterest},
+	{name = "require", func = testRequire},
+	{name = "replicatesignal", func = testReplicateSignal},
+	{name = "hookmetamethod", func = testHookMetaMethod}
+}
+
+local passed = 0
+local total = #tests
+
+print("Executor Support Test Results:")
+print("-----------------------------")
+
+for _, test in ipairs(tests) do
+	local success = safeCall(test.func)
+	Support[test.name] = success and true or false
+	if success then
+		passed = passed + 1
+		print(test.name .. ": " .. green("✓ Yes"))
+	else
+		print(test.name .. ": " .. red("✗ No"))
+	end
+end
+
+local percent = math.floor((passed / total) * 100)
+print("-----------------------------")
+print("Supported: " .. passed .. "/" .. total .. " (" .. percent .. "%)")
 
 getgenv().ExecutorSupport = Support
 return Support
