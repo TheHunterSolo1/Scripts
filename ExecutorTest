@@ -1,0 +1,95 @@
+local Support = {}
+local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local function safeCall(func, ...)
+	local success = pcall(func, ...)
+	return success
+end
+local function testFireProximityPrompt()
+	local folder = Instance.new("Folder")
+	folder.Name = "ExecutorSupportTest"
+	folder.Parent = Workspace
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.Position = Vector3.new(0, 1e6, 0)
+	part.Parent = folder
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.MaxActivationDistance = 1000
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = part
+	local triggered = false
+	local conn = prompt.Triggered:Connect(function()
+		triggered = true
+	end)
+	local success = pcall(function()
+		fireproximityprompt(prompt, 0)
+	end)
+	if success then
+		local start = os.clock()
+		repeat
+			RunService.Heartbeat:Wait()
+		until triggered or os.clock() - start > 0.5
+	end
+	conn:Disconnect()
+	folder:Destroy()
+	return triggered
+end
+local function testFireTouchInterest()
+	local folder = Instance.new("Folder")
+	folder.Name = "ExecutorSupportTest"
+	folder.Parent = Workspace
+	local partA = Instance.new("Part")
+	partA.Anchored = true
+	partA.Position = Vector3.new(0, 1e6, 0)
+	partA.Parent = folder
+	local partB = Instance.new("Part")
+	partB.Anchored = true
+	partB.Position = Vector3.new(0, 1e6, 0)
+	partB.Parent = folder
+	local transmitter = Instance.new("TouchTransmitter")
+	transmitter.Parent = partA
+	local receiver = Instance.new("TouchReceiver")
+	receiver.Parent = partB
+	local touched = false
+	local conn = receiver.Touched:Connect(function()
+		touched = true
+	end)
+	local success = pcall(function()
+		firetouchinterest(transmitter, receiver, 0)
+	end)
+	if success then
+		local start = os.clock()
+		repeat
+			RunService.Heartbeat:Wait()
+		until touched or os.clock() - start > 0.5
+	end
+	conn:Disconnect()
+	folder:Destroy()
+	return touched
+end
+local function testRequire()
+	local module = Instance.new("ModuleScript")
+	module.Source = "return true"
+	module.Parent = Workspace
+	local success, result = pcall(function()
+		return require(module)
+	end)
+	module:Destroy()
+	return success and result == true
+end
+local function testReplicateSignal()
+	local remote = Instance.new("RemoteEvent")
+	remote.Parent = ReplicatedStorage
+	local success = pcall(function()
+		replicatesignal(remote, "test")
+	end)
+	remote:Destroy()
+	return success
+end
+Support.fireproximityprompt = safeCall(testFireProximityPrompt) and true or false
+Support.firetouchinterest = safeCall(testFireTouchInterest) and true or false
+Support.require = safeCall(testRequire) and true or false
+Support.replicatesignal = safeCall(testReplicateSignal) and true or false
+getgenv().ExecutorSupport = Support
+return Support
