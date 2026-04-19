@@ -81,21 +81,23 @@ end
 local function checkSignal()
 	if not replicatesignal then return false end
 	
-	local part = Instance.new("Part", Workspace)
+	local bindable = Instance.new("BindableEvent")
 	local received = false
 	
-	local connection = part.Touched:Connect(function()
-		received = true
+	local connection = bindable.Event:Connect(function(arg)
+		if arg == "test" then
+			received = true
+		end
 	end)
 	
 	pcall(function()
-		replicatesignal(part.Touched)
+		replicatesignal(bindable.Event, "test")
 	end)
 	
 	task.wait(0.5)
 	
 	connection:Disconnect()
-	part:Destroy()
+	bindable:Destroy()
 	
 	return received
 end
