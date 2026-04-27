@@ -124,13 +124,13 @@ function Library:Unload()
 end
 
 local tickCount = 0
-Library.Connection = RS.RenderStepped:Connect(function()
+Library.Connection = RS.Heartbeat:Connect(function()
     tickCount = (tickCount % 60) + 1
     local cam = workspace.CurrentCamera
     local camCF = cam.CFrame
     local viewportSize = cam.ViewportSize
     local screenCenter = viewportSize / 2
-    local fovScale = cam.FieldOfView / 70
+    local fovScale = (cam.FieldOfView * 1.5) / 70
     local rainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
 
     for obj, data in pairs(Library.Cache) do
