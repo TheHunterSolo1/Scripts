@@ -13,6 +13,10 @@ local Library = {
 local RS = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 
+local Screen = Instance.new("ScreenGui", CoreGui)
+Screen.Name = "OmniESP"
+Screen.IgnoreGuiInset = true
+
 local function GetRoot(obj)
     if not obj then return nil end
     if obj:IsA("BasePart") then return obj end
@@ -31,9 +35,7 @@ end
 
 function Library:SetFont(font)
     self.Settings.Font = font
-    for _, data in pairs(self.Cache) do
-        data.Text.Font = font
-    end
+    for _, data in pairs(self.Cache) do data.Text.Font = font end
 end
 
 function Library:SetTracers(bool)
@@ -49,7 +51,7 @@ function Library:SetRainbow(bool)
     if not bool then
         for _, data in pairs(self.Cache) do
             data.Text.TextColor3 = data.OriginalColor
-            data.Line.Color = data.OriginalColor
+            data.Line.BackgroundColor3 = data.OriginalColor
         end
     end
 end
@@ -74,15 +76,16 @@ function Library:AddESP(cfg)
     label.TextSize = self.Settings.TextSize
     label.TextStrokeTransparency = 0
 
-    local tracer = Drawing.new("Line")
-    tracer.Color = color
-    tracer.Thickness = 1
-    tracer.Visible = false
+    local line = Instance.new("Frame", Screen)
+    line.AnchorPoint = Vector2.new(0.5, 0.5)
+    line.BorderSizePixel = 0
+    line.BackgroundColor3 = color
+    line.Visible = false
 
     self.Cache[obj] = {
         Tag = billboard,
         Text = label,
-        Line = tracer,
+        Line = line,
         Name = name,
         OriginalColor = color
     }
@@ -92,24 +95,21 @@ function Library:RemoveESP(obj)
     local data = self.Cache[obj]
     if data then
         data.Tag:Destroy()
-        data.Line:Remove()
+        data.Line:Destroy()
         self.Cache[obj] = nil
     end
 end
 
 function Library:Unload()
-    if self.Connection then
-        self.Connection:Disconnect()
-        self.Connection = nil
-    end
-    for obj, _ in pairs(self.Cache) do
-        self:RemoveESP(obj)
-    end
+    if self.Connection then self.Connection:Disconnect() end
+    for obj, _ in pairs(self.Cache) do self:RemoveESP(obj) end
+    Screen:Destroy()
 end
 
 Library.Connection = RS.RenderStepped:Connect(function()
     local cam = workspace.CurrentCamera
-    local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
+    local viewportSize = cam.ViewportSize
+    local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y)
     local fovScale = cam.FieldOfView / 70
     local hue = tick() % 10 / 10
 
@@ -121,26 +121,29 @@ Library.Connection = RS.RenderStepped:Connect(function()
         end
 
         local pos = root.Position
-        local screenPos = cam:WorldToViewportPoint(pos)
+        local screenPos, onScreen = cam:WorldToViewportPoint(pos)
         local dist = (cam.CFrame.Position - pos).Magnitude
 
         data.Tag.Adornee = root
         data.Text.TextSize = Library.Settings.TextSize * fovScale
         
         if Library.Settings.Rainbow then
-            local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
-            data.Text.TextColor3 = rainbowColor
-            data.Line.Color = rainbowColor
+            local rc = Color3.fromHSV(hue, 0.8, 1)
+            data.Text.TextColor3 = rc
+            data.Line.BackgroundColor3 = rc
         end
 
-        data.Text.Text = string.format("%s%s", 
-            data.Name, 
+        data.Text.Text = string.format("%s%s", data.Name, 
             Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
         
-        if Library.Settings.Tracers then
+        if Library.Settings.Tracers and onScreen then
+            local targetPos = Vector2.new(screenPos.X, screenPos.Y)
+            local diff = targetPos - screenCenter
+            
             data.Line.Visible = true
-            data.Line.From = screenCenter
-            data.Line.To = Vector2.new(screenPos.X, screenPos.Y)
+            data.Line.Size = UDim2.new(0, diff.Magnitude, 0, 1)
+            data.Line.Position = UDim2.new(0, screenCenter.X + diff.X / 2, 0, screenCenter.Y + diff.Y / 2)
+            data.Line.Rotation = math.deg(math.atan2(diff.Y, diff.X))
         else
             data.Line.Visible = false
         end
