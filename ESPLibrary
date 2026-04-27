@@ -3,8 +3,9 @@ local Library = {
         Tracers = true,
         Distance = true,
         Arrows = true,
+        Rainbow = false,
         MaxDistance = 999999,
-        TextSize = 23,
+        TextSize = 25,
         Font = Enum.Font.RobotoMono
     },
     Cache = {}
@@ -12,6 +13,7 @@ local Library = {
 
 local RS = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local LP = game:GetService("Players").LocalPlayer
 
 local Screen = Instance.new("ScreenGui", CoreGui)
 Screen.Name = "OmniMax"
@@ -19,8 +21,7 @@ Screen.IgnoreGuiInset = true
 
 local function GetRoot(obj)
     if not obj then return nil end
-    local root = obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")) or (obj:IsA("BasePart") and obj)
-    return root
+    return obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")) or (obj:IsA("BasePart") and obj) or nil
 end
 
 function GenerateRandomString(length)
@@ -33,6 +34,15 @@ function GenerateRandomString(length)
     return res
 end
 
+function Library:SetFont(font)
+    self.Settings.Font = font
+    for _, data in pairs(self.Cache) do data.Text.Font = font end
+end
+
+function Library:SetRainbow(bool)
+    self.Settings.Rainbow = bool
+end
+
 function Library:SetArrows(bool) self.Settings.Arrows = bool end
 function Library:SetTracers(bool) self.Settings.Tracers = bool end
 function Library:SetShowDistance(bool) self.Settings.Distance = bool end
@@ -40,57 +50,60 @@ function Library:SetShowDistance(bool) self.Settings.Distance = bool end
 function Library:AddESP(cfg)
     local obj = cfg.Object
     if not obj or self.Cache[obj] then return end
-    
-    local root = GetRoot(obj)
-    if not root then 
-        task.delay(1, function() if obj.Parent then self:AddESP(cfg) end end)
-        return 
-    end
 
-    local billboard = Instance.new("BillboardGui", CoreGui)
-    billboard.Name = GenerateRandomString(12)
-    billboard.Size = UDim2.new(0, 250, 0, 60)
-    billboard.AlwaysOnTop = true
-    billboard.Adornee = root
-    
-    local label = Instance.new("TextLabel", billboard)
-    label.BackgroundTransparency = 1
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.TextColor3 = cfg.Color
-    label.Font = self.Settings.Font
-    label.TextSize = self.Settings.TextSize
-    label.TextStrokeTransparency = 0
+    task.spawn(function()
+        local root = GetRoot(obj)
+        while not root and obj.Parent do
+            task.wait(0.5)
+            root = GetRoot(obj)
+        end
+        if not obj.Parent then return end
 
-    local highlight = Instance.new("Highlight", CoreGui)
-    highlight.Adornee = obj
-    highlight.FillColor = cfg.Color
-    highlight.FillTransparency = 0.6
-    highlight.OutlineTransparency = 1
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        local billboard = Instance.new("BillboardGui", CoreGui)
+        billboard.Name = GenerateRandomString(12)
+        billboard.Size = UDim2.new(0, 250, 0, 60)
+        billboard.AlwaysOnTop = true
+        billboard.Adornee = root
+        
+        local label = Instance.new("TextLabel", billboard)
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.TextColor3 = cfg.Color
+        label.Font = self.Settings.Font
+        label.TextSize = self.Settings.TextSize
+        label.TextStrokeTransparency = 0
 
-    local line = Instance.new("Frame", Screen)
-    line.AnchorPoint = Vector2.new(0.5, 0.5)
-    line.BorderSizePixel = 0
-    line.BackgroundColor3 = cfg.Color
-    line.Visible = false
+        local highlight = Instance.new("Highlight", CoreGui)
+        highlight.Adornee = obj
+        highlight.FillColor = cfg.Color
+        highlight.FillTransparency = 0.6
+        highlight.OutlineTransparency = 1
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 
-    local arrow = Instance.new("ImageLabel", Screen)
-    arrow.BackgroundTransparency = 1
-    arrow.AnchorPoint = Vector2.new(0.5, 0.5)
-    arrow.Size = UDim2.new(0, 32, 0, 32)
-    arrow.Image = "rbxassetid://6034474556"
-    arrow.ImageColor3 = cfg.Color
-    arrow.Visible = false
+        local line = Instance.new("Frame", Screen)
+        line.AnchorPoint = Vector2.new(0.5, 0.5)
+        line.BorderSizePixel = 0
+        line.BackgroundColor3 = cfg.Color
+        line.Visible = false
 
-    self.Cache[obj] = {
-        Tag = billboard,
-        Text = label,
-        Line = line,
-        Box = highlight,
-        Arrow = arrow,
-        Name = cfg.Text,
-        Color = cfg.Color
-    }
+        local arrow = Instance.new("ImageLabel", Screen)
+        arrow.BackgroundTransparency = 1
+        arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+        arrow.Size = UDim2.new(0, 32, 0, 32)
+        arrow.Image = "rbxassetid://6034474556"
+        arrow.ImageColor3 = cfg.Color
+        arrow.Visible = false
+
+        self.Cache[obj] = {
+            Tag = billboard,
+            Text = label,
+            Line = line,
+            Box = highlight,
+            Arrow = arrow,
+            Name = cfg.Text,
+            Color = cfg.Color
+        }
+    end)
 end
 
 function Library:RemoveESP(obj)
@@ -118,6 +131,7 @@ Library.Connection = RS.RenderStepped:Connect(function()
     local viewportSize = cam.ViewportSize
     local screenCenter = viewportSize / 2
     local fovScale = cam.FieldOfView / 70
+    local rainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
 
     for obj, data in pairs(Library.Cache) do
         if not obj or not obj.Parent then
@@ -132,18 +146,20 @@ Library.Connection = RS.RenderStepped:Connect(function()
         local dist = (camCF.Position - rootPos).Magnitude
         if dist > 500 and (tickCount % 3 ~= 0) then continue end
         
-        local _, onScreen = cam:WorldToViewportPoint(rootPos)
-        
+        local screenPos, onScreen = cam:WorldToViewportPoint(rootPos)
+        local displayColor = Library.Settings.Rainbow and rainbowColor or data.Color
+
         data.Tag.Enabled = onScreen
         if onScreen then
+            data.Text.TextColor3 = displayColor
             data.Text.TextSize = Library.Settings.TextSize * fovScale
             data.Text.Text = string.format("%s%s", data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
+            data.Box.FillColor = displayColor
             
             if Library.Settings.Tracers and dist < 1500 then
-                local screenPos = cam:WorldToViewportPoint(rootPos)
-                local target2D = Vector2.new(screenPos.X, screenPos.Y)
-                local diff = target2D - Vector2.new(screenCenter.X, viewportSize.Y)
+                local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
                 data.Line.Visible = true
+                data.Line.BackgroundColor3 = displayColor
                 data.Line.Size = UDim2.new(0, diff.Magnitude, 0, 1)
                 data.Line.Position = UDim2.new(0, screenCenter.X + diff.X / 2, 0, viewportSize.Y + diff.Y / 2)
                 data.Line.Rotation = math.deg(math.atan2(diff.Y, diff.X))
@@ -154,17 +170,13 @@ Library.Connection = RS.RenderStepped:Connect(function()
         else
             data.Line.Visible = false
             if Library.Settings.Arrows then
-                local proj = (rootPos - camCF.Position).Unit
-                local dotLook = proj:Dot(camCF.LookVector)
-                local dotRight = proj:Dot(camCF.RightVector)
-                local angle = math.atan2(dotRight, dotLook)
-                
-                local cos = math.cos(angle)
-                local sin = math.sin(angle)
-                local radius = viewportSize.Y * 0.35
+                local relative = camCF:PointToObjectSpace(rootPos)
+                local angle = math.atan2(-relative.X, -relative.Z)
+                local radius = viewportSize.Y * 0.4
                 
                 data.Arrow.Visible = true
-                data.Arrow.Position = UDim2.new(0, screenCenter.X + (sin * radius), 0, screenCenter.Y - (cos * radius))
+                data.Arrow.ImageColor3 = displayColor
+                data.Arrow.Position = UDim2.new(0, screenCenter.X + math.sin(angle) * radius, 0, screenCenter.Y + math.cos(angle) * radius)
                 data.Arrow.Rotation = math.deg(angle)
             else
                 data.Arrow.Visible = false
