@@ -4,7 +4,8 @@ local Library = {
         Distance = true,
         MaxDistance = 5000,
         TextSize = 18,
-        Font = Enum.Font.RobotoMono
+        Font = Enum.Font.RobotoMono,
+        Rainbow = false
     },
     Cache = {}
 }
@@ -43,6 +44,16 @@ function Library:SetShowDistance(bool)
     self.Settings.Distance = bool
 end
 
+function Library:SetRainbow(bool)
+    self.Settings.Rainbow = bool
+    if not bool then
+        for _, data in pairs(self.Cache) do
+            data.Text.TextColor3 = data.OriginalColor
+            data.Line.Color = data.OriginalColor
+        end
+    end
+end
+
 function Library:AddESP(cfg)
     local obj = cfg.Object
     local name = cfg.Text
@@ -72,7 +83,8 @@ function Library:AddESP(cfg)
         Tag = billboard,
         Text = label,
         Line = tracer,
-        Name = name
+        Name = name,
+        OriginalColor = color
     }
 end
 
@@ -99,6 +111,7 @@ Library.Connection = RS.RenderStepped:Connect(function()
     local cam = workspace.CurrentCamera
     local screenCenter = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
     local fovScale = cam.FieldOfView / 70
+    local hue = tick() % 10 / 10
 
     for obj, data in pairs(Library.Cache) do
         local root = GetRoot(obj)
@@ -114,6 +127,12 @@ Library.Connection = RS.RenderStepped:Connect(function()
         data.Tag.Adornee = root
         data.Text.TextSize = Library.Settings.TextSize * fovScale
         
+        if Library.Settings.Rainbow then
+            local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+            data.Text.TextColor3 = rainbowColor
+            data.Line.Color = rainbowColor
+        end
+
         data.Text.Text = string.format("%s%s", 
             data.Name, 
             Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
