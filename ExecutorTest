@@ -1,7 +1,14 @@
 local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
 local Players = game:GetService("Players")
-local ExecutorName = identifyexecutor() or "Unknown"
+local ExecutorName = identifyexecutor() or getexecutorname() or "Unknown"
+local LocalPlayer = Players.LocalPlayer
+
+if not LocalPlayer.Character then
+print("Waiting for character to load")
+repeat task.wait() until LocalPlayer.Character
+end
+
 local function run(f, ...)
 	local ok, res = pcall(f, ...)
 	return ok and res
@@ -111,6 +118,22 @@ local function checkHook()
 	
 	return called
 end
+local function checkisnetworkowner()
+if isnetworkowner then
+local Part = Instance.new("Part", workspace)
+if isnetworkowner(Part) then
+return true
+else
+return false
+end
+
+end
+if not isnetworkowner then
+return false
+end
+Part:Destroy()
+end
+
 
 local tests = {
 	{id = "fireproximityprompt", run = checkProximity},
@@ -118,6 +141,7 @@ local tests = {
 	{id = "require", run = checkRequire},
 	{id = "replicatesignal", run = checkSignal},
 	{id = "hookmetamethod", run = checkHook}
+  {id = "isnetworkowner", run = checkisnetworkowner},
 }
 
 local score = 0
