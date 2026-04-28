@@ -105,8 +105,7 @@ function Library:AddESP(cfg)
         arrow.Visible = false
 if self.Settings.FadeTime > 0 then
 
-local Tweeninfo = TweenInfo.new(
-self.Settings.FadeTime,
+local TI = TweenInfo.new(self.Settings.FadeTime,
 Enum.EasingStyle.Linear,
 Enum.EasingDirection.Out, 
 -1,
@@ -115,9 +114,11 @@ false,
 )
 
 
- TweenService:Create(label, Tweeninfo, {TextTransparency = 0})):Play()
-TweenService:Create(highlight, Tweeninfo, {FillTransparency = 0.6})):Play()
-TweenService:Create(line, Tweeninfo,  {BackgroundTransparency = 0})):Play()
+
+
+ TweenService:Create(label, TI, {TextTransparency = 0})):Play()
+TweenService:Create(highlight, TI, {FillTransparency = 0.6})):Play()
+TweenService:Create(line, TI,  {BackgroundTransparency = 0})):Play()
 
 
 end
