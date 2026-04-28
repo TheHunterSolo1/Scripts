@@ -1,155 +1,255 @@
-local Support = {}
-local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
-local Players = game:GetService("Players")
-local ExecutorName = identifyexecutor() or getexecutorname() or "Unknown"
-local LocalPlayer = Players.LocalPlayer
-
-if not LocalPlayer.Character then
-print("Waiting for character to load")
-repeat task.wait() until LocalPlayer.Character
-end
-
-local function run(f, ...)
-	local ok, res = pcall(f, ...)
-	return ok and res
-end
-
-local function checkProximity()
-	if not fireproximityprompt then return false end
-	
-	local folder = Instance.new("Folder", Workspace)
-	local part = Instance.new("Part", folder)
-	part.Anchored = true
-	part.Position = Vector3.new(0, 5000, 0)
-	
-	local prompt = Instance.new("ProximityPrompt", part)
-	prompt.Enabled = true
-	prompt.MaxActivationDistance = 1000
-	prompt.RequiresLineOfSight = false
-	
-	local done = false
-	local connection = prompt.Triggered:Connect(function()
-		done = true
-	end)
-	
-	pcall(function()
-		fireproximityprompt(prompt, 0)
-	end)
-	
-	task.wait(0.5)
-	
-	connection:Disconnect()
-	folder:Destroy()
-	
-	return done
-end
-
-local function checkTouch()
-	if not firetouchinterest then return false end
-local Touched = false
-local Part = Instance.new("Part",workspace)
- Part.Touched:Once(function(v)
-Touched = true
-Part:Destroy()
-
-end)
-firetouchinterest(LocalPlayer.Character.HumanoidRootPart, Part, 0)
-task.wait(1.2)
-Part:Destroy()
-return Touched
-end
-
-local function checkRequire()
-if ExecutorName == "Xeno" then 
-return false
-end
-if ExecutorName ~= "Xeno" then
-	local scripts = Players.LocalPlayer:FindFirstChild("PlayerScripts")
-	if scripts then
-		local mod = scripts:FindFirstChild("PlayerModule")
-		if mod then
-			local ok, res = pcall(require, mod)
-			return ok and type(res) == "table"
-		end
-	end
-end
-	return false
-end
-
-local function checkSignal()
-	return type(replicatesignal) == "function"
-end
-
-local function checkHook()
-	if not hookmetamethod then return false end
-	
-	local testObj = game
-	local called = false
-	local original
-	
-	local ok = pcall(function()
-		original = hookmetamethod(testObj, "__index", function(self, key)
-			if key == "DetectionTest" then
-				called = true
-				return true
-			end
-			return original(self, key)
-		end)
-	end)
-	
-	if ok then
-		local _ = testObj.DetectionTest
-		hookmetamethod(testObj, "__index", original)
-	end
-	
-	return called
-end
-local function checkisnetworkowner()
-if isnetworkowner then
-local Part = Instance.new("Part", workspace)
-if isnetworkowner(Part) then
-return true
-else
-return false
-end
-Part:Destroy()
-
-end
-if not isnetworkowner then
-return false
-end
-
-end
-
-
-local tests = {
-	{id = "fireproximityprompt", run = checkProximity},
-	{id = "firetouchinterest", run = checkTouch},
-	{id = "require", run = checkRequire},
-	{id = "replicatesignal", run = checkSignal},
-	{id = "hookmetamethod", run = checkHook},
-    {id = "isnetworkowner", run = checkisnetworkowner},
+local Library = {
+    Settings = {
+        Tracers = true,
+        Distance = true,
+        Arrows = true,
+        Rainbow = false,
+        MaxDistance = 999999,
+        TextSize = 25,
+        Font = Enum.Font.RobotoMono,
+        FadeTime = 0.5
+    },
+    Cache = {}
 }
 
-local score = 0
-print("--- Starting compatibility check ---")
+local RS = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local LP = game:GetService("Players").LocalPlayer
+local TweenService = game:GetService("TweenService")
 
-for _, t in pairs(tests) do
-	local success = run(t.run)
-	Support[t.id] = success or false
-	
-	local icon = success and "🟢" or "🔴"
-	print(icon .. " " .. t.id)
-	
-	if success then score = score + 1 end
+local Screen = Instance.new("ScreenGui", CoreGui)
+Screen.Name = "OmniMax"
+Screen.IgnoreGuiInset = true
+
+local function GetRoot(obj)
+    if not obj then return nil end
+    return obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")) or (obj:IsA("BasePart") and obj) or nil
 end
 
-local resultStr = string.format("Results: %d/%d (%d%%)", score, #tests, math.floor((score / #tests) * 100))
-print("-----------------------------------")
-print(resultStr)
-
-if getgenv then
-	getgenv().ExecutorSupport = Support
+function GenerateRandomString(length)
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local res = ""
+    for i = 1, length do
+        local rand = math.random(1, #chars)
+        res = res .. string.sub(chars, rand, rand)
+    end
+    return res
 end
 
-return Support
+function Library:SetFont(font)
+    self.Settings.Font = font
+    for _, data in pairs(self.Cache) do data.Text.Font = font end
+end
+
+function Library:SetRainbow(bool)
+    self.Settings.Rainbow = bool
+end
+
+function Library:SetFadeTime(Value)
+   self.Settings.FadeTime = Value
+
+end
+
+function Library:SetArrows(bool) self.Settings.Arrows = bool end
+function Library:SetTracers(bool) self.Settings.Tracers = bool end
+function Library:SetShowDistance(bool) self.Settings.Distance = bool end
+
+function Library:AddESP(cfg)
+    local obj = cfg.Object
+    if not obj or self.Cache[obj] then return end
+
+    task.spawn(function()
+        local root = GetRoot(obj)
+        while not root and obj.Parent do
+            task.wait(0.5)
+            root = GetRoot(obj)
+        end
+        if not obj.Parent then return end
+
+        local billboard = Instance.new("BillboardGui", CoreGui)
+        billboard.Name = GenerateRandomString(12)
+        billboard.Size = UDim2.new(0, 250, 0, 60)
+        billboard.AlwaysOnTop = true
+        billboard.Adornee = root
+        
+        local label = Instance.new("TextLabel", billboard)
+        label.BackgroundTransparency = 1
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.TextColor3 = cfg.Color
+        label.Font = self.Settings.Font
+        label.TextSize = self.Settings.TextSize
+        label.TextStrokeTransparency = 0
+        label.TextTransparency = 1
+
+        local highlight = Instance.new("Highlight", CoreGui)
+        highlight.Adornee = obj
+        highlight.FillColor = cfg.Color
+        highlight.FillTransparency = 1
+        highlight.OutlineTransparency = 1
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+ 
+        local line = Instance.new("Frame", Screen)
+        line.AnchorPoint = Vector2.new(0.5, 0.5)
+        line.BorderSizePixel = 0
+        line.BackgroundColor3 = cfg.Color
+        line.Visible = false
+        line.BackgroundTransparency = 1
+
+        local arrow = Instance.new("ImageLabel", Screen)
+        arrow.BackgroundTransparency = 1
+        arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+        arrow.Size = UDim2.new(0, 32, 0, 32)
+        arrow.Image = "rbxassetid://2297685725"
+        arrow.ImageColor3 = cfg.Color
+        arrow.Visible = false
+if self.Settings.FadeTime > 0 then
+
+local TI = TweenInfo.new(self.Settings.FadeTime,
+Enum.EasingStyle.Linear,
+Enum.EasingDirection.Out, 
+0,
+false,
+0
+)
+
+
+
+
+ TweenService:Create(label, TI, {TextTransparency = 0}):Play()
+TweenService:Create(highlight, TI, {FillTransparency = 0.6}):Play()
+TweenService:Create(line, TI,  {BackgroundTransparency = 0}):Play()
+
+
+end
+
+        self.Cache[obj] = {
+            Tag = billboard,
+            Text = label,
+            Line = line,
+            Box = highlight,
+            Arrow = arrow,
+            Name = cfg.Text,
+            Color = cfg.Color
+        }
+    end)
+end
+
+function Library:RemoveESP(obj)
+    local data = self.Cache[obj]
+    if data then
+if self.Settings.FadeTime > 0 then
+
+local TI = TweenInfo.new(self.Settings.FadeTime,
+Enum.EasingStyle.Linear,
+Enum.EasingDirection.Out, 
+0,
+false,
+0
+)
+
+
+
+
+ TweenService:Create(data.Text, TI, {TextTransparency = 1}):Play()
+TweenService:Create(data.Box, TI, {FillTransparency = 1}):Play()
+TweenService:Create(data.Line, TI,  {BackgroundTransparency = 1}):Play()
+
+
+end
+repeat task.wait() until data.Text.TextTransparency == 1
+        data.Tag:Destroy()
+        data.Line:Destroy()
+        data.Box:Destroy()
+        data.Arrow:Destroy()
+        self.Cache[obj] = nil
+    end
+end
+
+function Library:Unload()
+    if self.Connection then self.Connection:Disconnect() end
+    for obj, _ in pairs(self.Cache) do 
+if self.Settings.FadeTime > 0 then
+
+local TI = TweenInfo.new(self.Settings.FadeTime,
+Enum.EasingStyle.Linear,
+Enum.EasingDirection.Out, 
+0,
+false,
+0
+)
+
+
+
+
+ TweenService:Create(obj.Text, TI, {TextTransparency = 1}):Play()
+TweenService:Create(obj.Box, TI, {FillTransparency = 1}):Play()
+TweenService:Create(obj.Line, TI,  {BackgroundTransparency = 1}):Play()
+end
+repeat task.wait() until obj.Text.TextTransparency == 1
+self:RemoveESP(obj) end
+    Screen:Destroy()
+end
+
+local tickCount = 0
+Library.Connection = RS.Heartbeat:Connect(function()
+    tickCount = (tickCount % 60) + 1
+    local cam = workspace.CurrentCamera
+    local camCF = cam.CFrame
+    local viewportSize = cam.ViewportSize
+    local screenCenter = viewportSize / 2
+    local fovScale = (cam.FieldOfView * 1.5) / 70
+    local rainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+
+    for obj, data in pairs(Library.Cache) do
+        if not obj or not obj.Parent then
+            Library:RemoveESP(obj)
+            continue
+        end
+
+        local root = GetRoot(obj)
+        if not root then continue end
+
+        local rootPos = root.Position
+        local dist = (camCF.Position - rootPos).Magnitude
+        if dist > 500 and (tickCount % 3 ~= 0) then continue end
+        
+        local screenPos, onScreen = cam:WorldToViewportPoint(rootPos)
+        local displayColor = Library.Settings.Rainbow and rainbowColor or data.Color
+
+        data.Tag.Enabled = onScreen
+        if onScreen then
+            data.Text.TextColor3 = displayColor
+            data.Text.TextSize = Library.Settings.TextSize * fovScale
+            data.Text.Text = string.format("%s%s", data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
+            data.Box.FillColor = displayColor
+            
+            if Library.Settings.Tracers and dist < 1500 then
+                local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
+                data.Line.Visible = true
+                data.Line.BackgroundColor3 = displayColor
+                data.Line.Size = UDim2.new(0, diff.Magnitude, 0, 1)
+                data.Line.Position = UDim2.new(0, screenCenter.X + diff.X / 2, 0, viewportSize.Y + diff.Y / 2)
+                data.Line.Rotation = math.deg(math.atan2(diff.Y, diff.X))
+            else
+                data.Line.Visible = false
+            end
+            data.Arrow.Visible = false
+        else
+            data.Line.Visible = false
+            if Library.Settings.Arrows then
+                local relative = camCF:PointToObjectSpace(rootPos)
+                local angle = math.atan2(-relative.X, -relative.Z)
+                local radius = viewportSize.Y * 0.4
+                
+                data.Arrow.Visible = true
+                data.Arrow.ImageColor3 = displayColor
+                data.Arrow.Position = UDim2.new(0, screenCenter.X + math.sin(angle) * radius, 0, screenCenter.Y + math.cos(angle) * radius)
+                data.Arrow.Rotation = math.deg(angle)
+            else
+                data.Arrow.Visible = false
+            end
+        end
+    end
+end)
+
+return Library
