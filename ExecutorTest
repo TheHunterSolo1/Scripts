@@ -1,7 +1,7 @@
 local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
 local Players = game:GetService("Players")
-
+local ExecutorName = identifyexecutor() or "Unknown"
 local function run(f, ...)
 	local ok, res = pcall(f, ...)
 	return ok and res
@@ -67,6 +67,10 @@ local function checkTouch()
 end
 
 local function checkRequire()
+if ExecutorName == "Xeno" then 
+return false
+end
+if ExecutorName ~= "Xeno" then
 	local scripts = Players.LocalPlayer:FindFirstChild("PlayerScripts")
 	if scripts then
 		local mod = scripts:FindFirstChild("PlayerModule")
@@ -75,6 +79,7 @@ local function checkRequire()
 			return ok and type(res) == "table"
 		end
 	end
+end
 	return false
 end
 
