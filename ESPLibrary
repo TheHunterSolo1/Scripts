@@ -108,7 +108,7 @@ if self.Settings.FadeTime > 0 then
 local TI = TweenInfo.new(self.Settings.FadeTime,
 Enum.EasingStyle.Linear,
 Enum.EasingDirection.Out, 
--1,
+0,
 false,
 0
 )
