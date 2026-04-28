@@ -90,7 +90,7 @@ function Library:AddESP(cfg)
         arrow.BackgroundTransparency = 1
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
         arrow.Size = UDim2.new(0, 32, 0, 32)
-        arrow.Image = "rbxassetid://85319685286094" 
+        arrow.Image = "rbxassetid://2297685725"
         arrow.ImageColor3 = cfg.Color
         arrow.Visible = false
 
