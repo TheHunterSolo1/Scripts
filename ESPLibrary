@@ -58,19 +58,16 @@ function Library:AddESP(cfg)
     local obj = cfg.Object
     if not obj or self.Cache[obj] then return end
 
-    task.spawn(function()
-        local root = GetRoot(obj)
-        while not root and obj.Parent do
-            task.wait(0.5)
-            root = GetRoot(obj)
-        end
+    
+        --local root = GetRoot(obj)
+
         if not obj.Parent then return end
 
         local billboard = Instance.new("BillboardGui", CoreGui)
         billboard.Name = GenerateRandomString(12)
         billboard.Size = UDim2.new(0, 250, 0, 60)
         billboard.AlwaysOnTop = true
-        billboard.Adornee = root
+        billboard.Adornee = obj
         
         local label = Instance.new("TextLabel", billboard)
         label.BackgroundTransparency = 1
@@ -131,65 +128,26 @@ end
             Name = cfg.Text,
             Color = cfg.Color
         }
-    end)
+    
 end
 
 function Library:RemoveESP(obj)
     local data = self.Cache[obj]
     if data then
-if self.Settings.FadeTime > 0 then
 
-local TI = TweenInfo.new(self.Settings.FadeTime,
-Enum.EasingStyle.Linear,
-Enum.EasingDirection.Out, 
-0,
-false,
-0
-)
-
-
-
-
- TweenService:Create(data.Text, TI, {TextTransparency = 1}):Play()
-TweenService:Create(data.Box, TI, {FillTransparency = 1}):Play()
-TweenService:Create(data.Line, TI,  {BackgroundTransparency = 1}):Play()
-
-
-end
-task.spawn(function()
-repeat task.wait() until data.Text.TextTransparency == 1
         data.Tag:Destroy()
         data.Line:Destroy()
         data.Box:Destroy()
         data.Arrow:Destroy()
         self.Cache[obj] = nil
-end)
     end
 end
 
 function Library:Unload()
     if self.Connection then self.Connection:Disconnect() end
     for obj, _ in pairs(self.Cache) do 
-if self.Settings.FadeTime > 0 then
 
-local TI = TweenInfo.new(self.Settings.FadeTime,
-Enum.EasingStyle.Linear,
-Enum.EasingDirection.Out, 
-0,
-false,
-0
-)
-
-
-
-
- TweenService:Create(obj.Text, TI, {TextTransparency = 1}):Play()
-TweenService:Create(obj.Box, TI, {FillTransparency = 1}):Play()
-TweenService:Create(obj.Line, TI,  {BackgroundTransparency = 1}):Play()
-end
-task.spawn(function()
-repeat task.wait() until obj.Text.TextTransparency == 1
-self:RemoveESP(obj) end)
+self:RemoveESP(obj) 
 end
     Screen:Destroy()
 end
