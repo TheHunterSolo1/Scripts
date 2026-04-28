@@ -49,14 +49,12 @@ local function checkTouch()
 local Touched = false
 local Part = Instance.new("Part",workspace)
  Part.Touched:Once(function(v)
-if v.Name == "HumanoidRootPart" then
 Touched = true
 Part:Destroy()
-end
 
 end)
 firetouchinterest(LocalPlayer.Character.HumanoidRootPart, Part, 0)
-task.wait(0.8)
+task.wait(1.2)
 Part:Destroy()
 return Touched
 end
