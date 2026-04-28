@@ -104,19 +104,20 @@ function Library:AddESP(cfg)
         arrow.ImageColor3 = cfg.Color
         arrow.Visible = false
 if self.Settings.FadeTime > 0 then
- TweenService:Create(label, TweenInfo.new(self.Settings.FadeTime, Enum.EasingStyle.Linear,
-	Enum.EasingDirection.Out, 
+
+local Tweeninfo = TweenInfo.new(
+self.Settings.FadeTime,
+Enum.EasingStyle.Linear,
+Enum.EasingDirection.Out, 
 -1,
 false,
-0, {TextTransparency = 0})):Play()
-TweenService:Create(highlight, TweenInfo.new(self.Settings.FadeTime,Enum.EasingStyle.Linear,
-	Enum.EasingDirection.Out, -1,
-false,
-0, {FillTransparency = 0.6})):Play()
-TweenService:Create(line, TweenInfo.new(self.Settings.FadeTime, Enum.EasingStyle.Linear,
-	Enum.EasingDirection.Out, -1,
-false,
-0, {BackgroundTransparency = 0})):Play()
+0
+)
+
+
+ TweenService:Create(label, Tweeninfo, {TextTransparency = 0})):Play()
+TweenService:Create(highlight, Tweeninfo, {FillTransparency = 0.6})):Play()
+TweenService:Create(line, Tweeninfo,  {BackgroundTransparency = 0})):Play()
 
 
 end
