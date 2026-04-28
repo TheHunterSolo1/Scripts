@@ -105,11 +105,18 @@ function Library:AddESP(cfg)
         arrow.Visible = false
 if self.Settings.FadeTime > 0 then
  TweenService:Create(label, TweenInfo.new(self.Settings.FadeTime, Enum.EasingStyle.Linear,
-	Enum.EasingDirection.Out, {TextTransparency = 0})):Play()
+	Enum.EasingDirection.Out, 
+-1,
+false,
+0, {TextTransparency = 0})):Play()
 TweenService:Create(highlight, TweenInfo.new(self.Settings.FadeTime,Enum.EasingStyle.Linear,
-	Enum.EasingDirection.Out, {FillTransparency = 0.6})):Play()
+	Enum.EasingDirection.Out, -1,
+false,
+0, {FillTransparency = 0.6})):Play()
 TweenService:Create(line, TweenInfo.new(self.Settings.FadeTime, Enum.EasingStyle.Linear,
-	Enum.EasingDirection.Out, {BackgroundTransparency = 0})):Play()
+	Enum.EasingDirection.Out, -1,
+false,
+0, {BackgroundTransparency = 0})):Play()
 
 
 end
