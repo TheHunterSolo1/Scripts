@@ -6,7 +6,8 @@ local Library = {
         Rainbow = false,
         MaxDistance = 999999,
         TextSize = 25,
-        Font = Enum.Font.RobotoMono
+        Font = Enum.Font.RobotoMono,
+        FadeTime = 0.5
     },
     Cache = {}
 }
@@ -14,6 +15,7 @@ local Library = {
 local RS = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local LP = game:GetService("Players").LocalPlayer
+local TweenService = game:GetService("TweenService")
 
 local Screen = Instance.new("ScreenGui", CoreGui)
 Screen.Name = "OmniMax"
@@ -43,6 +45,11 @@ function Library:SetRainbow(bool)
     self.Settings.Rainbow = bool
 end
 
+function Library:SetFadeTime(Value)
+   self.Settings.FadeTime = Value
+
+end
+
 function Library:SetArrows(bool) self.Settings.Arrows = bool end
 function Library:SetTracers(bool) self.Settings.Tracers = bool end
 function Library:SetShowDistance(bool) self.Settings.Distance = bool end
@@ -70,21 +77,24 @@ function Library:AddESP(cfg)
         label.Size = UDim2.new(1, 0, 1, 0)
         label.TextColor3 = cfg.Color
         label.Font = self.Settings.Font
+        label.TextScaled = true
         label.TextSize = self.Settings.TextSize
         label.TextStrokeTransparency = 0
+        label.TextTransparency = 1
 
         local highlight = Instance.new("Highlight", CoreGui)
         highlight.Adornee = obj
         highlight.FillColor = cfg.Color
-        highlight.FillTransparency = 0.6
+        highlight.FillTransparency = 1
         highlight.OutlineTransparency = 1
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-
+ 
         local line = Instance.new("Frame", Screen)
         line.AnchorPoint = Vector2.new(0.5, 0.5)
         line.BorderSizePixel = 0
         line.BackgroundColor3 = cfg.Color
         line.Visible = false
+        line.BackgroundTransparency = 1
 
         local arrow = Instance.new("ImageLabel", Screen)
         arrow.BackgroundTransparency = 1
@@ -93,6 +103,13 @@ function Library:AddESP(cfg)
         arrow.Image = "rbxassetid://2297685725"
         arrow.ImageColor3 = cfg.Color
         arrow.Visible = false
+if self.Settings.FadeTime > 0 then
+ TweenService:Create(label, TweenInfo.new(self.Settings.FadeTime, {TextTransparency = 0})):Play()
+TweenService:Create(highlight, TweenInfo.new(self.Settings.FadeTime, {FillTransparency = 0.6})):Play()
+TweenService:Create(line, TweenInfo.new(self.Settings.FadeTime, {BackgroundTransparency = 0})):Play()
+
+
+end
 
         self.Cache[obj] = {
             Tag = billboard,
