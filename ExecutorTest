@@ -126,12 +126,13 @@ return true
 else
 return false
 end
+Part:Destroy()
 
 end
 if not isnetworkowner then
 return false
 end
-Part:Destroy()
+
 end
 
 
@@ -140,8 +141,8 @@ local tests = {
 	{id = "firetouchinterest", run = checkTouch},
 	{id = "require", run = checkRequire},
 	{id = "replicatesignal", run = checkSignal},
-	{id = "hookmetamethod", run = checkHook}
-  {id = "isnetworkowner", run = checkisnetworkowner},
+	{id = "hookmetamethod", run = checkHook},
+    {id = "isnetworkowner", run = checkisnetworkowner},
 }
 
 local score = 0
