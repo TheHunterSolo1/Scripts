@@ -59,12 +59,12 @@ function Library:AddESP(cfg)
     if not obj or self.Cache[obj] then return end
 
     
-        --local root = GetRoot(obj)
+   
 
-        if not obj.Parent then return end
+        if  obj.Parent == nil  then return end
 
         local billboard = Instance.new("BillboardGui", CoreGui)
-        billboard.Name = GenerateRandomString(12)
+        billboard.Name = "ESPLibrary
         billboard.Size = UDim2.new(0, 250, 0, 60)
         billboard.AlwaysOnTop = true
         billboard.Adornee = obj
@@ -78,28 +78,28 @@ function Library:AddESP(cfg)
         label.TextStrokeTransparency = 0
         label.TextTransparency = 1
 
-        local highlight = Instance.new("Highlight", CoreGui)
+        local highlight = Instance.new("Highlight", billboard)
         highlight.Adornee = obj
         highlight.FillColor = cfg.Color
         highlight.FillTransparency = 1
         highlight.OutlineTransparency = 1
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
  
-        local line = Instance.new("Frame", Screen)
+        local line = Instance.new("Frame", billboard)
         line.AnchorPoint = Vector2.new(0.5, 0.5)
         line.BorderSizePixel = 0
         line.BackgroundColor3 = cfg.Color
         line.Visible = false
         line.BackgroundTransparency = 1
 
-        local arrow = Instance.new("ImageLabel", Screen)
+        local arrow = Instance.new("ImageLabel", billboard)
         arrow.BackgroundTransparency = 1
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
         arrow.Size = UDim2.new(0, 32, 0, 32)
         arrow.Image = "rbxassetid://2297685725"
         arrow.ImageColor3 = cfg.Color
         arrow.Visible = false
-if self.Settings.FadeTime > 0 then
+
 
 local TI = TweenInfo.new(self.Settings.FadeTime,
 Enum.EasingStyle.Linear,
@@ -117,7 +117,6 @@ TweenService:Create(highlight, TI, {FillTransparency = 0.6}):Play()
 TweenService:Create(line, TI,  {BackgroundTransparency = 0}):Play()
 
 
-end
 
         self.Cache[obj] = {
             Tag = billboard,
@@ -134,20 +133,30 @@ end
 function Library:RemoveESP(obj)
     local data = self.Cache[obj]
     if data then
+task.spawn(function()
+
+repeat task.wait(0.2) until data.Text.TextTransparency == 1
 
         data.Tag:Destroy()
         data.Line:Destroy()
         data.Box:Destroy()
         data.Arrow:Destroy()
         self.Cache[obj] = nil
+
+         end)
     end
 end
 
 function Library:Unload()
     if self.Connection then self.Connection:Disconnect() end
     for obj, _ in pairs(self.Cache) do 
+task.spawn(function()
+
+repeat task.wait(0.2) until obj.Text.TextTransparency == 1
 
 self:RemoveESP(obj) 
+end)
+
 end
     Screen:Destroy()
 end
