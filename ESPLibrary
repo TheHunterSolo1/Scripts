@@ -8,6 +8,7 @@ local Library = {
         TextSize = 25,
         Font = Enum.Font.RobotoMono,
         FadeTime = 0.5
+        ESPMode = "Highlight/Text"
     },
     Cache = {}
 }
@@ -50,10 +51,12 @@ function Library:SetFadeTime(Value)
 
 end
 
+
+
 function Library:SetArrows(bool) self.Settings.Arrows = bool end
 function Library:SetTracers(bool) self.Settings.Tracers = bool end
 function Library:SetShowDistance(bool) self.Settings.Distance = bool end
-
+function Library:SetESPMode(Value) self.Settings.ESPMode = Value end
 function Library:AddESP(cfg)
     local obj = cfg.Object
     if not obj or self.Cache[obj] then return end
@@ -69,13 +72,13 @@ task.wait(1)
 end
 
 if root then
-        local billboard = Instance.new("BillboardGui", Screen)
+        local billboard = Instance.new("BillboardGui", CoreGui)
         billboard.Name = "ESPLibrary"
         billboard.Size = UDim2.new(0, 250, 0, 60)
         billboard.AlwaysOnTop = true
         billboard.Adornee = obj
         
-        local label = Instance.new("TextLabel", Screen)
+        local label = Instance.new("TextLabel", CoreGui)
         label.BackgroundTransparency = 1
         label.Size = UDim2.new(1, 0, 1, 0)
         label.TextColor3 = cfg.Color
@@ -83,14 +86,14 @@ if root then
         label.TextSize = self.Settings.TextSize
         label.TextStrokeTransparency = 0
         label.TextTransparency = 1
-
-        local highlight = Instance.new("Highlight", Screen)
+         label.Visible = (self.Settings.ESPMode == "Text" or self.Settings.ESPMode == "Highlight/Text") and true or false
+        local highlight = Instance.new("Highlight", CoreGui)
         highlight.Adornee = obj
         highlight.FillColor = cfg.Color
         highlight.FillTransparency = 1
         highlight.OutlineTransparency = 1
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
- 
+        highlight =  (self.Settings.ESPMode == "Highlight" or self.Settings.ESPMode == "Highlight/Text") and true or false
         local line = Instance.new("Frame", Screen)
         line.AnchorPoint = Vector2.new(0.5, 0.5)
         line.BorderSizePixel = 0
@@ -208,12 +211,14 @@ Library.Connection = RS.RenderStepped:Connect(function()
             data.Text.TextSize = Library.Settings.TextSize * fovScale
             data.Text.Text = string.format("%s%s", data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
             data.Box.FillColor = displayColor
-            
+            data.Box.Enabled = ( self.Settings.ESPMode == "Highlight" or self.Settings.ESPMode == "Highlight/Text") and true or false
+            data.Text.Visible =  (self.Settings.ESPMode == "Text" or self.Settings.ESPMode == "Highlight/Text") and true or false
+
             if Library.Settings.Tracers and dist < 1500 then
                 local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
                 data.Line.Visible = true
                 data.Line.BackgroundColor3 = displayColor
-                data.Line.Size = UDim2.new(0, 700, 0, 1)
+                data.Line.Size = UDim2.new(0, diff.Magnitude, 0, 1)
                 data.Line.Position = UDim2.new(0, screenCenter.X + diff.X / 2, 0, viewportSize.Y + diff.Y / 2)
                 data.Line.Rotation = math.deg(math.atan2(diff.Y, diff.X))
             else
