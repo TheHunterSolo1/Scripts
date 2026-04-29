@@ -61,10 +61,10 @@ function Library:AddESP(cfg)
     
    
 
-        if  obj.Parent == nil  then return end
+        if obj.Parent == nil  then return end
 
         local billboard = Instance.new("BillboardGui", CoreGui)
-        billboard.Name = "ESPLibrary
+        billboard.Name = "ESPLibrary"
         billboard.Size = UDim2.new(0, 250, 0, 60)
         billboard.AlwaysOnTop = true
         billboard.Adornee = obj
