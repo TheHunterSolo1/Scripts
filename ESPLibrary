@@ -7,8 +7,8 @@ local Library = {
         MaxDistance = 999999,
         TextSize = 25,
         Font = Enum.Font.RobotoMono,
-        FadeTime = 0.5
-        ESPMode = "Highlight/Text"
+        FadeTime = 0.5,
+        ESPMode = "Highlight/Text",
     },
     Cache = {}
 }
