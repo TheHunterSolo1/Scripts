@@ -184,7 +184,7 @@ end
 
 local Delay = tick()
  
-Library.Connection = RS.RenderStepped:Connect(function(dt)
+Library.Connection = RS.PreRender:Connect(function(dt)
 
 local Check = 1 / Library.Settings.RenderTime
 
