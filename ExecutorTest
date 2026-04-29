@@ -60,12 +60,12 @@ Part:Destroy()
 end)
 local timeout = 0
 
-while timeout < 0.5 do
+while timeout < 2 do
 timeout += RunService.RenderStepped:Wait()
 firetouchinterest(LocalPlayer.Character.HumanoidRootPart, Part, 0)
 task.wait()
 end
-task.wait(0.5)
+task.wait(1)
 Part:Destroy()
 con:Disconnect()
 return Touched
