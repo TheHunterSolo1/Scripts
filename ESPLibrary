@@ -211,8 +211,8 @@ Library.Connection = RS.RenderStepped:Connect(function()
             data.Text.TextSize = Library.Settings.TextSize * fovScale
             data.Text.Text = string.format("%s%s", data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
             data.Box.FillColor = displayColor
-            data.Box.Enabled = ( self.Settings.ESPMode == "Highlight" or self.Settings.ESPMode == "Highlight/Text") and true or false
-            data.Text.Visible =  (self.Settings.ESPMode == "Text" or self.Settings.ESPMode == "Highlight/Text") and true or false
+            data.Box.Enabled = Library.Settings.ESPMode == "Highlight" and Library.Settings.ESPMode == "Highlight/Text" and true or false
+            data.Text.Visible = Library.Settings.ESPMode == "Text" and Library.Settings.ESPMode == "Highlight/Text" and true or false
 
             if Library.Settings.Tracers and dist < 1500 then
                 local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
