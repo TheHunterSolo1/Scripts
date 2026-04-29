@@ -186,7 +186,7 @@ local Delay = 0
  
 Library.Connection = RS.RenderStepped:Connect(function(dt)
 Delay += dt
-if Delay > (Library.Settings.RenderTime / 1) then
+if Delay >  Library.Settings.RenderTime / 1 then
 Delay = 0
     
     local cam = workspace.CurrentCamera
@@ -246,8 +246,9 @@ Delay = 0
                 data.Arrow.Visible = false
             end
         end
-end
+
     end
+end
 end)
 
 return Library
