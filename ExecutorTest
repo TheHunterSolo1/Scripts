@@ -1,6 +1,7 @@
 local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ExecutorName = identifyexecutor() or getexecutorname() or "Unknown"
 local LocalPlayer = Players.LocalPlayer
 
@@ -58,8 +59,14 @@ Touched = true
 Part:Destroy()
 con:Disconnect()
 end)
+local timeout = 0
+
+while timeout < 1 do
+timeout += RunService.RenderStepped:Wait()
 firetouchinterest(LocalPlayer.Character.HumanoidRootPart, Part, 0)
-task.wait(1.6)
+task.wait()
+end
+task.wait()
 Part:Destroy()
 con:Disconnect()
 return Touched
