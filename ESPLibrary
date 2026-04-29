@@ -3,7 +3,7 @@ local Library = {
         Tracers = true,
         Distance = true,
         Arrows = true,
-        Rainbow = true,
+        Rainbow = false,
         MaxDistance = 999999,
         TextSize = 25,
         Font = Enum.Font.RobotoMono,
@@ -61,8 +61,14 @@ function Library:AddESP(cfg)
     
    
 
-        if obj.Parent == nil  then return end
+    local root = GetRoot(obj)
+task.spawn(function()
+while not root do
+root = GetRoot(obj)
+task.wait(1)
+end
 
+if root then
         local billboard = Instance.new("BillboardGui", CoreGui)
         billboard.Name = "ESPLibrary"
         billboard.Size = UDim2.new(0, 250, 0, 60)
@@ -89,7 +95,7 @@ function Library:AddESP(cfg)
         line.AnchorPoint = Vector2.new(0.5, 0.5)
         line.BorderSizePixel = 0
         line.BackgroundColor3 = cfg.Color
-        line.Visible = false
+        line.Visible = true
         line.BackgroundTransparency = 1
 
         local arrow = Instance.new("ImageLabel", billboard)
@@ -127,6 +133,8 @@ TweenService:Create(line, TI,  {BackgroundTransparency = 0}):Play()
             Name = cfg.Text,
             Color = cfg.Color
         }
+end
+end)
     
 end
 
@@ -202,7 +210,7 @@ Library.Connection = RS.RenderStepped:Connect(function()
             data.Box.FillColor = displayColor
             
             if Library.Settings.Tracers and dist < 1500 then
-                local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
+                local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, screenCenter.Y)
                 data.Line.Visible = true
                 data.Line.BackgroundColor3 = displayColor
                 data.Line.Size = UDim2.new(0, 700, 0, 1)
