@@ -3,7 +3,7 @@ local Library = {
         Tracers = true,
         Distance = true,
         Arrows = true,
-        Rainbow = false,
+        Rainbow = true,
         MaxDistance = 999999,
         TextSize = 25,
         Font = Enum.Font.RobotoMono,
@@ -205,7 +205,7 @@ Library.Connection = RS.RenderStepped:Connect(function()
                 local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
                 data.Line.Visible = true
                 data.Line.BackgroundColor3 = displayColor
-                data.Line.Size = UDim2.new(0, diff.Magnitude, 0, 1)
+                data.Line.Size = UDim2.new(0, 700, 0, 1)
                 data.Line.Position = UDim2.new(0, screenCenter.X + diff.X / 2, 0, viewportSize.Y + diff.Y / 2)
                 data.Line.Rotation = math.deg(math.atan2(diff.Y, diff.X))
             else
