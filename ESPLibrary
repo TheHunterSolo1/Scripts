@@ -169,7 +169,7 @@ end
 
 
 local tickCount = 0
-Library.Connection = RS.Heartbeat:Connect(function()
+Library.Connection = RS.RenderStepped:Connect(function()
     tickCount = (tickCount % 60) + 1
     local cam = workspace.CurrentCamera
     local camCF = cam.CFrame
