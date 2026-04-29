@@ -210,7 +210,7 @@ Library.Connection = RS.RenderStepped:Connect(function()
             data.Box.FillColor = displayColor
             
             if Library.Settings.Tracers and dist < 1500 then
-                local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, screenCenter.Y)
+                local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
                 data.Line.Visible = true
                 data.Line.BackgroundColor3 = displayColor
                 data.Line.Size = UDim2.new(0, 700, 0, 1)
