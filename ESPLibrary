@@ -223,7 +223,7 @@ Library.Connection = RS.PreRender:Connect(function(dt)
 
 local Check = 1 / Library.Settings.RenderTime
 
-if tick() - Delay > Delay then
+if tick() - Check > Delay then
 Delay = tick()
     
     local cam = workspace.CurrentCamera
