@@ -182,12 +182,14 @@ end
 end
 
 
-local Delay = 0
+local Delay = tick()
  
 Library.Connection = RS.RenderStepped:Connect(function(dt)
-Delay += dt
-if Delay >  Library.Settings.RenderTime / 1 then
-Delay = 0
+
+local Check = 1 / Library.Settings.RenderTime
+
+if tick() - Check > Delay then
+Delay = tick()
     
     local cam = workspace.CurrentCamera
     local camCF = cam.CFrame
