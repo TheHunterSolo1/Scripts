@@ -136,6 +136,13 @@ function Library:RemoveESP(obj)
 
 
 
+local TI = TweenInfo.new(self.Settings.FadeTime,
+Enum.EasingStyle.Linear,
+Enum.EasingDirection.Out, 
+0,
+false,
+0
+)
 
 
 TweenService:Create(data.Text, TI, {TextTransparency = 1}):Play()
@@ -163,6 +170,14 @@ function Library:Unload()
     if self.Connection then self.Connection:Disconnect() end
     for obj, _ in pairs(self.Cache) do 
 
+
+local TI = TweenInfo.new(self.Settings.FadeTime,
+Enum.EasingStyle.Linear,
+Enum.EasingDirection.Out, 
+0,
+false,
+0
+)
 
 
 TweenService:Create(obj.Text, TI, {TextTransparency = 1}):Play()
