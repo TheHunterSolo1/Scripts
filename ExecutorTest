@@ -49,10 +49,14 @@ local function checkTouch()
 	if not firetouchinterest then return false end
 local Touched = false
 local Part = Instance.new("Part",workspace)
+
 Part.Position = Vector3.new(0, 100, 0)
 Part.CanTouch = true
 Part.Anchored = true
 Part.CanCollide = true
+local TouchTransmitter = Instance.new("TouchTransmitter", Part)
+
+
 
  local con = Part.Touched:Connect(function()
 Touched = true
