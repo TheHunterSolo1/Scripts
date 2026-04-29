@@ -133,6 +133,7 @@ end
 function Library:RemoveESP(obj)
     local data = self.Cache[obj]
     if data then
+
 task.spawn(function()
 
 repeat task.wait(0.2) until data.Text.TextTransparency == 1
@@ -144,12 +145,15 @@ repeat task.wait(0.2) until data.Text.TextTransparency == 1
         self.Cache[obj] = nil
 
          end)
+
+
     end
 end
 
 function Library:Unload()
     if self.Connection then self.Connection:Disconnect() end
     for obj, _ in pairs(self.Cache) do 
+
 task.spawn(function()
 
 repeat task.wait(0.2) until obj.Text.TextTransparency == 1
@@ -157,9 +161,11 @@ repeat task.wait(0.2) until obj.Text.TextTransparency == 1
 self:RemoveESP(obj) 
 end)
 
+
 end
     Screen:Destroy()
 end
+
 
 local tickCount = 0
 Library.Connection = RS.Heartbeat:Connect(function()
