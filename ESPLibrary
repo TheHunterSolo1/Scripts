@@ -78,7 +78,7 @@ if root then
         billboard.AlwaysOnTop = true
         billboard.Adornee = obj
         
-        local label = Instance.new("TextLabel", CoreGui)
+        local label = Instance.new("TextLabel", billboard)
         label.BackgroundTransparency = 1
         label.Size = UDim2.new(1, 0, 1, 0)
         label.TextColor3 = cfg.Color
@@ -87,7 +87,7 @@ if root then
         label.TextStrokeTransparency = 0
         label.TextTransparency = 1
          
-        local highlight = Instance.new("Highlight", CoreGui)
+        local highlight = Instance.new("Highlight", billboard)
         highlight.Adornee = obj
         highlight.FillColor = cfg.Color
         
