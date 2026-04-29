@@ -195,7 +195,7 @@ Delay = tick()
     local camCF = cam.CFrame
     local viewportSize = cam.ViewportSize
     local screenCenter = viewportSize / 2
-    local fovScale = (cam.FieldOfView * 1.5) / 70
+    local fovScale = (cam.FieldOfView) / 70
     local rainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
 
     for obj, data in pairs(Library.Cache) do
@@ -209,7 +209,6 @@ Delay = tick()
 
         local rootPos = root.Position
         local dist = (camCF.Position - rootPos).Magnitude
-        if dist > 500 and (tickCount % 3 ~= 0) then continue end
         
         local screenPos, onScreen = cam:WorldToViewportPoint(rootPos)
         local displayColor = Library.Settings.Rainbow and rainbowColor or data.Color
