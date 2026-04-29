@@ -90,10 +90,10 @@ if root then
         local highlight = Instance.new("Highlight", CoreGui)
         highlight.Adornee = obj
         highlight.FillColor = cfg.Color
-        highlight.FillTransparency = 1
+        
         highlight.OutlineTransparency = 1
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        highlight =  (self.Settings.ESPMode == "Highlight" or self.Settings.ESPMode == "Highlight/Text") and true or false
+        highlight.FillTransparency =  (self.Settings.ESPMode == "Highlight" or self.Settings.ESPMode == "Highlight/Text") and true or false
         local line = Instance.new("Frame", Screen)
         line.AnchorPoint = Vector2.new(0.5, 0.5)
         line.BorderSizePixel = 0
