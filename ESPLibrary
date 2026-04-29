@@ -9,6 +9,7 @@ local Library = {
         Font = Enum.Font.RobotoMono,
         FadeTime = 0.5,
         ESPMode = "Highlight/Text",
+        RenderTime = 60,
     },
     Cache = {}
 }
@@ -57,6 +58,8 @@ function Library:SetArrows(bool) self.Settings.Arrows = bool end
 function Library:SetTracers(bool) self.Settings.Tracers = bool end
 function Library:SetShowDistance(bool) self.Settings.Distance = bool end
 function Library:SetESPMode(Value) self.Settings.ESPMode = Value end
+function Library:SetRenderingSpeed(Value) Library.Settings.RenderTime = Value end
+
 function Library:AddESP(cfg)
     local obj = cfg.Object
     if not obj or self.Cache[obj] then return end
@@ -179,9 +182,13 @@ end
 end
 
 
-local tickCount = 0
-Library.Connection = RS.RenderStepped:Connect(function()
-    tickCount = (tickCount % 60) + 1
+local Delay = 0
+ 
+Library.Connection = RS.RenderStepped:Connect(function(dt)
+Delay += dt
+if Delay > (Library.Settings.RenderTime / 1) then
+Delay = 0
+    
     local cam = workspace.CurrentCamera
     local camCF = cam.CFrame
     local viewportSize = cam.ViewportSize
@@ -239,6 +246,7 @@ Library.Connection = RS.RenderStepped:Connect(function()
                 data.Arrow.Visible = false
             end
         end
+end
     end
 end)
 
