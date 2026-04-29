@@ -108,7 +108,7 @@ if root then
         arrow.BackgroundTransparency = 1
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
         arrow.Size = UDim2.new(0, 32, 0, 32)
-        arrow.Image = "rbxassetid://2297685725"
+        arrow.Image = "rbxassetid://10526559647"
         arrow.ImageColor3 = cfg.Color
         arrow.Visible = false
 
@@ -223,7 +223,7 @@ Library.Connection = RS.PreRender:Connect(function(dt)
 
 local Check = 1 / Library.Settings.RenderTime
 
-if tick() - Delay > Check then
+if tick() - Delay > Delay then
 Delay = tick()
     
     local cam = workspace.CurrentCamera
