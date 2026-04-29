@@ -69,13 +69,13 @@ task.wait(1)
 end
 
 if root then
-        local billboard = Instance.new("BillboardGui", CoreGui)
+        local billboard = Instance.new("BillboardGui", Screen)
         billboard.Name = "ESPLibrary"
         billboard.Size = UDim2.new(0, 250, 0, 60)
         billboard.AlwaysOnTop = true
         billboard.Adornee = obj
         
-        local label = Instance.new("TextLabel", billboard)
+        local label = Instance.new("TextLabel", Screen)
         label.BackgroundTransparency = 1
         label.Size = UDim2.new(1, 0, 1, 0)
         label.TextColor3 = cfg.Color
@@ -84,21 +84,21 @@ if root then
         label.TextStrokeTransparency = 0
         label.TextTransparency = 1
 
-        local highlight = Instance.new("Highlight", billboard)
+        local highlight = Instance.new("Highlight", Screen)
         highlight.Adornee = obj
         highlight.FillColor = cfg.Color
         highlight.FillTransparency = 1
         highlight.OutlineTransparency = 1
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
  
-        local line = Instance.new("Frame", billboard)
+        local line = Instance.new("Frame", Screen)
         line.AnchorPoint = Vector2.new(0.5, 0.5)
         line.BorderSizePixel = 0
         line.BackgroundColor3 = cfg.Color
         line.Visible = true
         line.BackgroundTransparency = 1
 
-        local arrow = Instance.new("ImageLabel", billboard)
+        local arrow = Instance.new("ImageLabel", Screen)
         arrow.BackgroundTransparency = 1
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
         arrow.Size = UDim2.new(0, 32, 0, 32)
