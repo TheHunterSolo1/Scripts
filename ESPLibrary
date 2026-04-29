@@ -169,7 +169,7 @@ TweenService:Create(data.Line, TI,  {BackgroundTransparency = 1}):Play()
 
 task.spawn(function()
 local timeout = 0
-repeat task.wait(0.5) timeout = timeout + 0.5 until data.Text.TextTransparency == 1 or timeout > 1  
+repeat task.wait(0.5) timeout = timeout + 0.5 until data  and data.Text and data.Text.TextTransparency == 1 or timeout >= 1  
 
        data.Tag:Destroy()
         data.Line:Destroy()
@@ -205,7 +205,7 @@ TweenService:Create(obj.Line, TI,  {BackgroundTransparency = 1}):Play()
 
 task.spawn(function()
 local timeout = 0
-repeat task.wait(0.5) timeout = timeout + 0.5 until obj.Text.TextTransparency == 1 or timeout > 1  
+repeat task.wait(0.5) timeout = timeout + 0.5 until obj and obj.Text and  obj.Text.TextTransparency == 1 or timeout >= 1
 
 
 self:RemoveESP(obj) 
