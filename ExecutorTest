@@ -54,7 +54,7 @@ local function checkTouch()
 	if not firetouchinterest then return false end
 local Touched = false
 local TestPart = Instance.new("Part", workspace)
-
+TestPart.Name = "TestPart"
 local Part = Instance.new("Part",workspace)
 
 Part.Position = Vector3.new(0, 100, 0)
