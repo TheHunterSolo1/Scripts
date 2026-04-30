@@ -12,8 +12,8 @@ end
 
 
 local NoRequireExe = {
-   "Xeno" = true,
-   "Seilware" = true,
+  "Xeno" = true,
+  "Seilware" = true,
 }
 local function run(f, ...)
 	local ok, res = pcall(f, ...)
@@ -86,7 +86,7 @@ return Touched
 end
 
 local function checkRequire()
-if ExecutorName[NoRequireExe] 
+if ExecutorName[NoRequireExe] then
 return false
 end
 if not ExecutorName[NoRequireExe] then
