@@ -13,7 +13,7 @@ end
 
 local NoRequireExe = {
   "Xeno" = true,
-  "Seilware" = true,
+  "Seilware" = true
 }
 local function run(f, ...)
 	local ok, res = pcall(f, ...)
@@ -61,8 +61,6 @@ Part.Position = Vector3.new(0, 100, 0)
 Part.CanTouch = true
 Part.Anchored = true
 Part.CanCollide = true
-local TouchTransmitter = Instance.new("TouchTransmitter", Part)
-
 
 
  local con = Part.Touched:Connect(function()
