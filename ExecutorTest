@@ -10,6 +10,11 @@ print("Waiting for character to load")
 repeat task.wait() until LocalPlayer.Character
 end
 
+
+local NoRequireExe = {
+   "Xeno" = true,
+   "Seilware" = true,
+}
 local function run(f, ...)
 	local ok, res = pcall(f, ...)
 	return ok and res
@@ -81,10 +86,10 @@ return Touched
 end
 
 local function checkRequire()
-if ExecutorName == "Xeno" then 
+if ExecutorName[NoRequireExe] 
 return false
 end
-if ExecutorName ~= "Xeno" then
+if not ExecutorName[NoRequireExe] then
 	local scripts = Players.LocalPlayer:FindFirstChild("PlayerScripts")
 	if scripts then
 		local mod = scripts:FindFirstChild("PlayerModule")
