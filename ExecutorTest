@@ -48,6 +48,8 @@ end
 local function checkTouch()
 	if not firetouchinterest then return false end
 local Touched = false
+local TestPart = Instance.new("Part", workspace)
+
 local Part = Instance.new("Part",workspace)
 
 Part.Position = Vector3.new(0, 100, 0)
@@ -66,13 +68,14 @@ local timeout = 0
 
 while timeout < 1 do
 timeout += RunService.RenderStepped:Wait()
-firetouchinterest(LocalPlayer.Character.HumanoidRootPart, Part, 0)
+firetouchinterest(TestPart, Part, 0)
 task.wait()
-firetouchinterest(LocalPlayer.Character.HumanoidRootPart, Part, 1)
+firetouchinterest(TestPart, Part, 1)
 task.wait()
 end
 task.wait(1)
 Part:Destroy()
+TestPart:Destroy()
 con:Disconnect()
 return Touched
 end
