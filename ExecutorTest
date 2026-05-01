@@ -11,10 +11,8 @@ repeat task.wait() until LocalPlayer.Character
 end
 
 
-local NoRequireExe = {
-  "Xeno" = true,
-  "Seilware" = true
-}
+
+  
 local function run(f, ...)
 	local ok, res = pcall(f, ...)
 	return ok and res
@@ -65,7 +63,6 @@ Part.CanCollide = true
 
  local con = Part.Touched:Connect(function()
 Touched = true
-Part:Destroy()
 end)
 local timeout = 0
 
@@ -84,10 +81,10 @@ return Touched
 end
 
 local function checkRequire()
-if ExecutorName[NoRequireExe] then
+if ExecutorName == "Xeno" or ExecutorName == "Seliware" then
 return false
 end
-if not ExecutorName[NoRequireExe] then
+if ExecutorName ~=  "Xeno" or ExecutorName ~= "Seliware" then
 	local scripts = Players.LocalPlayer:FindFirstChild("PlayerScripts")
 	if scripts then
 		local mod = scripts:FindFirstChild("PlayerModule")
