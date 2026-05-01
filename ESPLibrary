@@ -230,10 +230,11 @@ Delay = tick()
         if not root then continue end
 
         local rootPos = root.Position
-        local dist = math.floor(data.Tag.CurrentDistance) 
+        
         
         local screenPos, onScreen = cam:WorldToViewportPoint(rootPos)
         local displayColor = Library.Settings.Rainbow and rainbowColor or data.Color
+local dist = data.Tag.CurrentDistance * 100
 
         data.Tag.Enabled = onScreen
         if onScreen then
