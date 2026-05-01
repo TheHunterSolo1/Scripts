@@ -116,7 +116,7 @@ if root then
         arrow.ImageColor3 = cfg.Color
         arrow.Visible = false
 
-task.spawn(function()
+
 
 local TI = TweenInfo.new(self.Settings.FadeTime,
 Enum.EasingStyle.Linear,
@@ -132,7 +132,7 @@ false,
  TweenService:Create(label, TI, {TextTransparency = 0}):Play()
 TweenService:Create(highlight, TI, {FillTransparency = 0.6}):Play()
 TweenService:Create(line, TI,  {BackgroundTransparency = 0}):Play()
-end)
+
 
 
         self.Cache[obj] = {
