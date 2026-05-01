@@ -234,7 +234,7 @@ Delay = tick()
         
         local screenPos, onScreen = cam:WorldToViewportPoint(rootPos)
         local displayColor = Library.Settings.Rainbow and rainbowColor or data.Color
-local dist = data.Tag.CurrentDistance * 100
+local dist = (data.Tag.CurrentDistance * 100) / 100
 
         data.Tag.Enabled = onScreen
         if onScreen then
