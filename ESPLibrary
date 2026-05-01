@@ -79,7 +79,7 @@ task.wait(1)
 end
 
 if root then
-        local billboard = Instance.new("BillboardGui", CoreGui)
+        local billboard = Instance.new("BillboardGui", obj)
         billboard.Name = "ESPLibrary"
         billboard.Size = UDim2.new(0, 250, 0, 60)
         billboard.AlwaysOnTop = true
@@ -116,6 +116,7 @@ if root then
         arrow.ImageColor3 = cfg.Color
         arrow.Visible = false
 
+task.spawn(function()
 
 local TI = TweenInfo.new(self.Settings.FadeTime,
 Enum.EasingStyle.Linear,
@@ -131,7 +132,7 @@ false,
  TweenService:Create(label, TI, {TextTransparency = 0}):Play()
 TweenService:Create(highlight, TI, {FillTransparency = 0.6}):Play()
 TweenService:Create(line, TI,  {BackgroundTransparency = 0}):Play()
-
+end)
 
 
         self.Cache[obj] = {
@@ -173,7 +174,7 @@ TweenService:Create(data.Line, TI,  {BackgroundTransparency = 1}):Play()
 
 task.spawn(function()
 local timeout = 0
-repeat task.wait(0.5) timeout = timeout + 0.5 until data  and data.Text and data.Text.TextTransparency == 1 or timeout >= 1  
+repeat task.wait(0.2) timeout = timeout + 0.2 until data  and data.Text and data.Text.TextTransparency == 1 or timeout >= 0.4
 
        data.Tag:Destroy()
         data.Line:Destroy()
@@ -240,8 +241,8 @@ Delay = tick()
             data.Text.TextSize = Library.Settings.TextSize * fovScale
             data.Text.Text = string.format("%s%s", data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
             data.Box.FillColor = displayColor
-            data.Box.Enabled = (Library.Settings.ESPMode == "Highlight" and true or  Library.Settings.ESPMode == "Highlight/Text" and true or false)
-            data.Text.Visible = (Library.Settings.ESPMode == "Text" and true or  Library.Settings.ESPMode == "Highlight/Text" and true or false)
+            data.Box.Enabled = (Library.Settings.ESPMode == "Highlight" and true or  Library.Settings.ESPMode == "Highlight/Text" and true or onScreen and true or false)
+            data.Text.Visible = (Library.Settings.ESPMode == "Text" and true or  Library.Settings.ESPMode == "Highlight/Text" and true or onScreen and true or false)
             if Library.Settings.Tracers and dist < 1500 then
                 local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
                 data.Line.Visible = true
