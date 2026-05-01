@@ -142,6 +142,22 @@ end
 
 end
 
+local function checksethiddenprop()
+local Part
+if not sethiddenproperty then
+return false
+end
+ Part = Instance.new("Part", workspace)
+
+sethiddenproperty(Part, "Massless", true)
+task.wait()
+if Part.Massless then
+return true
+else
+return false
+end
+Part:Destroy()
+end
 
 local tests = {
 	{id = "fireproximityprompt", run = checkProximity},
@@ -150,6 +166,7 @@ local tests = {
 	{id = "replicatesignal", run = checkSignal},
 	{id = "hookmetamethod", run = checkHook},
     {id = "isnetworkowner", run = checkisnetworkowner},
+    {id = "sethiddenproperty", run = checksethiddenprop},
 }
 
 local score = 0
