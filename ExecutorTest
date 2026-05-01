@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ExecutorName = identifyexecutor() or getexecutorname() or "Unknown"
 local LocalPlayer = Players.LocalPlayer
+local Objects = {}
 
 if not LocalPlayer.Character then
 print("Waiting for character to load")
@@ -159,6 +160,22 @@ end
 Part:Destroy()
 end
 
+local function checkgetnilinstances()
+if not getnilinstances then return false end
+
+for _, v in getnilinstances() do
+table.insert(Objects, v)
+task.wait(0.1)
+if #Objects > 0 then
+return true
+else
+return false
+end
+table.clear(Objects)
+end
+end
+
+
 local tests = {
 	{id = "fireproximityprompt", run = checkProximity},
 	{id = "firetouchinterest", run = checkTouch},
@@ -167,6 +184,7 @@ local tests = {
 	{id = "hookmetamethod", run = checkHook},
     {id = "isnetworkowner", run = checkisnetworkowner},
     {id = "sethiddenproperty", run = checksethiddenprop},
+    {id = "getnilinstances", run = checkgetnilinstances},
 }
 
 local score = 0
