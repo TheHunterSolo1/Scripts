@@ -19,7 +19,7 @@ local Library = {
 }
 
 local RS = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
+local CoreGui = gethui and gethui() or game:GetService("CoreGui")
 local LP = game:GetService("Players").LocalPlayer
 local TweenService = game:GetService("TweenService")
 
@@ -75,7 +75,7 @@ function Library:AddESP(cfg)
 task.spawn(function()
 while not root do
 root = GetRoot(obj)
-task.wait(0.1)
+task.wait(1)
 end
 
 if root then
