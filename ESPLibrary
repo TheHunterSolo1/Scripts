@@ -23,15 +23,6 @@ local CoreGui = gethui and gethui() or game:GetService("CoreGui")
 local LP = game:GetService("Players").LocalPlayer
 local TweenService = game:GetService("TweenService")
 
-local Screen = Instance.new("ScreenGui", CoreGui)
-Screen.Name = "OmniMax"
-Screen.IgnoreGuiInset = true
-
-local function GetRoot(obj)
-    if not obj then return nil end
-    return obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")) or (obj:IsA("BasePart") and obj) or nil
-end
-
 function GenerateRandomString(length)
     local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     local res = ""
@@ -41,6 +32,17 @@ function GenerateRandomString(length)
     end
     return res
 end
+
+local Screen = Instance.new("ScreenGui", CoreGui)
+Screen.Name = GenerateRandomString(10)
+Screen.IgnoreGuiInset = true
+
+local function GetRoot(obj)
+    if not obj then return nil end
+    return obj:IsA("Model") and (obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")) or (obj:IsA("BasePart") and obj) or nil
+end
+
+
 
 function Library:SetFont(font)
     self.Settings.Font = font
@@ -188,91 +190,124 @@ end)
     end
 end
 
+
 function Library:Unload()
-    if self.Connection then self.Connection:Disconnect() end
-    for obj, _ in pairs(self.Cache) do 
+    if self.Connection then
+        self.Connection:Disconnect()
+        self.Connection = nil
+    end
 
+    for Object, Data in pairs(self.Cache) do
+        task.spawn(function()
+            local Expiration = 0
+            
+            repeat 
+                task.wait(0.2) 
+                Expiration = Expiration + 0.2 
+            until not Data or not Data.Text or Data.Text.TextTransparency >= 1 or Expiration >= 0.4
 
-
-
-self:RemoveESP(obj) 
-
-
-
-end
-    Screen:Destroy()
-end
-
-
-local Delay = tick()
- 
-Library.Connection = RS.PreRender:Connect(function(dt)
-
-local Check = 1 / Library.Settings.RenderTime
-
-if tick() - Check > Delay then
-Delay = tick()
-    
-    local cam = workspace.CurrentCamera
-    local camCF = cam.CFrame
-    local viewportSize = cam.ViewportSize
-    local screenCenter = viewportSize / 2
-    local fovScale = (cam.FieldOfView) / 70
-    local rainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-
-    for obj, data in pairs(Library.Cache) do
-        if not obj or not obj.Parent then
-            Library:RemoveESP(obj)
-            continue
-        end
-
-        local root = GetRoot(obj)
-        if not root then continue end
-
-        local rootPos = root.Position
-        
-        
-        local screenPos, onScreen = cam:WorldToViewportPoint(rootPos)
-        local displayColor = Library.Settings.Rainbow and rainbowColor or data.Color
-local dist = (data.Tag.CurrentDistance * 100) / 100
-
-        data.Tag.Enabled = onScreen
-        if onScreen then
-            data.Text.TextColor3 = displayColor
-            data.Text.TextSize = Library.Settings.TextSize * fovScale
-            data.Text.Text = string.format("%s%s", data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(dist)) or "")
-            data.Box.FillColor = displayColor
-            data.Box.Enabled = (Library.Settings.ESPMode == "Highlight" and true or  Library.Settings.ESPMode == "Highlight/Text" and true or onScreen and true or false)
-            data.Text.Visible = (Library.Settings.ESPMode == "Text" and true or  Library.Settings.ESPMode == "Highlight/Text" and true or onScreen and true or false)
-            if Library.Settings.Tracers and dist < 1500 then
-                local diff = Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(screenCenter.X, viewportSize.Y)
-                data.Line.Visible = true
-                data.Line.BackgroundColor3 = displayColor
-                data.Line.Size = UDim2.new(0, diff.Magnitude, 0, 1)
-                data.Line.Position = UDim2.new(0, screenCenter.X + diff.X / 2, 0, viewportSize.Y + diff.Y / 2)
-                data.Line.Rotation = math.deg(math.atan2(diff.Y, diff.X))
-            else
-                data.Line.Visible = false
+            if self.Cache[Object] then
+                self:RemoveESP(Object)
+                self.Cache[Object] = nil
             end
-            data.Arrow.Visible = false
-        else
-            data.Line.Visible = false
-            if Library.Settings.Arrows then
-                local relative = camCF:PointToObjectSpace(rootPos)
-                local angle = math.atan2(-relative.X, -relative.Z)
-                local radius = viewportSize.Y * 0.4
-                
-                data.Arrow.Visible = true
-                data.Arrow.ImageColor3 = displayColor
-                data.Arrow.Position = UDim2.new(0, screenCenter.X + math.sin(angle) * radius, 0, screenCenter.Y + math.cos(angle) * radius)
-                data.Arrow.Rotation = math.deg(angle)
-            else
-                data.Arrow.Visible = false
-            end
-        end
+        end)
+    end
 
+    if Screen then
+        Screen:Destroy()
     end
 end
+
+
+local LastUpdateTick = tick()
+ 
+Library.Connection = RunService.PreRender:Connect(function()
+
+    local RenderInterval = 1 / Library.Settings.RenderTime
+
+    if tick() - LastUpdateTick > RenderInterval then
+        LastUpdateTick = tick()
+        
+        local Camera = workspace.CurrentCamera
+        local CameraCFrame = Camera.CFrame
+        local ViewportSize = Camera.ViewportSize
+        local ScreenCenter = ViewportSize / 2
+        local FOVScale = Camera.FieldOfView / 70
+        local RainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+
+        for Object, Data in pairs(Library.Cache) do
+            if not Object or not Object.Parent then
+                Library:RemoveESP(Object)
+                continue
+            end
+
+            local RootPart = GetRoot(Object)
+            if not RootPart then continue end
+
+            local ScreenPosition, IsOnScreen = Camera:WorldToViewportPoint(RootPart.Position)
+            local DisplayColor = Library.Settings.Rainbow and RainbowColor or Data.Color
+
+            if IsOnScreen then
+                local Distance = Data.Tag.CurrentDistance
+                local ShowHighlight = (Library.Settings.ESPMode == "Highlight" or Library.Settings.ESPMode == "Highlight/Text")
+                local ShowText = (Library.Settings.ESPMode == "Text" or Library.Settings.ESPMode == "Highlight/Text")
+
+                Data.Tag.Enabled = true
+                Data.Arrow.Visible = false
+                
+                if ShowText then
+                    Data.Text.Visible = true
+                    Data.Text.TextColor3 = DisplayColor
+                    Data.Text.TextSize = Library.Settings.TextSize * FOVScale
+                    Data.Text.Text = string.format("%s%s", Data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(Distance)) or "")
+                else
+                    Data.Text.Visible = false
+                end
+
+                if ShowHighlight then
+                    Data.Box.Enabled = true
+                    Data.Box.FillColor = DisplayColor
+                else
+                    Data.Box.Enabled = false
+                end
+
+                if Library.Settings.Tracers and Distance < 1500 then
+                    local ScreenPoint = Vector2.new(ScreenPosition.X, ScreenPosition.Y)
+                    local OriginPoint = Vector2.new(ScreenCenter.X, ViewportSize.Y)
+                    local VectorDifference = ScreenPoint - OriginPoint
+                    
+                    Data.Line.Visible = true
+                    Data.Line.BackgroundColor3 = DisplayColor
+                    Data.Line.Size = UDim2.new(0, VectorDifference.Magnitude, 0, 1)
+                    Data.Line.Position = UDim2.new(0, OriginPoint.X + VectorDifference.X / 2, 0, OriginPoint.Y + VectorDifference.Y / 2)
+                    Data.Line.Rotation = math.deg(math.atan2(VectorDifference.Y, VectorDifference.X))
+                else
+                    Data.Line.Visible = false
+                end
+            else
+                Data.Tag.Enabled = false
+                Data.Text.Visible = false
+                Data.Box.Enabled = false
+                Data.Line.Visible = false
+                
+                if Library.Settings.Arrows then
+                    local ObjectRelativeSpace = CameraCFrame:PointToObjectSpace(RootPart.Position)
+                    local DirectionAngle = math.atan2(-ObjectRelativeSpace.X, -ObjectRelativeSpace.Z)
+                    local Radius = ViewportSize.Y * 0.4
+                    
+                    Data.Arrow.Visible = true
+                    Data.Arrow.ImageColor3 = DisplayColor
+                    Data.Arrow.Position = UDim2.new(0, ScreenCenter.X + math.sin(DirectionAngle) * Radius, 0, ScreenCenter.Y + math.cos(DirectionAngle) * Radius)
+                    Data.Arrow.Rotation = math.deg(DirectionAngle)
+                else
+                    Data.Arrow.Visible = false
+                end
+            end
+        end
+    end
 end)
+
+
+
 
 return Library
