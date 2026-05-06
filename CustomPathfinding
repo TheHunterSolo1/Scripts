@@ -1,200 +1,160 @@
-local Pathfinding = {}
-Pathfinding.__index = Pathfinding
-
-local Services = {
-	Players = game:GetService("Players"),
-	RunService = game:GetService("RunService"),
-	Workspace = game:GetService("Workspace")
-}
-
-local Settings = {
-	AgentSize = Vector3.new(3, 5, 3),
-	JumpHeight = 7,
-	MaxSlope = 45,
-	NodeSpacing = 4,
-	MaxIterations = 4000,
-	StuckTime = 0.5,
-	ReachDist = 1.5
-}
-
-local Heap = {}
-function Heap.new() return {Items = {}, Count = 0} end
-function Heap.push(heap, item)
-	heap.Count += 1
-	heap.Items[heap.Count] = item
-	local i = heap.Count
-	while i > 1 do
-		local p = math.floor(i/2)
-		if heap.Items[i].F < heap.Items[p].F then
-			heap.Items[i], heap.Items[p] = heap.Items[p], heap.Items[i]
-			i = p
-		else break end
+getgenv().PathToLoop = function()
+	if getgenv().PathfindingThread then
+		task.cancel(getgenv().PathfindingThread)
 	end
-end
-function Heap.pop(heap)
-	local first = heap.Items[1]
-	heap.Items[1] = heap.Items[heap.Count]
-	heap.Items[heap.Count] = nil
-	heap.Count -= 1
-	local i = 1
-	while true do
-		local c1, c2 = i*2, i*2+1
-		local swap = c1
-		if c1 > heap.Count then break end
-		if c2 <= heap.Count and heap.Items[c2].F < heap.Items[c1].F then swap = c2 end
-		if heap.Items[swap].F < heap.Items[i].F then
-			heap.Items[i], heap.Items[swap] = heap.Items[swap], heap.Items[i]
-			i = swap
-		else break end
-	end
-	return first
-end
 
-local function GetGround(pos)
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = {Services.Players.LocalPlayer.Character, Services.Workspace:FindFirstChild("PF_Vis")}
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local res = Services.Workspace:Blockcast(CFrame.new(pos + Vector3.new(0, Settings.JumpHeight, 0)), Settings.AgentSize, Vector3.new(0, -20, 0), params)
-	return res
-end
+	getgenv().PathfindingThread = task.spawn(function()
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		local ReplicatedStorage = game:GetService("ReplicatedStorage")
+		
+		local Player = Players.LocalPlayer
+		local Character = Player.Character or Player.CharacterAdded:Wait()
+		local Root = Character:WaitForChild("HumanoidRootPart")
+		local Humanoid = Character:WaitForChild("Humanoid")
 
-local function CheckPassable(startPos, endPos)
-	local dir = endPos - startPos
-	if dir.Magnitude < 0.1 then return true end
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = {Services.Players.LocalPlayer.Character, Services.Workspace:FindFirstChild("PF_Vis")}
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	local res = Services.Workspace:Blockcast(CFrame.new(startPos + Vector3.new(0, 2, 0)), Settings.AgentSize * 0.9, dir, params)
-	return res == nil
-end
+		local Visuals = workspace:FindFirstChild("CustomPathfinding") or Instance.new("Folder", workspace)
+		Visuals.Name = "CustomPathfinding"
 
-local function Reconstruct(node)
-	local path = {}
-	while node do
-		table.insert(path, 1, node)
-		node = node.Parent
-	end
-	local smooth = {path[1]}
-	local idx = 1
-	while idx < #path do
-		local nextIdx = idx + 1
-		for i = #path, idx + 2, -1 do
-			if CheckPassable(path[idx].Position, path[i].Position) then
-				nextIdx = i
-				break
+		local GridSize = 4
+		local CurrentPath = {}
+		local TargetPosition = nil
+
+		local Params = RaycastParams.new()
+		Params.FilterDescendantsInstances = {Character, Visuals}
+		Params.FilterType = Enum.RaycastFilterType.Exclude
+		Params.RespectCanCollide = true
+
+		local function IsPassable(pos, target)
+			local diff = (target - pos)
+			local wallCheck = workspace:Raycast(pos + Vector3.new(0, 1.5, 0), diff, Params)
+			if wallCheck and wallCheck.Instance and wallCheck.Instance.CanCollide then
+				local name = wallCheck.Instance.Name:lower()
+				if not (name:find("stair") or name:find("step") or name:find("wedge")) then
+					return false
+				end
 			end
+			return true
 		end
-		table.insert(smooth, path[nextIdx])
-		idx = nextIdx
-	end
-	return smooth
-end
 
-function Pathfinding:MoveTo(target)
-	local char = Services.Players.LocalPlayer.Character
-	if not char then return end
-	local root = char:FindFirstChild("HumanoidRootPart")
-	local hum = char:FindFirstChild("Humanoid")
-	if not root or not hum then return end
-	
-	if Services.Workspace:FindFirstChild("PF_Vis") then Services.Workspace.PF_Vis:Destroy() end
-	
-	local startHit = GetGround(root.Position)
-	local endHit = GetGround(target)
-	if not startHit or not endHit then return end
-	
-	local open = Heap.new()
-	local closed = {}
-	local startNode = {Position = startHit.Position, G = 0, H = (startHit.Position - endHit.Position).Magnitude, Parent = nil}
-	startNode.F = startNode.G + startNode.H
-	Heap.push(open, startNode)
-	
-	local best = startNode
-	local iter = 0
-	
-	while open.Count > 0 do
-		iter += 1
-		if iter > Settings.MaxIterations then break end
-		local curr = Heap.pop(open)
-		
-		local k = math.floor(curr.Position.X)..":"..math.floor(curr.Position.Z)
-		if closed[k] then continue end
-		closed[k] = true
-		
-		if (curr.Position - endHit.Position).Magnitude < Settings.NodeSpacing then
-			best = curr
-			break
+		local function GetNeighbors(Pos)
+			local Neighbors = {}
+			local Directions = {
+				Vector3.new(GridSize, 0, 0), Vector3.new(-GridSize, 0, 0),
+				Vector3.new(0, 0, GridSize), Vector3.new(0, 0, -GridSize),
+				Vector3.new(GridSize, 0, GridSize), Vector3.new(-GridSize, 0, -GridSize),
+				Vector3.new(GridSize, 0, -GridSize), Vector3.new(-GridSize, 0, GridSize)
+			}
+			
+			for _, Dir in Directions do
+				local NeighborPos = Pos + Dir
+				if IsPassable(Pos, NeighborPos) then
+					local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 12, 0), Vector3.new(0, -24, 0), Params)
+					if Floor then
+						table.insert(Neighbors, Floor.Position)
+					end
+				end
+			end
+			return Neighbors
 		end
-		
-		if curr.H < best.H then best = curr end
-		
-		for x = -1, 1 do
-			for z = -1, 1 do
-				if x == 0 and z == 0 then continue end
-				local off = Vector3.new(x, 0, z).Unit * Settings.NodeSpacing
-				local nextPos = curr.Position + off
-				local ground = GetGround(nextPos)
-				
-				if ground then
-					local dy = ground.Position.Y - curr.Position.Y
-					if dy <= Settings.JumpHeight and math.acos(ground.Normal.Y) < math.rad(Settings.MaxSlope) then
-						if CheckPassable(curr.Position, ground.Position) then
-							local g = curr.G + (curr.Position - ground.Position).Magnitude
-							local h = (ground.Position - endHit.Position).Magnitude
-							local node = {Position = ground.Position, G = g, H = h, F = g+h, Parent = curr, Jump = dy > 1.2}
-							Heap.push(open, node)
+
+		task.spawn(function()
+			while task.wait(0.25) do
+				local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
+				local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
+				if not Room then continue end
+
+				local HasKey = Character:FindFirstChild("Key") or Player.Backpack:FindFirstChild("Key")
+				local KeyObj = Room:FindFirstChild("KeyObtain", true)
+				local FinalTarget = nil
+
+				if KeyObj and not HasKey then
+					FinalTarget = KeyObj:IsA("Model") and KeyObj.PrimaryPart and KeyObj.PrimaryPart.Position or KeyObj:IsA("BasePart") and KeyObj.Position
+					if FinalTarget and (Root.Position - FinalTarget).Magnitude < 13 then
+						local Prompt = KeyObj:FindFirstChildWhichIsA("ProximityPrompt", true)
+						if Prompt then fireproximityprompt(Prompt) end
+					end
+				elseif Room:FindFirstChild("Door") and Room.Door:FindFirstChild("Door") then
+					FinalTarget = Room.Door.Door.Position
+					if (Root.Position - FinalTarget).Magnitude < 15 then
+						local DoorPrompt = Room.Door:FindFirstChildWhichIsA("ProximityPrompt", true)
+						if DoorPrompt then fireproximityprompt(DoorPrompt) end
+						local Lock = Room.Door:FindFirstChild("Lock")
+						if Lock then
+							local LockPrompt = Lock:FindFirstChildWhichIsA("ProximityPrompt", true)
+							if LockPrompt then fireproximityprompt(LockPrompt) end
 						end
 					end
 				end
-			end
-		end
-	end
-	
-	local path = Reconstruct(best)
-	
-	local folder = Instance.new("Folder")
-	folder.Name = "PF_Vis"
-	folder.Parent = Services.Workspace
-	for i, n in ipairs(path) do
-		local p = Instance.new("Part")
-		p.Size, p.Anchored, p.CanCollide, p.Material, p.Color = Vector3.new(0.5,0.5,0.5), true, false, Enum.Material.Neon, Color3.new(1,0,0)
-		p.Position = n.Position
-		p.Parent = folder
-	end
-	
-	task.spawn(function()
-		local currentIdx = 1
-		local lastPos = root.Position
-		local stuckTimer = 0
-		
-		while currentIdx <= #path do
-			local goal = path[currentIdx]
-			local dist = (root.Position * Vector3.new(1,0,1) - goal.Position * Vector3.new(1,0,1)).Magnitude
-			
-			if dist < Settings.ReachDist then
-				currentIdx += 1
-			else
-				hum:MoveTo(goal.Position)
-				if goal.Jump or (goal.Position.Y > root.Position.Y + 2) then hum.Jump = true end
-				
-				if (root.Position - lastPos).Magnitude < 0.1 then
-					stuckTimer += Services.RunService.Heartbeat:Wait()
-					if stuckTimer > Settings.StuckTime then
-						hum.Jump = true
-						stuckTimer = 0
-						local nudge = root.CFrame.RightVector * (math.random() > 0.5 and 2 or -2)
-						hum:MoveTo(root.Position + nudge)
-						task.wait(0.2)
+
+				if FinalTarget then
+					TargetPosition = FinalTarget
+					local Start = Vector3.new(math.round(Root.Position.X/GridSize)*GridSize, Root.Position.Y, math.round(Root.Position.Z/GridSize)*GridSize)
+					local Goal = Vector3.new(math.round(FinalTarget.X/GridSize)*GridSize, FinalTarget.Y, math.round(FinalTarget.Z/GridSize)*GridSize)
+
+					local Open = {Start}
+					local Closed = {}
+					local CameFrom = {}
+					local GScore = {[Start] = 0}
+					local FScore = {[Start] = (Start - Goal).Magnitude}
+					local Success = false
+					
+					for I = 1, 300 do
+						local CurrentIdx = 1
+						for J = 2, #Open do
+							if FScore[Open[J]] < FScore[Open[CurrentIdx]] then CurrentIdx = J end
+						end
+						
+						local Current = table.remove(Open, CurrentIdx)
+						if not Current then break end
+						if (Current - Goal).Magnitude < GridSize * 1.5 then
+							Goal = Current
+							Success = true
+							break
+						end
+						
+						Closed[Current] = true
+						for _, Neighbor in GetNeighbors(Current) do
+							if Closed[Neighbor] then continue end
+							local Score = GScore[Current] + (Current - Neighbor).Magnitude
+							if not GScore[Neighbor] or Score < GScore[Neighbor] then
+								CameFrom[Neighbor] = Current
+								GScore[Neighbor] = Score
+								FScore[Neighbor] = Score + (Neighbor - Goal).Magnitude
+								if not table.find(Open, Neighbor) then table.insert(Open, Neighbor) end
+							end
+						end
 					end
-				else
-					stuckTimer = 0
+
+					if Success then
+						local NewPath = {}
+						local Curr = Goal
+						Visuals:ClearAllChildren()
+						while Curr do
+							table.insert(NewPath, 1, Curr)
+							local Marker = Instance.new("Part", Visuals)
+							Marker.Size, Marker.Shape, Marker.Color, Marker.Material = Vector3.new(0.6,0.6,0.6), "Ball", Color3.new(1,0.5,0), "Neon"
+							Marker.Anchored, Marker.CanCollide, Marker.Position = true, false, Curr
+							Curr = CameFrom[Curr]
+						end
+						CurrentPath = NewPath
+					end
 				end
-				lastPos = root.Position
 			end
-			Services.RunService.Heartbeat:Wait()
-		end
-		folder:Destroy()
+		end)
+
+		RunService.RenderStepped:Connect(function()
+			if #CurrentPath > 0 then
+				local Target = CurrentPath[1]
+				Humanoid:MoveTo(Target)
+				if (Root.Position - Target).Magnitude < 3.8 then
+					table.remove(CurrentPath, 1)
+				end
+			elseif TargetPosition then
+				Humanoid:MoveTo(TargetPosition)
+			end
+		end)
 	end)
 end
 
-return Pathfinding
+PathToLoop()
