@@ -221,7 +221,7 @@ end
 
 local LastUpdateTick = tick()
  
-Library.Connection = RunService.PreRender:Connect(function()
+Library.Connection = RS.PreRender:Connect(function()
 
     local RenderInterval = 1 / Library.Settings.RenderTime
 
