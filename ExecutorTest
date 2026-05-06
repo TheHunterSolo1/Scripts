@@ -28,9 +28,9 @@ local function run(f, ...)
 end
 
 local function checkDrawing()
-    if not (type(Drawing) == "table" and VerifyFunction(Drawing.new)) then return false end
+    if not VerifyFunction(Drawing.new)) then return false end
     local line = Drawing.new("Line")
-    local success = (line ~= nil and type(line) == "table" and VerifyFunction(line.Remove))
+    local success = (line ~= nil)
     if success then line:Remove() end
     return success
 end
@@ -80,8 +80,8 @@ local function checkProximity()
     local prompt = Instance.new("ProximityPrompt", part)
     local done = false
     local connection = prompt.Triggered:Connect(function() done = true end)
-    fireproximityprompt(prompt, 0)
-    task.wait(0.1)
+    fireproximityprompt(prompt)
+    task.wait(0.5)
     connection:Disconnect()
     part:Destroy()
     return done
