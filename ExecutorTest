@@ -1,317 +1,233 @@
 local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
+
+local function VerifyFunction(func)
+    return type(func) == "function"
+end
+
+local function GetExecutor()
+    if VerifyFunction(identifyexecutor) then
+        local name = identifyexecutor()
+        if type(name) == "string" then return name end
+    end
+    if VerifyFunction(getexecutorname) then
+        local name = getexecutorname()
+        if type(name) == "string" then return name end
+    end
+    return "Unknown"
+end
+
+local ExecutorName = GetExecutor()
 
 local function run(f, ...)
     local ok, res = pcall(f, ...)
     return ok and res
 end
 
-local function checkProximity()
-    if type(fireproximityprompt) ~= "function" then return "RED" end
-    local p = Instance.new("Part")
-    local pr = Instance.new("ProximityPrompt", p)
-    local d = false
-    local c = pr.Triggered:Connect(function() d = true end)
-    fireproximityprompt(pr)
-    task.wait(0.2)
-    c:Disconnect()
-    p:Destroy()
-    return d and "GREEN" or "YELLOW"
-end
-
-local function checkTouch()
-    if type(firetouchinterest) ~= "function" then return "RED" end
-    local t = false
-    local a, b = Instance.new("Part", Workspace), Instance.new("Part", Workspace)
-    local c = a.Touched:Connect(function() t = true end)
-    firetouchinterest(a, b, 0)
-    task.wait(0.1)
-    firetouchinterest(a, b, 1)
-    c:Disconnect()
-    a:Destroy()
-    b:Destroy()
-    return t and "GREEN" or "YELLOW"
-end
-
-local function checkHookMeta()
-    if type(hookmetamethod) ~= "function" then return "RED" end
-    local c = false
-    local o
-local _ = game.CheckProp
-    local s = pcall(function()
-        o = hookmetamethod(game, "__index", function(self, k)
-            if not checkcaller() and k == "CheckProp" then c = true return true end
-            return o(self, k)
-        end)
-        
-    end)
-    return (s and c) and "GREEN" or "YELLOW"
-end
-
-local function checkHookFunc()
-    if type(hookfunction) ~= "function" then return "RED" end
-    local t = function() return false end
-    local s = pcall(function() hookfunction(t, function() return true end) end)
-    return (s and t() == true) and "GREEN" or "YELLOW"
-end
-
-local function checkReadOnly()
-    if type(setreadonly) ~= "function" or type(isreadonly) ~= "function" then return "RED" end
-    local t = {}
-    table.freeze(t)
-    setreadonly(t, false)
-    local s = isreadonly(t) == false
-    return s and "GREEN" or "YELLOW"
-end
-
-local function checkGenv()
-    if type(getgenv) ~= "function" then return "RED" end
-    getgenv().TestVal = 1337
-    local s = getgenv().TestVal == 1337
-    getgenv().TestVal = nil
-    return s and "GREEN" or "YELLOW"
-end
-
-local function checkRenv()
-    if type(getrenv) ~= "function" then return "RED" end
-    local r = getrenv()
-    return (type(r) == "table" and r.game ~= nil) and "GREEN" or "YELLOW"
-end
-
-local function checkGC()
-    if type(getgc) ~= "function" then return "RED" end
-    local g = getgc()
-    return (type(g) == "table" and #g > 0) and "GREEN" or "YELLOW"
-end
-
-local function checkReg()
-    local f = getreg or getregistry
-    if type(f) ~= "function" then return "RED" end
-    local r = f()
-    return (type(r) == "table" and #r > 0) and "GREEN" or "YELLOW"
-end
-
-local function checkScripts()
-    local f = getscripts or getrunningscripts
-    if type(f) ~= "function" then return "RED" end
-    local s = f()
-    return (type(s) == "table" and #s > 0) and "GREEN" or "YELLOW"
-end
-
-local function checkConn()
-    if type(getconnections) ~= "function" then return "RED" end
-    local p = Instance.new("Part")
-    local c = p.Touched:Connect(function() end)
-    local r = getconnections(p.Touched)
-    local s = type(r) == "table" and #r > 0
-    c:Disconnect()
-    p:Destroy()
-    return s and "GREEN" or "YELLOW"
-end
-
-local function checkHiddenGet()
-    if type(gethiddenproperty) ~= "function" then return "RED" end
-    local p = Instance.new("Part")
-    local s, v = pcall(gethiddenproperty, p, "Size")
-    p:Destroy()
-    return s and "GREEN" or "YELLOW"
-end
-
-local function checkHiddenSet()
-    if type(sethiddenproperty) ~= "function" then return "RED" end
-    local p = Instance.new("Part")
-    local s = pcall(sethiddenproperty, p, "Massless", true)
-    local v = s and p.Massless == true
-    p:Destroy()
-    return v and "GREEN" or "YELLOW"
-end
-
-local function checkFilesWrite()
-    if type(writefile) ~= "function" then return "RED" end
-    local s = pcall(writefile, "v.txt", "t")
-    return s and "GREEN" or "YELLOW"
-end
-
-local function checkFilesRead()
-    if type(readfile) ~= "function" then return "RED" end
-    if type(writefile) ~= "function" then return "YELLOW" end
-    writefile("v_r.txt", "read")
-    local s = readfile("v_r.txt") == "read"
-    if delfile then delfile("v_r.txt") end
-    return s and "GREEN" or "YELLOW"
-end
-
-local function checkFolders()
-    if type(makefolder) ~= "function" then return "RED" end
-    local s = pcall(makefolder, "v_folder")
-    local v = s and (isfolder and isfolder("v_folder") or true)
-    if s and delfolder then pcall(delfolder, "v_folder") end
-    return v and "GREEN" or "YELLOW"
-end
-
-local function checkC()
-    if type(newcclosure) ~= "function" or type(islclosure) ~= "function" then return "RED" end
-    local f = newcclosure(function() return 1 end)
-    return (f() == 1 and islclosure(f) == false) and "GREEN" or "YELLOW"
-end
-
-local function checkReq()
-    local r = request or http_request or (http and http.request)
-    if type(r) ~= "function" then return "RED" end
-    local res = r({Url = "https://google.com", Method = "GET"})
-    return (type(res) == "table" and res.StatusCode == 200) and "GREEN" or "YELLOW"
-end
-
 local function checkDrawing()
-    if type(Drawing) ~= "table" or type(Drawing.new) ~= "function" then return "RED" end
-    local l = Drawing.new("Line")
-    local s = (l and type(l) == "table" and l.Remove)
-    if s then l:Remove() end
-    return s and "GREEN" or "YELLOW"
+    if not (type(Drawing) == "table" and VerifyFunction(Drawing.new)) then return false end
+    local line = Drawing.new("Line")
+    local success = (line ~= nil and type(line) == "table" and VerifyFunction(line.Remove))
+    if success then line:Remove() end
+    return success
 end
 
-local function checkIdentitySet()
-    local s = setthreadidentity or setthreadcontext
-    local g = getthreadidentity or getthreadcontext
-    if type(s) ~= "function" or type(g) ~= "function" then return "RED" end
-    local old = g()
-    s(3)
-    local v = g() == 3
-    s(old)
-    return v and "GREEN" or "YELLOW"
+local function checkWriteFile()
+    if not VerifyFunction(writefile) then return false end
+    local success = pcall(function() writefile("verify_t.txt", "test") end)
+    if success and VerifyFunction(delfile) then pcall(delfile, "verify_t.txt") end
+    return success
 end
 
-local function checkRawSet()
-    if type(setrawmetatable) ~= "function" then return "RED" end
-    local t, m = {}, {__index = function() return 1 end}
-    local s = pcall(setrawmetatable, t, m)
-    return (s and t.any == 1) and "GREEN" or "YELLOW"
-end
-
-local function checkNil()
-    if type(getnilinstances) ~= "function" then return "RED" end
-    local n = getnilinstances()
-    return (type(n) == "table" and #n >= 0) and "GREEN" or "YELLOW"
+local function checkReadFile()
+    if not (VerifyFunction(readfile) and VerifyFunction(writefile)) then return false end
+    writefile("verify_r.txt", "test")
+    local content = readfile("verify_r.txt")
+    local success = (content == "test")
+    if VerifyFunction(delfile) then pcall(delfile, "verify_r.txt") end
+    return success
 end
 
 local function checkHui()
-    if type(gethui) ~= "function" then return "RED" end
-    local h = gethui()
-    return (h and h:IsA("Instance")) and "GREEN" or "YELLOW"
+    if not VerifyFunction(gethui) then return false end
+    local hui = gethui()
+    return hui ~= nil and hui:IsA("Instance")
 end
 
-local function checkBit()
-    if type(bit32) ~= "table" or type(bit32.bxor) ~= "function" then return "RED" end
-    return bit32.bxor(1, 1) == 0 and "GREEN" or "YELLOW"
+local function checkCaller()
+    if not VerifyFunction(checkcaller) then return false end
+    return checkcaller() == true
 end
 
-local function checkClone()
-    if type(cloneref) ~= "function" then return "RED" end
-    local r = cloneref(game)
-    return (r and r ~= game and r.ClassName == game.ClassName) and "GREEN" or "YELLOW"
+local function checkRegistry()
+    if not VerifyFunction(getreg) and not VerifyFunction(getregistry) then return false end
+    local reg = (getreg or getregistry)()
+    return type(reg) == "table" and #reg > 0
 end
 
-local function checkExecClosure()
-    if type(isexecutorclosure) ~= "function" then return "RED" end
-    local isMe = isexecutorclosure(checkProximity)
-    local isRoblox = isexecutorclosure(print)
-    return (isMe == true and isRoblox == false) and "GREEN" or "YELLOW"
+local function checkGC()
+    if not VerifyFunction(getgc) then return false end
+    local gc = getgc()
+    return type(gc) == "table" and #gc > 0
 end
 
-local function checkDebug(name)
-    if type(debug) ~= "table" or type(debug[name]) ~= "function" then return "RED" end
-    local s = pcall(function() debug[name](checkDebug) end)
-    return s and "GREEN" or "YELLOW"
+local function checkProximity()
+    if not VerifyFunction(fireproximityprompt) then return false end
+    local part = Instance.new("Part")
+    local prompt = Instance.new("ProximityPrompt", part)
+    local done = false
+    local connection = prompt.Triggered:Connect(function() done = true end)
+    fireproximityprompt(prompt, 0)
+    task.wait(0.1)
+    connection:Disconnect()
+    part:Destroy()
+    return done
 end
 
-local function checkHash()
-    if type(getscripthash) ~= "function" then return "RED" end
-    local s, h = pcall(getscripthash, LocalPlayer.CharacterAppearanceLoaded)
-task.wait()
-    return (s and type(h) == "string") and "GREEN" or "YELLOW"
+local function checkTouch()
+    if not VerifyFunction(firetouchinterest) then return false end
+    local Touched = false
+    local PartA = Instance.new("Part", Workspace)
+    local PartB = Instance.new("Part", Workspace)
+    local connection = PartA.Touched:Connect(function() Touched = true end)
+    firetouchinterest(PartA, PartB, 0)
+    firetouchinterest(PartA, PartB, 1)
+    local start = tick()
+    repeat task.wait() until Touched or (tick() - start > 0.2)
+    connection:Disconnect()
+    PartA:Destroy()
+    PartB:Destroy()
+    return Touched
 end
 
-local function checkCallback()
-    if type(getcallbackvalue) ~= "function" then return "RED" end
-    local b = Instance.new("BindableFunction")
-    local f = function() end
-    b.OnInvoke = f
-    local v = getcallbackvalue(b, "OnInvoke")
-    b:Destroy()
-    return v == f and "GREEN" or "YELLOW"
+local function checkRequire()
+    if ExecutorName == "Xeno" or ExecutorName == "Seliware" then return false end
+    local scripts = LocalPlayer:FindFirstChild("PlayerScripts")
+    local mod = scripts and scripts:FindFirstChild("PlayerModule")
+    if mod and VerifyFunction(require) then
+        return pcall(require, mod)
+    end
+    return false
 end
 
-local function checkAsset()
-    if type(getcustomasset) ~= "function" then return "RED" end
-    if type(writefile) ~= "function" then return "YELLOW" end
-    writefile("t.png", "data")
-    local a = getcustomasset("t.png")
-    if delfile then delfile("t.png") end
-    return type(a) == "string" and "GREEN" or "YELLOW"
+local function checkSignal()
+    return VerifyFunction(replicatesignal)
+end
+
+local function checkHook()
+    if not VerifyFunction(hookmetamethod) then return false end
+    local called = false
+    local original
+    local ok = pcall(function()
+        original = hookmetamethod(game, "__index", function(self, key)
+            if key == "DetectionTest" then
+                called = true
+                return true
+            end
+            return original(self, key)
+        end)
+    end)
+    if ok then
+        local _ = game.DetectionTest
+        hookmetamethod(game, "__index", original)
+    end
+    return called
+end
+
+local function checkisnetworkowner()
+    if not VerifyFunction(isnetworkowner) then return false end
+    local part = Instance.new("Part")
+    local success = pcall(function() return isnetworkowner(part) end)
+    part:Destroy()
+    return success
+end
+
+local function checksethiddenprop()
+    if not VerifyFunction(sethiddenproperty) then return false end
+    local Part = Instance.new("Part")
+    sethiddenproperty(Part, "Massless", true)
+    task.wait()
+    local success = Part.Massless == true
+    Part:Destroy()
+    return success
+end
+
+local function checkgethiddenprop()
+    if not VerifyFunction(gethiddenproperty) then return false end
+    local Part = Instance.new("Part")
+    if VerifyFunction(sethiddenproperty) then
+        sethiddenproperty(Part, "Massless", true)
+    else
+        Part.Massless = true
+    end
+    task.wait()
+    local val = gethiddenproperty(Part, "Massless")
+    local success = (val == true and Part.Massless == true)
+    Part:Destroy()
+    return success
+end
+
+local function checkgetgenv()
+    if not VerifyFunction(getgenv) then return false end
+    local env = getgenv()
+    env.CompatTest = true
+    local success = env.CompatTest == true
+    env.CompatTest = nil
+    return success
+end
+
+local function checkgetnilinstances()
+    if not VerifyFunction(getnilinstances) then return false end
+    local instances = getnilinstances()
+    return type(instances) == "table" and #instances > 0
+end
+
+local function checkIdentify()
+    return VerifyFunction(identifyexecutor) and type(identifyexecutor()) == "string"
+end
+
+local function checkGetName()
+    return VerifyFunction(getexecutorname) and type(getexecutorname()) == "string"
 end
 
 local tests = {
     {id = "fireproximityprompt", run = checkProximity},
     {id = "firetouchinterest", run = checkTouch},
-    {id = "hookmetamethod", run = checkHookMeta},
-    {id = "hookfunction", run = checkHookFunc},
-    {id = "setreadonly", run = checkReadOnly},
-    {id = "getgenv", run = checkGenv},
-    {id = "getrenv", run = checkRenv},
-    {id = "getgc", run = checkGC},
-    {id = "getreg", run = checkReg},
-    {id = "getscripts", run = checkScripts},
-    {id = "getconnections", run = checkConn},
-    {id = "gethiddenproperty", run = checkHiddenGet},
-    {id = "sethiddenproperty", run = checkHiddenSet},
-    {id = "setthreadidentity", run = checkIdentitySet},
-    {id = "writefile", run = checkFilesWrite},
-    {id = "readfile", run = checkFilesRead},
-    {id = "makefolder", run = checkFolders},
-    {id = "newcclosure", run = checkC},
-    {id = "request", run = checkReq},
+    {id = "require", run = checkRequire},
+    {id = "replicatesignal", run = checkSignal},
+    {id = "hookmetamethod", run = checkHook},
+    {id = "isnetworkowner", run = checkisnetworkowner},
+    {id = "sethiddenproperty", run = checksethiddenprop},
+    {id = "gethiddenproperty", run = checkgethiddenprop},
+    {id = "getgenv", run = checkgetgenv},
+    {id = "getnilinstances", run = checkgetnilinstances},
+    {id = "identifyexecutor", run = checkIdentify},
+    {id = "getexecutorname", run = checkGetName},
     {id = "Drawing.new", run = checkDrawing},
-    {id = "setrawmetatable", run = checkRawSet},
-    {id = "getnilinstances", run = checkNil},
+    {id = "writefile", run = checkWriteFile},
+    {id = "readfile", run = checkReadFile},
     {id = "gethui", run = checkHui},
-    {id = "bit32", run = checkBit},
-    {id = "cloneref", run = checkClone},
-    {id = "isexecutorclosure", run = checkExecClosure},
-    {id = "debug.getupvalues", run = function() return checkDebug("getupvalues") end},
-    {id = "debug.getconstants", run = function() return checkDebug("getconstants") end},
-    {id = "debug.getprotos", run = function() return checkDebug("getprotos") end},
-    {id = "getscripthash", run = checkHash},
-    {id = "getcallbackvalue", run = checkCallback},
-    {id = "getcustomasset", run = checkAsset},
-    {id = "isreadonly", run = function() return type(isreadonly) == "function" and "GREEN" or "RED" end},
-    {id = "identifyexecutor", run = function() return type(identifyexecutor) == "function" and "GREEN" or "RED" end},
-    {id = "checkcaller", run = function() return type(checkcaller) == "function" and "GREEN" or "RED" end},
-    {id = "islclosure", run = function() return type(islclosure) == "function" and "GREEN" or "RED" end},
-    {id = "getrawmetatable", run = function() return type(getrawmetatable) == "function" and "GREEN" or "RED" end},
-    {id = "getthreadidentity", run = function() return (getthreadidentity or getthreadcontext) and "GREEN" or "RED" end},
-    {id = "isfile", run = function() return type(isfile) == "function" and "GREEN" or "RED" end},
-    {id = "isfolder", run = function() return type(isfolder) == "function" and "GREEN" or "RED" end},
-    {id = "delfile", run = function() return type(delfile) == "function" and "GREEN" or "RED" end},
-    {id = "delfolder", run = function() return type(delfolder) == "function" and "GREEN" or "RED" end},
-    {id = "getnamecallmethod", run = function() return type(getnamecallmethod) == "function" and "GREEN" or "RED" end},
-    {id = "keypress", run = function() return type(keypress) == "function" and "GREEN" or "RED" end},
-    {id = "mouse1click", run = function() return type(mouse1click) == "function" and "GREEN" or "RED" end}
+    {id = "checkcaller", run = checkCaller},
+    {id = "getregistry", run = checkRegistry},
+    {id = "getgc", run = checkGC},
 }
 
 local score = 0
-print("Starting Compatibility Check")
+print("--- Starting compatibility check ---")
+
 for _, t in pairs(tests) do
-    local res = run(t.run)
-    local icon = (res == "GREEN" and "🟢") or (res == "YELLOW" and "🟡") or "🔴"
-    if res == "GREEN" then score = score + 1 end
+    local success = run(t.run)
+    Support[t.id] = success or false
+    local icon = success and "🟢" or "🔴"
     print(string.format("%s [%s]", icon, t.id))
-    Support[t.id] = (res == "GREEN")
+    if success then score = score + 1 end
 end
 
-print("---------------------------------")
-print(string.format("Final Score: %d/%d (%d%%)", score, #tests, math.floor((score / #tests) * 100)))
+print("-----------------------------------")
+print(string.format("Results: %d/%d (%d%%)", score, #tests, math.floor((score / #tests) * 100)))
 
-if getgenv and type(getgenv) == "function" then getgenv().ExecutorSupport = Support end
+if getgenv then getgenv().ExecutorSupport = Support end
 return Support
