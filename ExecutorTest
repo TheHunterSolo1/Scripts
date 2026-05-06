@@ -31,7 +31,7 @@ local function checkDrawing()
     if not VerifyFunction(Drawing.new) then return false end
     local line = Drawing.new("Line")
     local success = (line ~= nil)
-    if success then line:Remove() end
+    if success then line:Destroy() end
     return success
 end
 
