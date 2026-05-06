@@ -2,211 +2,154 @@ local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ExecutorName = identifyexecutor() or getexecutorname() or "Unknown"
 local LocalPlayer = Players.LocalPlayer
-local Objects = {}
 
-if not LocalPlayer.Character then
-print("Waiting for character to load")
-repeat task.wait() until LocalPlayer.Character
+local function VerifyFunction(func)
+    return type(func) == "function"
 end
 
+local function GetExecutor()
+    if VerifyFunction(identifyexecutor) then
+        local name = identifyexecutor()
+        if type(name) == "string" then return name end
+    end
+    if VerifyFunction(getexecutorname) then
+        local name = getexecutorname()
+        if type(name) == "string" then return name end
+    end
+    return "Unknown"
+end
 
+local ExecutorName = GetExecutor()
 
-  
 local function run(f, ...)
-	local ok, res = pcall(f, ...)
-	return ok and res
+    local ok, res = pcall(f, ...)
+    return ok and res
 end
 
 local function checkProximity()
-	if not fireproximityprompt then return false end
-	
-	local folder = Instance.new("Folder", Workspace)
-	local part = Instance.new("Part", folder)
-	part.Anchored = true
-	part.Position = Vector3.new(0, 5000, 0)
-	
-	local prompt = Instance.new("ProximityPrompt", part)
-	prompt.Enabled = true
-	prompt.MaxActivationDistance = 1000
-	prompt.RequiresLineOfSight = false
-	
-	local done = false
-	local connection = prompt.Triggered:Connect(function()
-		done = true
-	end)
-	
-	pcall(function()
-		fireproximityprompt(prompt, 0)
-	end)
-	
-	task.wait(0.5)
-	
-	connection:Disconnect()
-	folder:Destroy()
-	
-	return done
+    if not VerifyFunction(fireproximityprompt) then return false end
+    local part = Instance.new("Part")
+    local prompt = Instance.new("ProximityPrompt", part)
+    local done = false
+    local connection = prompt.Triggered:Connect(function() done = true end)
+    fireproximityprompt(prompt, 0)
+    task.wait() 
+    connection:Disconnect()
+    part:Destroy()
+    return done
 end
 
 local function checkTouch()
-	if not firetouchinterest then return false end
-local Touched = false
-local TestPart = Instance.new("Part", workspace)
-TestPart.Name = "TestPart"
-local Part = Instance.new("Part",workspace)
-
-Part.Position = Vector3.new(0, 100, 0)
-Part.CanTouch = true
-Part.Anchored = true
-Part.CanCollide = true
-
-
- local con = Part.Touched:Connect(function()
-Touched = true
-end)
-local timeout = 0
-
-while timeout < 1 do
-timeout += RunService.RenderStepped:Wait()
-firetouchinterest(TestPart, Part, 0)
-task.wait()
-firetouchinterest(TestPart, Part, 1)
-task.wait()
-end
-task.wait(1)
-Part:Destroy()
-TestPart:Destroy()
-con:Disconnect()
-return Touched
+    if not VerifyFunction(firetouchinterest) then return false end
+    local Touched = false
+    local PartA = Instance.new("Part", Workspace)
+    local PartB = Instance.new("Part", Workspace)
+    local connection = PartA.Touched:Connect(function() Touched = true end)
+    firetouchinterest(PartA, PartB, 0)
+    firetouchinterest(PartA, PartB, 1)
+    local start = tick()
+    repeat task.wait() until Touched or (tick() - start > 0.2)
+    connection:Disconnect()
+    PartA:Destroy()
+    PartB:Destroy()
+    return Touched
 end
 
 local function checkRequire()
-if ExecutorName == "Xeno" or ExecutorName == "Seliware" then
-return false
-end
-if ExecutorName ~=  "Xeno" or ExecutorName ~= "Seliware" then
-	local scripts = Players.LocalPlayer:FindFirstChild("PlayerScripts")
-	if scripts then
-		local mod = scripts:FindFirstChild("PlayerModule")
-		if mod then
-			local ok, res = pcall(require, mod)
-			return ok and type(res) == "table"
-		end
-	end
-end
-	return false
+    if ExecutorName == "Xeno" or ExecutorName == "Seliware" then return false end
+    local scripts = LocalPlayer:FindFirstChild("PlayerScripts")
+    local mod = scripts and scripts:FindFirstChild("PlayerModule")
+    if mod and VerifyFunction(require) then
+        return pcall(require, mod)
+    end
+    return false
 end
 
 local function checkSignal()
-	return type(replicatesignal) == "function"
+    return VerifyFunction(replicatesignal)
 end
 
 local function checkHook()
-	if not hookmetamethod then return false end
-	
-	local testObj = game
-	local called = false
-	local original
-	
-	local ok = pcall(function()
-		original = hookmetamethod(testObj, "__index", function(self, key)
-			if key == "DetectionTest" then
-				called = true
-				return true
-			end
-			return original(self, key)
-		end)
-	end)
-	
-	if ok then
-		local _ = testObj.DetectionTest
-		hookmetamethod(testObj, "__index", original)
-	end
-	
-	return called
+    if not VerifyFunction(hookmetamethod) then return false end
+    local called = false
+    local original
+    local ok = pcall(function()
+        original = hookmetamethod(game, "__index", function(self, key)
+            if key == "DetectionTest" then
+                called = true
+                return true
+            end
+            return original(self, key)
+        end)
+    end)
+    if ok then
+        local _ = game.DetectionTest
+        hookmetamethod(game, "__index", original)
+    end
+    return called
 end
+
 local function checkisnetworkowner()
-if isnetworkowner then
-local Part = Instance.new("Part", workspace)
-if isnetworkowner(Part) then
-return true
-else
-return false
-end
-Part:Destroy()
-
-end
-if not isnetworkowner then
-return false
-end
-
+    if not VerifyFunction(isnetworkowner) then return false end
+    local part = Instance.new("Part")
+    local success = pcall(function() return isnetworkowner(part) end)
+    part:Destroy()
+    return success
 end
 
 local function checksethiddenprop()
-local Part
-if not sethiddenproperty then
-return false
-end
- Part = Instance.new("Part", workspace)
-
-sethiddenproperty(Part, "Massless", true)
-task.wait()
-if Part.Massless then
-return true
-else
-return false
-end
-Part:Destroy()
+    if not VerifyFunction(sethiddenproperty) then return false end
+    local Part = Instance.new("Part")
+    sethiddenproperty(Part, "Massless", true)
+    task.wait()
+    local success = Part.Massless == true
+    Part:Destroy()
+    return success
 end
 
 local function checkgetnilinstances()
-if not getnilinstances then return false end
-
-for _, v in getnilinstances() do
-table.insert(Objects, v)
-task.wait(0.1)
-if #Objects > 0 then
-return true
-else
-return false
-end
-table.clear(Objects)
-end
+    if not VerifyFunction(getnilinstances) then return false end
+    local instances = getnilinstances()
+    return type(instances) == "table" and #instances > 0
 end
 
+local function checkIdentify()
+    return VerifyFunction(identifyexecutor) and type(identifyexecutor()) == "string"
+end
+
+local function checkGetName()
+    return VerifyFunction(getexecutorname) and type(getexecutorname()) == "string"
+end
 
 local tests = {
-	{id = "fireproximityprompt", run = checkProximity},
-	{id = "firetouchinterest", run = checkTouch},
-	{id = "require", run = checkRequire},
-	{id = "replicatesignal", run = checkSignal},
-	{id = "hookmetamethod", run = checkHook},
+    {id = "fireproximityprompt", run = checkProximity},
+    {id = "firetouchinterest", run = checkTouch},
+    {id = "require", run = checkRequire},
+    {id = "replicatesignal", run = checkSignal},
+    {id = "hookmetamethod", run = checkHook},
     {id = "isnetworkowner", run = checkisnetworkowner},
     {id = "sethiddenproperty", run = checksethiddenprop},
     {id = "getnilinstances", run = checkgetnilinstances},
+    {id = "identifyexecutor", run = checkIdentify},
+    {id = "getexecutorname", run = checkGetName},
 }
 
 local score = 0
 print("--- Starting compatibility check ---")
 
 for _, t in pairs(tests) do
-	local success = run(t.run)
-	Support[t.id] = success or false
-	
-	local icon = success and "🟢" or "🔴"
-	print(icon .. " " .. t.id)
-	
-	if success then score = score + 1 end
+    local success = run(t.run)
+    Support[t.id] = success or false
+    
+    local icon = success and "🟢" or "🔴"
+    print(string.format("%s [%s]", icon, t.id))
+    
+    if success then score = score + 1 end
 end
 
-local resultStr = string.format("Results: %d/%d (%d%%)", score, #tests, math.floor((score / #tests) * 100))
 print("-----------------------------------")
-print(resultStr)
+print(string.format("Results: %d/%d (%d%%)", score, #tests, math.floor((score / #tests) * 100)))
 
-if getgenv then
-	getgenv().ExecutorSupport = Support
-end
-
-
+if getgenv then getgenv().ExecutorSupport = Support end
 return Support
