@@ -22,10 +22,10 @@ getgenv().PathToLoop = function()
 
         local function IsPassable(Part)
             if not Part then return true end
-            if not Part.CanCollide or Part.Transparency >= 0.1 or not Part.CanQuery then return true end
+            if not Part.CanCollide or Part.Transparency >= 0.7 or not Part.CanQuery then return true end
             local ignore = {”Union"}
             for _, name in pairs(ignore) do
-                if Part.Name:find(name) then return true end
+                if Part.Name:find(name) and Part.CanCollide then return true end
             end
             return false
         end
