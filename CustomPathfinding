@@ -13,28 +13,21 @@ getgenv().PathToLoop = function()
 		local Root = Character:WaitForChild("HumanoidRootPart")
 		local Humanoid = Character:WaitForChild("Humanoid")
 
-		local Visuals = workspace:FindFirstChild("CustomPathfinding") or Instance.new("Folder", workspace)
-		Visuals.Name = "CustomPathfinding"
+		local Visuals = Instance.new("Folder", workspace)
+		Visuals.Name = "PathDebug"
 
-		local GridSize = 4
+		local GridSize = 3
 		local CurrentPath = {}
 		local TargetPosition = nil
 
-		local Params = RaycastParams.new()
-		Params.FilterDescendantsInstances = {Character, Visuals}
-		Params.FilterType = Enum.RaycastFilterType.Exclude
-		Params.RespectCanCollide = true
-
-		local function IsPassable(pos, target)
-			local diff = (target - pos)
-			local wallCheck = workspace:Raycast(pos + Vector3.new(0, 1.5, 0), diff, Params)
-			if wallCheck and wallCheck.Instance and wallCheck.Instance.CanCollide then
-				local name = wallCheck.Instance.Name:lower()
-				if not (name:find("stair") or name:find("step") or name:find("wedge")) then
-					return false
-				end
+		local function IsPassable(Part)
+			if not Part then return true end
+			if Part.Name == "Union" or Part:IsA("UnionOperation") then return true end
+			if Part.CanCollide == false or Part.Transparency >= 1 or Part.CanQuery == false then
+				return true
 			end
-			return true
+			if Part.Name == "Stairs" or Part.Name == "Step" then return true end
+			return false
 		end
 
 		local function GetNeighbors(Pos)
@@ -46,10 +39,24 @@ getgenv().PathToLoop = function()
 				Vector3.new(GridSize, 0, -GridSize), Vector3.new(-GridSize, 0, GridSize)
 			}
 			
+			local Params = RaycastParams.new()
+			Params.FilterDescendantsInstances = {Character, Visuals}
+			Params.FilterType = Enum.RaycastFilterType.Exclude
+			Params.RespectCanCollide = true
+
 			for _, Dir in Directions do
 				local NeighborPos = Pos + Dir
-				if IsPassable(Pos, NeighborPos) then
-					local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 12, 0), Vector3.new(0, -24, 0), Params)
+				local Wall = workspace:Raycast(Pos + Vector3.new(0, 1.5, 0), Dir, Params)
+				
+				local Passable = true
+				if Wall and Wall.Instance then
+					if not IsPassable(Wall.Instance) then
+						Passable = false
+					end
+				end
+
+				if Passable then
+					local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 8, 0), Vector3.new(0, -16, 0), Params)
 					if Floor then
 						table.insert(Neighbors, Floor.Position)
 					end
@@ -59,14 +66,15 @@ getgenv().PathToLoop = function()
 		end
 
 		task.spawn(function()
-			while task.wait(0.25) do
-    if not getgenv().PathfindingThread then break end
+			while task.wait(0.1) do
+if not getgenv().PathfindingThread then break end
 				local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
 				local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
 				if not Room then continue end
 
 				local HasKey = Character:FindFirstChild("Key") or Player.Backpack:FindFirstChild("Key")
 				local KeyObj = Room:FindFirstChild("KeyObtain", true)
+				
 				local FinalTarget = nil
 
 				if KeyObj and not HasKey then
@@ -77,9 +85,12 @@ getgenv().PathToLoop = function()
 					end
 				elseif Room:FindFirstChild("Door") and Room.Door:FindFirstChild("Door") then
 					FinalTarget = Room.Door.Door.Position
-					if (Root.Position - FinalTarget).Magnitude < 15 then
+					
+					local DistanceToDoor = (Root.Position - FinalTarget).Magnitude
+					if DistanceToDoor < 15 then
 						local DoorPrompt = Room.Door:FindFirstChildWhichIsA("ProximityPrompt", true)
 						if DoorPrompt then fireproximityprompt(DoorPrompt) end
+						
 						local Lock = Room.Door:FindFirstChild("Lock")
 						if Lock then
 							local LockPrompt = Lock:FindFirstChildWhichIsA("ProximityPrompt", true)
@@ -100,7 +111,7 @@ getgenv().PathToLoop = function()
 					local FScore = {[Start] = (Start - Goal).Magnitude}
 					local Success = false
 					
-					for I = 1, 300 do
+					for I = 1, 600 do
 						local CurrentIdx = 1
 						for J = 2, #Open do
 							if FScore[Open[J]] < FScore[Open[CurrentIdx]] then CurrentIdx = J end
@@ -108,7 +119,7 @@ getgenv().PathToLoop = function()
 						
 						local Current = table.remove(Open, CurrentIdx)
 						if not Current then break end
-						if (Current - Goal).Magnitude < GridSize * 1.5 then
+						if (Current - Goal).Magnitude < GridSize * 1.6 then
 							Goal = Current
 							Success = true
 							break
@@ -134,7 +145,7 @@ getgenv().PathToLoop = function()
 						while Curr do
 							table.insert(NewPath, 1, Curr)
 							local Marker = Instance.new("Part", Visuals)
-							Marker.Size, Marker.Shape, Marker.Color, Marker.Material = Vector3.new(0.6,0.6,0.6), "Ball", Color3.new(1,0.5,0), "Neon"
+							Marker.Size, Marker.Shape, Marker.Color, Marker.Material = Vector3.new(0.5,0.5,0.5), "Ball", Color3.new(0,1,0), "Neon"
 							Marker.Anchored, Marker.CanCollide, Marker.Position = true, false, Curr
 							Curr = CameFrom[Curr]
 						end
@@ -146,13 +157,17 @@ getgenv().PathToLoop = function()
 
 		local con = RunService.RenderStepped:Connect(function()
 if not getgenv().PathfindingThread then
-con:Disconnect()
+
 end
 			if #CurrentPath > 0 then
 				local Target = CurrentPath[1]
 				Humanoid:MoveTo(Target)
-				if (Root.Position - Target).Magnitude < 3.8 then
+				
+				if (Root.Position - Target).Magnitude < 4.2 then
 					table.remove(CurrentPath, 1)
+					if #CurrentPath > 0 then
+						Humanoid:MoveTo(CurrentPath[1])
+					end
 				end
 			elseif TargetPosition then
 				Humanoid:MoveTo(TargetPosition)
@@ -162,3 +177,4 @@ end
 end
 
 PathToLoop()
+
