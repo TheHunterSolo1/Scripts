@@ -16,17 +16,15 @@ getgenv().PathToLoop = function()
         local Visuals = workspace:FindFirstChild("PathDebug") or Instance.new("Folder", workspace)
         Visuals.Name = "PathDebug"
 
-        local GridSize = 5
+        local GridSize = 4
         local CurrentPath = {}
         local TargetPosition = nil
 
         local function IsPassable(Part)
             if not Part then return true end
             if not Part.CanCollide or Part.Transparency >= 0.7 or not Part.CanQuery then return true end
-            local ignore = {”Union"}
-            for _, name in pairs(ignore) do
-                if Part.Name:find(name) and Part.CanCollide then return true end
-            end
+            ,
+            
             return false
         end
 
