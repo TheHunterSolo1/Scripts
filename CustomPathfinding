@@ -60,6 +60,7 @@ getgenv().PathToLoop = function()
 
 		task.spawn(function()
 			while task.wait(0.75) do
+    if not getgenv().PathfindingThread then break end
 				local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
 				local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
 				if not Room then continue end
@@ -143,7 +144,10 @@ getgenv().PathToLoop = function()
 			end
 		end)
 
-		RunService.RenderStepped:Connect(function()
+		local con = RunService.RenderStepped:Connect(function()
+if not getgenv().PathfindingThread then
+con:Disconnect()
+end
 			if #CurrentPath > 0 then
 				local Target = CurrentPath[1]
 				Humanoid:MoveTo(Target)
