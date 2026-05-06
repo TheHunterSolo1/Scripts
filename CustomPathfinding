@@ -46,7 +46,7 @@ getgenv().PathToLoop = function()
 
 			for _, Dir in Directions do
 				local NeighborPos = Pos + Dir
-				local Wall = workspace:Raycast(Pos + Vector3.new(0, 1.5, 0), Dir, Params)
+				local Wall = workspace:Raycast(Pos + Vector3.new(0, 2.5, 0), Dir, Params)
 				
 				local Passable = true
 				if Wall and Wall.Instance then
@@ -157,7 +157,7 @@ if not getgenv().PathfindingThread then break end
 
 		local con = RunService.RenderStepped:Connect(function()
 if not getgenv().PathfindingThread then
-
+con:Disconnect()
 end
 			if #CurrentPath > 0 then
 				local Target = CurrentPath[1]
