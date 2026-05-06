@@ -1,180 +1,187 @@
 getgenv().PathToLoop = function()
-	if getgenv().PathfindingThread then
-		task.cancel(getgenv().PathfindingThread)
-	end
+    if getgenv().PathfindingThread then
+        task.cancel(getgenv().PathfindingThread)
+    end
 
-	getgenv().PathfindingThread = task.spawn(function()
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local ReplicatedStorage = game:GetService("ReplicatedStorage")
-		
-		local Player = Players.LocalPlayer
-		local Character = Player.Character or Player.CharacterAdded:Wait()
-		local Root = Character:WaitForChild("HumanoidRootPart")
-		local Humanoid = Character:WaitForChild("Humanoid")
+    getgenv().PathfindingThread = task.spawn(function()
+        local Players = game:GetService("Players")
+        local RunService = game:GetService("RunService")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        
+        local Player = Players.LocalPlayer
+        local Character = Player.Character or Player.CharacterAdded:Wait()
+        local Root = Character:WaitForChild("HumanoidRootPart")
+        local Humanoid = Character:WaitForChild("Humanoid")
 
-		local Visuals = Instance.new("Folder", workspace)
-		Visuals.Name = "PathDebug"
+        local Visuals = workspace:FindFirstChild("PathDebug") or Instance.new("Folder", workspace)
+        Visuals.Name = "PathDebug"
 
-		local GridSize = 3
-		local CurrentPath = {}
-		local TargetPosition = nil
+        local GridSize = 3 
+        local CurrentPath = {}
+        local TargetPosition = nil
 
-		local function IsPassable(Part)
-			if not Part then return true end
-			if Part.Name == "Union" or Part:IsA("UnionOperation") then return true end
-			if Part.CanCollide == false or Part.Transparency >= 1 or Part.CanQuery == false then
-				return true
-			end
-			if Part.Name == "Stairs" or Part.Name == "Step" then return true end
-			return false
-		end
+        local function IsPassable(Part)
+            if not Part then return true end
+            if not Part.CanCollide or Part.Transparency >= 0.7 or not Part.CanQuery then return true end
+            local ignore = {"Stairs", "Step", "Union", "Carpet", "Rug", "Frame", "Handle"}
+            for _, name in pairs(ignore) do
+                if Part.Name:find(name) then return true end
+            end
+            return false
+        end
 
-		local function GetNeighbors(Pos)
-			local Neighbors = {}
-			local Directions = {
-				Vector3.new(GridSize, 0, 0), Vector3.new(-GridSize, 0, 0),
-				Vector3.new(0, 0, GridSize), Vector3.new(0, 0, -GridSize),
-				Vector3.new(GridSize, 0, GridSize), Vector3.new(-GridSize, 0, -GridSize),
-				Vector3.new(GridSize, 0, -GridSize), Vector3.new(-GridSize, 0, GridSize)
-			}
-			
-			local Params = RaycastParams.new()
-			Params.FilterDescendantsInstances = {Character, Visuals}
-			Params.FilterType = Enum.RaycastFilterType.Exclude
-			Params.RespectCanCollide = true
+        local function CanFit(Pos, Dir, Dist)
+            local Params = RaycastParams.new()
+            Params.FilterDescendantsInstances = {Character, Visuals, workspace.CurrentRooms}
+            Params.FilterType = Enum.RaycastFilterType.Exclude
 
-			for _, Dir in Directions do
-				local NeighborPos = Pos + Dir
-				local Wall = workspace:Raycast(Pos + Vector3.new(0, 2.5, 0), Dir, Params)
-				
-				local Passable = true
-				if Wall and Wall.Instance then
-					if not IsPassable(Wall.Instance) then
-						Passable = false
-					end
-				end
+            local Offsets = {
+                Vector3.new(0, 2, 0),
+                Vector3.new(0, 5, 0),
+                Vector3.new(0, 0.5, 0)
+            }
 
-				if Passable then
-					local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 8, 0), Vector3.new(0, -16, 0), Params)
-					if Floor then
-						table.insert(Neighbors, Floor.Position)
-					end
-				end
-			end
-			return Neighbors
-		end
+            for _, offset in pairs(Offsets) do
+                local hit = workspace:Raycast(Pos + offset, Dir * Dist, Params)
+                if hit and hit.Instance and not IsPassable(hit.Instance) then
+                    return false
+                end
+            end
+            return true
+        end
 
-		task.spawn(function()
-			while task.wait(0.1) do
-if not getgenv().PathfindingThread then break end
-				local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
-				local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
-				if not Room then continue end
+        local function GetNeighbors(Pos)
+            local Neighbors = {}
+            local Directions = {
+                Vector3.new(GridSize, 0, 0), Vector3.new(-GridSize, 0, 0),
+                Vector3.new(0, 0, GridSize), Vector3.new(0, 0, -GridSize),
+                Vector3.new(GridSize, 0, GridSize), Vector3.new(-GridSize, 0, -GridSize)
+            }
+            
+            for _, Dir in Directions do
+                if CanFit(Pos, Dir.Unit, GridSize) then
+                    local NeighborPos = Pos + Dir
+                    local Params = RaycastParams.new()
+                    Params.FilterDescendantsInstances = {Character, Visuals}
+                    Params.FilterType = Enum.RaycastFilterType.Exclude
+                    
+                    local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 5, 0), Vector3.new(0, -10, 0), Params)
+                    if Floor then
+                        table.insert(Neighbors, Floor.Position)
+                    end
+                end
+            end
+            return Neighbors
+        end
 
-				local HasKey = Character:FindFirstChild("Key") or Player.Backpack:FindFirstChild("Key")
-				local KeyObj = Room:FindFirstChild("KeyObtain", true)
-				
-				local FinalTarget = nil
+        local function ToKey(Vec)
+            return math.floor(Vec.X/GridSize) .. "," .. math.floor(Vec.Y/2) .. "," .. math.floor(Vec.Z/GridSize)
+        end
 
-				if KeyObj and not HasKey then
-					FinalTarget = KeyObj:IsA("Model") and KeyObj.PrimaryPart and KeyObj.PrimaryPart.Position or KeyObj:IsA("BasePart") and KeyObj.Position
-					if FinalTarget and (Root.Position - FinalTarget).Magnitude < 13 then
-						local Prompt = KeyObj:FindFirstChildWhichIsA("ProximityPrompt", true)
-						if Prompt then fireproximityprompt(Prompt) end
-					end
-				elseif Room:FindFirstChild("Door") and Room.Door:FindFirstChild("Door") then
-					FinalTarget = Room.Door.Door.Position
-					
-					local DistanceToDoor = (Root.Position - FinalTarget).Magnitude
-					if DistanceToDoor < 15 then
-						local DoorPrompt = Room.Door:FindFirstChildWhichIsA("ProximityPrompt", true)
-						if DoorPrompt then fireproximityprompt(DoorPrompt) end
-						
-						local Lock = Room.Door:FindFirstChild("Lock")
-						if Lock then
-							local LockPrompt = Lock:FindFirstChildWhichIsA("ProximityPrompt", true)
-							if LockPrompt then fireproximityprompt(LockPrompt) end
-						end
-					end
-				end
+        task.spawn(function()
+            while task.wait(0.1) do
+                if not getgenv().PathfindingThread then break end
+                
+                local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
+                local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
+                if not Room then continue end
 
-				if FinalTarget then
-					TargetPosition = FinalTarget
-					local Start = Vector3.new(math.round(Root.Position.X/GridSize)*GridSize, Root.Position.Y, math.round(Root.Position.Z/GridSize)*GridSize)
-					local Goal = Vector3.new(math.round(FinalTarget.X/GridSize)*GridSize, FinalTarget.Y, math.round(FinalTarget.Z/GridSize)*GridSize)
+                local HasKey = Character:FindFirstChild("Key") or Player.Backpack:FindFirstChild("Key")
+                local KeyObj = Room:FindFirstChild("KeyObtain", true)
+                local FinalTarget = nil
 
-					local Open = {Start}
-					local Closed = {}
-					local CameFrom = {}
-					local GScore = {[Start] = 0}
-					local FScore = {[Start] = (Start - Goal).Magnitude}
-					local Success = false
-					
-					for I = 1, 600 do
-						local CurrentIdx = 1
-						for J = 2, #Open do
-							if FScore[Open[J]] < FScore[Open[CurrentIdx]] then CurrentIdx = J end
-						end
-						
-						local Current = table.remove(Open, CurrentIdx)
-						if not Current then break end
-						if (Current - Goal).Magnitude < GridSize * 1.6 then
-							Goal = Current
-							Success = true
-							break
-						end
-						
-						Closed[Current] = true
-						for _, Neighbor in GetNeighbors(Current) do
-							if Closed[Neighbor] then continue end
-							local Score = GScore[Current] + (Current - Neighbor).Magnitude
-							if not GScore[Neighbor] or Score < GScore[Neighbor] then
-								CameFrom[Neighbor] = Current
-								GScore[Neighbor] = Score
-								FScore[Neighbor] = Score + (Neighbor - Goal).Magnitude
-								if not table.find(Open, Neighbor) then table.insert(Open, Neighbor) end
-							end
-						end
-					end
+                if KeyObj and not HasKey then
+                    FinalTarget = KeyObj:IsA("Model") and KeyObj.PrimaryPart and KeyObj.PrimaryPart.Position or KeyObj:IsA("BasePart") and KeyObj.Position
+                elseif Room:FindFirstChild("Door") then
+                    local DoorMain = Room.Door:FindFirstChild("Door") or Room.Door:FindFirstChild("Hidden")
+                    if DoorMain then FinalTarget = DoorMain.Position end
+                end
 
-					if Success then
-						local NewPath = {}
-						local Curr = Goal
-						Visuals:ClearAllChildren()
-						while Curr do
-							table.insert(NewPath, 1, Curr)
-							local Marker = Instance.new("Part", Visuals)
-							Marker.Size, Marker.Shape, Marker.Color, Marker.Material = Vector3.new(0.5,0.5,0.5), "Ball", Color3.new(0,1,0), "Neon"
-							Marker.Anchored, Marker.CanCollide, Marker.Position = true, false, Curr
-							Curr = CameFrom[Curr]
-						end
-						CurrentPath = NewPath
-					end
-				end
-			end
-		end)
+                if FinalTarget then
+                    TargetPosition = FinalTarget
+                    local Start = Root.Position
+                    
+                    local Open = {Start}
+                    local Closed = {}
+                    local CameFrom = {}
+                    local GScore = {[ToKey(Start)] = 0}
+                    local FScore = {[ToKey(Start)] = (Start - FinalTarget).Magnitude}
+                    
+                    local Success = false
+                    for I = 1, 1000 do
+                        local CurrentIdx = 1
+                        local minF = math.huge
+                        for j, node in ipairs(Open) do
+                            local f = FScore[ToKey(node)] or math.huge
+                            if f < minF then minF = f; CurrentIdx = j end
+                        end
+                        
+                        local Current = table.remove(Open, CurrentIdx)
+                        if not Current then break end
+                        
+                        if (Current - FinalTarget).Magnitude < GridSize * 1.5 then
+                            FinalTarget = Current
+                            Success = true
+                            break
+                        end
+                        
+                        Closed[ToKey(Current)] = true
+                        for _, Neighbor in GetNeighbors(Current) do
+                            if Closed[ToKey(Neighbor)] then continue end
+                            local tentative_g = GScore[ToKey(Current)] + (Current - Neighbor).Magnitude
+                            
+                            if not GScore[ToKey(Neighbor)] or tentative_g < GScore[ToKey(Neighbor)] then
+                                CameFrom[ToKey(Neighbor)] = Current
+                                GScore[ToKey(Neighbor)] = tentative_g
+                                FScore[ToKey(Neighbor)] = tentative_g + (Neighbor - FinalTarget).Magnitude
+                                if not table.find(Open, Neighbor) then table.insert(Open, Neighbor) end
+                            end
+                        end
+                    end
 
-		local con = RunService.RenderStepped:Connect(function()
-if not getgenv().PathfindingThread then
-con:Disconnect()
-end
-			if #CurrentPath > 0 then
-				local Target = CurrentPath[1]
-				Humanoid:MoveTo(Target)
-				
-				if (Root.Position - Target).Magnitude < 4.2 then
-					table.remove(CurrentPath, 1)
-					if #CurrentPath > 0 then
-						Humanoid:MoveTo(CurrentPath[1])
-					end
-				end
-			elseif TargetPosition then
-				Humanoid:MoveTo(TargetPosition)
-			end
-		end)
-	end)
+                    if Success then
+                        local NewPath = {}
+                        local Curr = FinalTarget
+                        while Curr do
+                            table.insert(NewPath, 1, Curr)
+                            Curr = CameFrom[ToKey(Curr)]
+                        end
+                        CurrentPath = NewPath
+                        
+                        Visuals:ClearAllChildren()
+                        for _, p in pairs(NewPath) do
+                            local m = Instance.new("Part", Visuals)
+                            m.Size, m.Anchored, m.CanCollide, m.Position, m.Color, m.Shape, m.Material = Vector3.new(0.6,0.6,0.6), true, false, p, Color3.fromRGB(0, 255, 150), "Ball", "Neon"
+                        end
+                    end
+                end
+            end
+        end)
+
+        local con; con = RunService.RenderStepped:Connect(function()
+            if not getgenv().PathfindingThread then con:Disconnect() return end
+            
+            if #CurrentPath > 0 then
+                local TargetNode = CurrentPath[1]
+                if CurrentPath[2] then
+                    local Dir = (CurrentPath[2] - Root.Position).Unit
+                    local Dist = (CurrentPath[2] - Root.Position).Magnitude
+                    if CanFit(Root.Position, Dir, Dist) then
+                        table.remove(CurrentPath, 1)
+                        TargetNode = CurrentPath[1]
+                    end
+                end
+
+                Humanoid:MoveTo(TargetNode)
+                
+                if (Root.Position * Vector3.new(1,0,1) - TargetNode * Vector3.new(1,0,1)).Magnitude < 2 then
+                    table.remove(CurrentPath, 1)
+                end
+            elseif TargetPosition then
+                Humanoid:MoveTo(TargetPosition)
+            end
+        end)
+    end)
 end
 
 PathToLoop()
-
