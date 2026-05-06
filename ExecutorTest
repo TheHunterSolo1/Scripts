@@ -15,7 +15,7 @@ local function checkProximity()
     local d = false
     local c = pr.Triggered:Connect(function() d = true end)
     fireproximityprompt(pr)
-    task.wait(0.1)
+    task.wait(0.2)
     c:Disconnect()
     p:Destroy()
     return d and "GREEN" or "YELLOW"
@@ -39,12 +39,13 @@ local function checkHookMeta()
     if type(hookmetamethod) ~= "function" then return "RED" end
     local c = false
     local o
+local _ = game.CheckProp
     local s = pcall(function()
         o = hookmetamethod(game, "__index", function(self, k)
             if not checkcaller() and k == "CheckProp" then c = true return true end
             return o(self, k)
         end)
-        local _ = game.CheckProp
+        
     end)
     return (s and c) and "GREEN" or "YELLOW"
 end
@@ -228,6 +229,7 @@ end
 local function checkHash()
     if type(getscripthash) ~= "function" then return "RED" end
     local s, h = pcall(getscripthash, LocalPlayer.CharacterAppearanceLoaded)
+task.wait()
     return (s and type(h) == "string") and "GREEN" or "YELLOW"
 end
 
