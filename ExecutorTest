@@ -76,7 +76,7 @@ end
 
 local function checkProximity()
     if not fireproximityprompt then return false end
-    local part = Instance.new("Part")
+    local part = Instance.new("Part",workspace)
     local prompt = Instance.new("ProximityPrompt", part)
     local done = false
     local connection = prompt.Triggered:Connect(function() done = true end)
