@@ -16,38 +16,33 @@ getgenv().PathToLoop = function()
         local Visuals = workspace:FindFirstChild("PathDebug") or Instance.new("Folder", workspace)
         Visuals.Name = "PathDebug"
 
-        local GridSize = 3 
+        local GridSize = 4
+        local PathPadding = 2.5
         local CurrentPath = {}
         local TargetPosition = nil
 
         local function IsPassable(Part)
             if not Part then return true end
             if not Part.CanCollide or Part.Transparency >= 0.7 or not Part.CanQuery then return true end
-            local ignore = {"Stairs", "Step", "Union", "Carpet", "Rug", "Frame", "Handle"}
+            local ignore = {"Stairs", "Step", "Union", "Carpet", "Rug", "Frame", "Handle", "Baseboard"}
             for _, name in pairs(ignore) do
                 if Part.Name:find(name) then return true end
             end
             return false
         end
 
-        local function CanFit(Pos, Dir, Dist)
+        local function CheckCollision(Start, End)
             local Params = RaycastParams.new()
             Params.FilterDescendantsInstances = {Character, Visuals, workspace.CurrentRooms}
             Params.FilterType = Enum.RaycastFilterType.Exclude
-
-            local Offsets = {
-                Vector3.new(0, 2, 0),
-                Vector3.new(0, 5, 0),
-                Vector3.new(0, 0.5, 0)
-            }
-
-            for _, offset in pairs(Offsets) do
-                local hit = workspace:Raycast(Pos + offset, Dir * Dist, Params)
-                if hit and hit.Instance and not IsPassable(hit.Instance) then
-                    return false
-                end
+            
+            local Direction = End - Start
+            local Result = workspace:Spherecast(Start + Vector3.new(0, 2, 0), PathPadding, Direction, Params)
+            
+            if Result and Result.Instance and not IsPassable(Result.Instance) then
+                return true
             end
-            return true
+            return false
         end
 
         local function GetNeighbors(Pos)
@@ -55,12 +50,13 @@ getgenv().PathToLoop = function()
             local Directions = {
                 Vector3.new(GridSize, 0, 0), Vector3.new(-GridSize, 0, 0),
                 Vector3.new(0, 0, GridSize), Vector3.new(0, 0, -GridSize),
-                Vector3.new(GridSize, 0, GridSize), Vector3.new(-GridSize, 0, -GridSize)
+                Vector3.new(GridSize, 0, GridSize), Vector3.new(-GridSize, 0, -GridSize),
+                Vector3.new(GridSize, 0, -GridSize), Vector3.new(-GridSize, 0, GridSize)
             }
             
             for _, Dir in Directions do
-                if CanFit(Pos, Dir.Unit, GridSize) then
-                    local NeighborPos = Pos + Dir
+                local NeighborPos = Pos + Dir
+                if not CheckCollision(Pos, NeighborPos) then
                     local Params = RaycastParams.new()
                     Params.FilterDescendantsInstances = {Character, Visuals}
                     Params.FilterType = Enum.RaycastFilterType.Exclude
@@ -75,11 +71,11 @@ getgenv().PathToLoop = function()
         end
 
         local function ToKey(Vec)
-            return math.floor(Vec.X/GridSize) .. "," .. math.floor(Vec.Y/2) .. "," .. math.floor(Vec.Z/GridSize)
+            return math.floor(Vec.X/1.5) .. "," .. math.floor(Vec.Y/1.5) .. "," .. math.floor(Vec.Z/1.5)
         end
 
         task.spawn(function()
-            while task.wait(0.1) do
+            while task.wait(0.2) do
                 if not getgenv().PathfindingThread then break end
                 
                 local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
@@ -108,7 +104,7 @@ getgenv().PathToLoop = function()
                     local FScore = {[ToKey(Start)] = (Start - FinalTarget).Magnitude}
                     
                     local Success = false
-                    for I = 1, 1000 do
+                    for I = 1, 1200 do
                         local CurrentIdx = 1
                         local minF = math.huge
                         for j, node in ipairs(Open) do
@@ -119,7 +115,7 @@ getgenv().PathToLoop = function()
                         local Current = table.remove(Open, CurrentIdx)
                         if not Current then break end
                         
-                        if (Current - FinalTarget).Magnitude < GridSize * 1.5 then
+                        if (Current - FinalTarget).Magnitude < GridSize * 1.4 then
                             FinalTarget = Current
                             Success = true
                             break
@@ -151,7 +147,7 @@ getgenv().PathToLoop = function()
                         Visuals:ClearAllChildren()
                         for _, p in pairs(NewPath) do
                             local m = Instance.new("Part", Visuals)
-                            m.Size, m.Anchored, m.CanCollide, m.Position, m.Color, m.Shape, m.Material = Vector3.new(0.6,0.6,0.6), true, false, p, Color3.fromRGB(0, 255, 150), "Ball", "Neon"
+                            m.Size, m.Anchored, m.CanCollide, m.Position, m.Color, m.Shape, m.Material = Vector3.new(0.5,0.5,0.5), true, false, p, Color3.fromRGB(255, 255, 255), "Ball", "Neon"
                         end
                     end
                 end
@@ -163,18 +159,15 @@ getgenv().PathToLoop = function()
             
             if #CurrentPath > 0 then
                 local TargetNode = CurrentPath[1]
-                if CurrentPath[2] then
-                    local Dir = (CurrentPath[2] - Root.Position).Unit
-                    local Dist = (CurrentPath[2] - Root.Position).Magnitude
-                    if CanFit(Root.Position, Dir, Dist) then
-                        table.remove(CurrentPath, 1)
-                        TargetNode = CurrentPath[1]
-                    end
+                
+                if CurrentPath[2] and not CheckCollision(Root.Position, CurrentPath[2]) then
+                    table.remove(CurrentPath, 1)
+                    TargetNode = CurrentPath[1]
                 end
 
                 Humanoid:MoveTo(TargetNode)
                 
-                if (Root.Position * Vector3.new(1,0,1) - TargetNode * Vector3.new(1,0,1)).Magnitude < 2 then
+                if (Root.Position * Vector3.new(1,0,1) - TargetNode * Vector3.new(1,0,1)).Magnitude < 2.2 then
                     table.remove(CurrentPath, 1)
                 end
             elseif TargetPosition then
