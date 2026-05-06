@@ -80,8 +80,9 @@ local function checkProximity()
     local prompt = Instance.new("ProximityPrompt", part)
     local done = false
     local connection = prompt.Triggered:Connect(function() done = true end)
-    fireproximityprompt(prompt)
-    task.wait(0.5)
+    local timeout = 0
+repeat task.wait(0.01) fireproximityprompt(prompt) timeout += 0.01 until timeout > 0.5
+    
     connection:Disconnect()
     part:Destroy()
     return done
