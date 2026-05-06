@@ -16,7 +16,7 @@ getgenv().PathToLoop = function()
 		local Visuals = workspace:FindFirstChild("CustomPathfinding") or Instance.new("Folder", workspace)
 		Visuals.Name = "CustomPathfinding"
 
-		local GridSize = 3
+		local GridSize = 4
 		local CurrentPath = {}
 		local TargetPosition = nil
 
@@ -59,7 +59,7 @@ getgenv().PathToLoop = function()
 		end
 
 		task.spawn(function()
-			while task.wait(0.75) do
+			while task.wait(0.25) do
     if not getgenv().PathfindingThread then break end
 				local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
 				local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
