@@ -16,7 +16,7 @@ getgenv().PathToLoop = function()
 		local Visuals = workspace:FindFirstChild("CustomPathfinding") or Instance.new("Folder", workspace)
 		Visuals.Name = "CustomPathfinding"
 
-		local GridSize = 1
+		local GridSize = 3
 		local CurrentPath = {}
 		local TargetPosition = nil
 
