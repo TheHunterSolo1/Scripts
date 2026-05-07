@@ -21,10 +21,9 @@ getgenv().PathToLoop = function()
         local TargetPosition = nil
 
         local function IsPassable(Part)
-            
-            if not Part.CanCollide or Part.Transparency >= 0.5 or not Part.CanQuery then return true end
-            
-            
+            if not Part.CanCollide or not Part.CanQuery or Part.Transparency >= 1 then 
+                return true 
+            end
             return false
         end
 
@@ -34,11 +33,10 @@ getgenv().PathToLoop = function()
             Params.FilterType = Enum.RaycastFilterType.Exclude
             
             local Direction = End - Start
-            local Distance = Direction.Magnitude
-            if Distance == 0 then return false end
+            if Direction.Magnitude == 0 then return false end
             
-            local Size = Vector3.new(2, 4.5, 2)
-            local CFrameStart = CFrame.new(Start + Vector3.new(0, 2.5, 0), End + Vector3.new(0, 2.5, 0))
+            local Size = Vector3.new(2, 2, 2)
+            local CFrameStart = CFrame.new(Start + Vector3.new(0, 1, 0), End + Vector3.new(0, 1, 0))
             
             local Result = workspace:Blockcast(CFrameStart, Size, Direction, Params)
             
@@ -64,7 +62,7 @@ getgenv().PathToLoop = function()
                     Params.FilterDescendantsInstances = {Character, Visuals}
                     Params.FilterType = Enum.RaycastFilterType.Exclude
                     
-                    local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 1, 0), Vector3.new(0, -10, 0), Params)
+                    local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 2, 0), Vector3.new(0, -10, 0), Params)
                     if Floor then
                         table.insert(Neighbors, Floor.Position)
                     end
@@ -74,7 +72,7 @@ getgenv().PathToLoop = function()
         end
 
         local function ToKey(Vec)
-            return math.floor(Vec.X/2) .. "," .. math.floor(Vec.Y/2) .. "," .. math.floor(Vec.Z/2)
+            return math.floor(Vec.X/GridSize) .. "," .. math.floor(Vec.Y/GridSize) .. "," .. math.floor(Vec.Z/GridSize)
         end
 
         task.spawn(function()
@@ -107,7 +105,7 @@ getgenv().PathToLoop = function()
                     local FScore = {[ToKey(Start)] = (Start - FinalTarget).Magnitude}
                     
                     local Success = false
-                    for I = 1, 1500 do
+                    for I = 1, 2000 do
                         local CurrentIdx = 1
                         local minF = math.huge
                         for j, node in ipairs(Open) do
