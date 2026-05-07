@@ -13,8 +13,8 @@ getgenv().PathToLoop = function()
         local Root = Character:WaitForChild("HumanoidRootPart")
         local Humanoid = Character:WaitForChild("Humanoid")
 
-        local Visuals = workspace:FindFirstChild("PathDebug") or Instance.new("Folder", workspace)
-        Visuals.Name = "PathDebug"
+        local Visuals = workspace:FindFirstChild("CustomPath") or Instance.new("Folder", workspace)
+        Visuals.Name = "CustomPath"
 
         local GridSize = 4
         local CurrentPath = {}
@@ -78,7 +78,7 @@ getgenv().PathToLoop = function()
         end
 
         task.spawn(function()
-            while task.wait(0.15) do
+            while task.wait(0.35) do
                 if not getgenv().PathfindingThread then break end
                 
                 local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
