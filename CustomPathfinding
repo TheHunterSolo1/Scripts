@@ -16,7 +16,7 @@ getgenv().PathToLoop = function()
         local Visuals = workspace:FindFirstChild("CustomPath") or Instance.new("Folder", workspace)
         Visuals.Name = "CustomPath"
 
-        local GridSize = 4
+        local GridSize = 3.5
         local CurrentPath = {}
         local TargetPosition = nil
 
@@ -27,7 +27,7 @@ getgenv().PathToLoop = function()
             return false
         end
 
-        local function CheckCollision(Start, End)
+        local function CheckCollision(Start, End, CustomSize)
             local Params = RaycastParams.new()
             Params.FilterDescendantsInstances = {Character, Visuals}
             Params.FilterType = Enum.RaycastFilterType.Exclude
@@ -35,8 +35,8 @@ getgenv().PathToLoop = function()
             local Direction = End - Start
             if Direction.Magnitude == 0 then return false end
             
-            local Size = Vector3.new(2, 2, 2)
-            local CFrameStart = CFrame.new(Start + Vector3.new(0, 1, 0), End + Vector3.new(0, 1, 0))
+            local Size = CustomSize or Vector3.new(2.5, 4.5, 2.5)
+            local CFrameStart = CFrame.new(Start + Vector3.new(0, 2.25, 0), End + Vector3.new(0, 2.25, 0))
             
             local Result = workspace:Blockcast(CFrameStart, Size, Direction, Params)
             
@@ -57,14 +57,17 @@ getgenv().PathToLoop = function()
             
             for _, Dir in Directions do
                 local NeighborPos = Pos + Dir
-                if not CheckCollision(Pos, NeighborPos) then
-                    local Params = RaycastParams.new()
-                    Params.FilterDescendantsInstances = {Character, Visuals}
-                    Params.FilterType = Enum.RaycastFilterType.Exclude
-                    
-                    local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 2, 0), Vector3.new(0, -10, 0), Params)
-                    if Floor then
-                        table.insert(Neighbors, Floor.Position)
+                
+                local Params = RaycastParams.new()
+                Params.FilterDescendantsInstances = {Character, Visuals}
+                Params.FilterType = Enum.RaycastFilterType.Exclude
+                
+                local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 5, 0), Vector3.new(0, -10, 0), Params)
+                
+                if Floor then
+                    local TargetFloorPos = Floor.Position
+                    if not CheckCollision(Pos, TargetFloorPos) then
+                        table.insert(Neighbors, TargetFloorPos)
                     end
                 end
             end
@@ -72,11 +75,11 @@ getgenv().PathToLoop = function()
         end
 
         local function ToKey(Vec)
-            return math.floor(Vec.X/GridSize) .. "," .. math.floor(Vec.Y/GridSize) .. "," .. math.floor(Vec.Z/GridSize)
+            return math.floor(Vec.X * 1.5) .. "," .. math.floor(Vec.Y * 1.5) .. "," .. math.floor(Vec.Z * 1.5)
         end
 
         task.spawn(function()
-            while task.wait(0.35) do
+            while task.wait(0.3) do
                 if not getgenv().PathfindingThread then break end
                 
                 local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
@@ -116,7 +119,7 @@ getgenv().PathToLoop = function()
                         local Current = table.remove(Open, CurrentIdx)
                         if not Current then break end
                         
-                        if (Current - FinalTarget).Magnitude < GridSize * 1.5 then
+                        if (Current - FinalTarget).Magnitude < GridSize * 1.3 then
                             FinalTarget = Current
                             Success = true
                             break
@@ -148,7 +151,7 @@ getgenv().PathToLoop = function()
                         Visuals:ClearAllChildren()
                         for _, p in pairs(NewPath) do
                             local m = Instance.new("Part", Visuals)
-                            m.Size, m.Anchored, m.CanCollide, m.Position, m.Color, m.Shape, m.Material = Vector3.new(0.6,0.6,0.6), true, false, p, Color3.fromRGB(0, 255, 255), "Ball", "Neon"
+                            m.Size, m.Anchored, m.CanCollide, m.Position, m.Color, m.Shape, m.Material = Vector3.new(0.4,0.4,0.4), true, false, p, Color3.fromRGB(255, 255, 255), "Ball", "Neon"
                         end
                     end
                 end
@@ -159,16 +162,21 @@ getgenv().PathToLoop = function()
             if not getgenv().PathfindingThread then con:Disconnect() return end
             
             if #CurrentPath > 0 then
-                local TargetNode = CurrentPath[1]
-                
-                if CurrentPath[2] and not CheckCollision(Root.Position, CurrentPath[2]) then
-                    table.remove(CurrentPath, 1)
-                    TargetNode = CurrentPath[1]
+                for i = #CurrentPath, 2, -1 do
+                    if not CheckCollision(Root.Position, CurrentPath[i], Vector3.new(2.2, 4, 2.2)) then
+                        for _ = 1, i - 1 do table.remove(CurrentPath, 1) end
+                        break
+                    end
                 end
 
+                local TargetNode = CurrentPath[1]
                 Humanoid:MoveTo(TargetNode)
                 
-                if (Root.Position * Vector3.new(1,0,1) - TargetNode * Vector3.new(1,0,1)).Magnitude < 2.5 then
+                if TargetNode.Y > Root.Position.Y + 1.5 then
+                    Humanoid.Jump = true
+                end
+
+                if (Root.Position - TargetNode).Magnitude < 1.6 then
                     table.remove(CurrentPath, 1)
                 end
             elseif TargetPosition then
