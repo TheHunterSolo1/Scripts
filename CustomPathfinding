@@ -21,8 +21,8 @@ getgenv().PathToLoop = function()
         local TargetPosition = nil
 
         local function IsPassable(Part)
-            if not Part then return true end
-            if not Part.CanCollide or Part.Transparency >= 0.7 or not Part.CanQuery then return true end
+            
+            if not Part.CanCollide or Part.Transparency >= 0.5 or not Part.CanQuery then return true end
             
             
             return false
@@ -64,7 +64,7 @@ getgenv().PathToLoop = function()
                     Params.FilterDescendantsInstances = {Character, Visuals}
                     Params.FilterType = Enum.RaycastFilterType.Exclude
                     
-                    local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 5, 0), Vector3.new(0, -10, 0), Params)
+                    local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 1, 0), Vector3.new(0, -10, 0), Params)
                     if Floor then
                         table.insert(Neighbors, Floor.Position)
                     end
