@@ -4,6 +4,7 @@ getgenv().PathToLoop = function()
     end
 
     getgenv().PathfindingThread = task.spawn(function()
+        local PathfindingService = game:GetService("PathfindingService")
         local Players = game:GetService("Players")
         local RunService = game:GetService("RunService")
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,70 +14,34 @@ getgenv().PathToLoop = function()
         local Root = Character:WaitForChild("HumanoidRootPart")
         local Humanoid = Character:WaitForChild("Humanoid")
 
-        local Visuals = workspace:FindFirstChild("CustomPath") or Instance.new("Folder", workspace)
-        Visuals.Name = "CustomPath"
+        local Waypoints = {}
+        local CurrentWaypointIndex = 0
+        local LastPosition = Root.Position
+        local StuckTime = 0
+        local CurrentTarget = nil
 
-        local GridSize = 3.0
-        local CurrentPath = {}
-        local TargetPosition = nil
+        local Path = PathfindingService:CreatePath({
+            AgentRadius = 0.01,
+            AgentHeight = 5,
+            AgentCanJump = true,
+            WaypointSpacing = 2
+        })
 
-        local function IsPassable(Part)
-            if not Part.CanCollide or not Part.CanQuery or Part.Transparency >= 1 then 
-                return true 
+        local function ComputePath(TargetPos)
+            local success, _ = pcall(function()
+                Path:ComputeAsync(Root.Position, TargetPos)
+            end)
+
+            if success and Path.Status == Enum.PathStatus.Success then
+                Waypoints = Path:GetWaypoints()
+                CurrentWaypointIndex = 1
+            else
+                Humanoid:MoveTo(TargetPos)
             end
-            return false
-        end
-
-        local function CheckCollision(Start, End)
-            local Params = RaycastParams.new()
-            Params.FilterDescendantsInstances = {Character, Visuals}
-            Params.FilterType = Enum.RaycastFilterType.Exclude
-            
-            local Direction = (End - Start)
-            if Direction.Magnitude == 0 then return false end
-            
-            local HullSize = Vector3.new(3.8, 5.0, 3.8)
-            local StartCFrame = CFrame.new(Start + Vector3.new(0, 2.5, 0), End + Vector3.new(0, 2.5, 0))
-            
-            local Result = workspace:Blockcast(StartCFrame, HullSize, Direction, Params)
-            
-            if Result and Result.Instance and not IsPassable(Result.Instance) then
-                return true
-            end
-            return false
-        end
-
-        local function GetNeighbors(Pos)
-            local Neighbors = {}
-            local Directions = {
-                Vector3.new(GridSize, 0, 0), Vector3.new(-GridSize, 0, 0),
-                Vector3.new(0, 0, GridSize), Vector3.new(0, 0, -GridSize),
-                Vector3.new(GridSize, 0, GridSize), Vector3.new(-GridSize, 0, -GridSize),
-                Vector3.new(GridSize, 0, -GridSize), Vector3.new(-GridSize, 0, GridSize)
-            }
-            
-            for _, Dir in Directions do
-                local NeighborPos = Pos + Dir
-                if not CheckCollision(Pos, NeighborPos) then
-                    local Params = RaycastParams.new()
-                    Params.FilterDescendantsInstances = {Character, Visuals}
-                    Params.FilterType = Enum.RaycastFilterType.Exclude
-                    
-                    local Floor = workspace:Raycast(NeighborPos + Vector3.new(0, 5, 0), Vector3.new(0, -10, 0), Params)
-                    if Floor and Floor.Instance and Floor.Instance.CanCollide then
-                        table.insert(Neighbors, Floor.Position)
-                    end
-                end
-            end
-            return Neighbors
-        end
-
-        local function ToKey(Vec)
-            return math.round(Vec.X * 0.5) .. "," .. math.round(Vec.Y * 0.5) .. "," .. math.round(Vec.Z * 0.5)
         end
 
         task.spawn(function()
-            while task.wait(0.3) do
+            while task.wait(0.4) do
                 if not getgenv().PathfindingThread then break end
                 
                 local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
@@ -88,63 +53,15 @@ getgenv().PathToLoop = function()
                 local FinalTarget = nil
 
                 if KeyObj and not HasKey then
-                    FinalTarget = KeyObj:IsA("Model") and KeyObj.PrimaryPart and KeyObj.PrimaryPart.Position or KeyObj:IsA("BasePart") and KeyObj.Position
+                    FinalTarget = (KeyObj:IsA("Model") and KeyObj.PrimaryPart or KeyObj).Position
                 elseif Room:FindFirstChild("Door") then
                     local DoorMain = Room.Door:FindFirstChild("Door") or Room.Door:FindFirstChild("Hidden")
                     if DoorMain then FinalTarget = DoorMain.Position end
                 end
 
                 if FinalTarget then
-                    TargetPosition = FinalTarget
-                    local Start = Root.Position
-                    
-                    local Open = {Start}
-                    local Closed = {}
-                    local CameFrom = {}
-                    local GScore = {[ToKey(Start)] = 0}
-                    local FScore = {[ToKey(Start)] = (Start - FinalTarget).Magnitude}
-                    
-                    for I = 1, 3000 do
-                        local CurrentIdx = 1
-                        local minF = math.huge
-                        for j, node in ipairs(Open) do
-                            local f = FScore[ToKey(node)] or math.huge
-                            if f < minF then minF = f; CurrentIdx = j end
-                        end
-                        
-                        local Current = table.remove(Open, CurrentIdx)
-                        if not Current then break end
-                        
-                        if (Current - FinalTarget).Magnitude < GridSize * 1.2 then
-                            local NewPath = {}
-                            local Curr = Current
-                            while Curr do
-                                table.insert(NewPath, 1, Curr)
-                                Curr = CameFrom[ToKey(Curr)]
-                            end
-                            CurrentPath = NewPath
-                            
-                            Visuals:ClearAllChildren()
-                            for _, p in pairs(NewPath) do
-                                local m = Instance.new("Part", Visuals)
-                                m.Size, m.Anchored, m.CanCollide, m.Position, m.Color, m.Shape, m.Material = Vector3.new(0.4,0.4,0.4), true, false, p, Color3.fromRGB(0, 255, 0), "Ball", "Neon"
-                            end
-                            break
-                        end
-                        
-                        Closed[ToKey(Current)] = true
-                        for _, Neighbor in GetNeighbors(Current) do
-                            if Closed[ToKey(Neighbor)] then continue end
-                            local tentative_g = GScore[ToKey(Current)] + (Current - Neighbor).Magnitude
-                            
-                            if not GScore[ToKey(Neighbor)] or tentative_g < GScore[ToKey(Neighbor)] then
-                                CameFrom[ToKey(Neighbor)] = Current
-                                GScore[ToKey(Neighbor)] = tentative_g
-                                FScore[ToKey(Neighbor)] = tentative_g + (Neighbor - FinalTarget).Magnitude
-                                if not table.find(Open, Neighbor) then table.insert(Open, Neighbor) end
-                            end
-                        end
-                    end
+                    CurrentTarget = FinalTarget
+                    ComputePath(FinalTarget)
                 end
             end
         end)
@@ -152,20 +69,32 @@ getgenv().PathToLoop = function()
         local con; con = RunService.RenderStepped:Connect(function()
             if not getgenv().PathfindingThread then con:Disconnect() return end
             
-            if #CurrentPath > 0 then
-                local TargetNode = CurrentPath[1]
+            if Waypoints and CurrentWaypointIndex <= #Waypoints then
+                local targetWaypoint = Waypoints[CurrentWaypointIndex]
                 
-                Humanoid:MoveTo(TargetNode)
-                
-                if TargetNode.Y > Root.Position.Y + 2 then
+                if (Root.Position - LastPosition).Magnitude < 0.1 then
+                    StuckTime = StuckTime + task.wait()
+                    if StuckTime > 0.4 then
+                        if CurrentTarget then
+                            ComputePath(CurrentTarget)
+                        end
+                        Humanoid.Jump = true
+                        StuckTime = 0
+                    end
+                else
+                    StuckTime = 0
+                end
+                LastPosition = Root.Position
+
+                if targetWaypoint.Action == Enum.PathWaypointAction.Jump then
                     Humanoid.Jump = true
                 end
 
-                if (Root.Position - TargetNode).Magnitude < 1.4 then
-                    table.remove(CurrentPath, 1)
+                Humanoid:MoveTo(targetWaypoint.Position)
+
+                if (Root.Position - targetWaypoint.Position).Magnitude < 2 then
+                    CurrentWaypointIndex = CurrentWaypointIndex + 1
                 end
-            elseif TargetPosition then
-                Humanoid:MoveTo(TargetPosition)
             end
         end)
     end)
