@@ -74,7 +74,7 @@ getgenv().PathToLoop = function()
                 
                 if (Root.Position - LastPosition).Magnitude < 0.1 then
                     StuckTime = StuckTime + task.wait()
-                    if StuckTime > 0.4 then
+                    if StuckTime > 1 then
                         if CurrentTarget then
                             ComputePath(CurrentTarget)
                         end
@@ -92,7 +92,7 @@ getgenv().PathToLoop = function()
 
                 Humanoid:MoveTo(targetWaypoint.Position)
 
-                if (Root.Position - targetWaypoint.Position).Magnitude < 2 then
+                if (Root.Position - targetWaypoint.Position).Magnitude < 3.5 then
                     CurrentWaypointIndex = CurrentWaypointIndex + 1
                 end
             end
