@@ -1,9 +1,8 @@
 getgenv().PathToLoop = function()
-    if getgenv().PathfindingThread then
-        task.cancel(getgenv().PathfindingThread)
-    end
+    if getgenv().PathfindingThread then task.cancel(getgenv().PathfindingThread) end
 
     getgenv().PathfindingThread = task.spawn(function()
+        local PathfindingService = game:GetService("PathfindingService")
         local Players = game:GetService("Players")
         local RunService = game:GetService("RunService")
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,75 +12,32 @@ getgenv().PathToLoop = function()
         local Root = Character:WaitForChild("HumanoidRootPart")
         local Humanoid = Character:WaitForChild("Humanoid")
 
-        local Visuals = workspace:FindFirstChild("BFSPath") or Instance.new("Folder", workspace)
-        Visuals.Name = "BFSPath"
+        local Waypoints = {}
+        local CurrentIndex = 0
+        local LastPos = Root.Position
+        local StuckTimer = 0
 
-        local GridSize = 3.5
-        local CurrentPath = {}
-        local LastPosition = Root.Position
-        local StuckTime = 0
-        local TargetPos = nil
+        local Path = PathfindingService:CreatePath({
+            AgentRadius = 0.01,
+            AgentHeight = 3.5,
+            AgentCanJump = true,
+            WaypointSpacing = 2
+        })
 
-        local function CheckCollision(Start, End)
-            local Params = RaycastParams.new()
-            Params.FilterDescendantsInstances = {Character, Visuals}
-            Params.FilterType = Enum.RaycastFilterType.Exclude
-            local Direction = (End - Start)
-            local Result = workspace:Blockcast(CFrame.new(Start + Vector3.new(0, 2.5, 0), End + Vector3.new(0, 2.5, 0)), Vector3.new(2.8, 4.5, 2.8), Direction, Params)
-            return Result and Result.Instance and Result.Instance.CanCollide and Result.Instance.Transparency < 1
-        end
-
-        local function GetNeighbors(Pos)
-            local Neighbors = {}
-            local Dirs = {Vector3.new(GridSize,0,0), Vector3.new(-GridSize,0,0), Vector3.new(0,0,GridSize), Vector3.new(0,0,-GridSize)}
-            for _, Dir in Dirs do
-                local NP = Pos + Dir
-                local Floor = workspace:Raycast(NP + Vector3.new(0, 5, 0), Vector3.new(0, -10, 0))
-                if Floor and not CheckCollision(Pos, Floor.Position) then
-                    table.insert(Neighbors, Floor.Position)
-                end
+        local function PathTo(Target)
+            local success, _ = pcall(function()
+                Path:ComputeAsync(Root.Position, Target)
+            end)
+            if success and Path.Status == Enum.PathStatus.Success then
+                Waypoints = Path:GetWaypoints()
+                CurrentIndex = 1
+            else
+                Humanoid:MoveTo(Target)
             end
-            return Neighbors
-        end
-
-        local function ToKey(V) return math.round(V.X/1.5)..","..math.round(V.Y/1.5)..","..math.round(V.Z/1.5) end
-
-        local function SolveBFS(Start, Goal)
-            local Queue = {Start}
-            local CameFrom = {[ToKey(Start)] = "None"}
-            local Found = nil
-
-            while #Queue > 0 do
-                local Current = table.remove(Queue, 1)
-                if (Current - Goal).Magnitude < GridSize * 1.5 then
-                    Found = Current
-                    break
-                end
-
-                for _, Next in GetNeighbors(Current) do
-                    local Key = ToKey(Next)
-                    if not CameFrom[Key] then
-                        CameFrom[Key] = Current
-                        table.insert(Queue, Next)
-                    end
-                end
-                if #Queue > 400 then break end
-            end
-
-            if Found then
-                local Path = {}
-                local Curr = Found
-                while Curr ~= "None" do
-                    table.insert(Path, 1, Curr)
-                    Curr = CameFrom[ToKey(Curr)]
-                end
-                return Path
-            end
-            return nil
         end
 
         task.spawn(function()
-            while task.wait(0.5) do
+            while task.wait(0.3) do
                 if not getgenv().PathfindingThread then break end
                 local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
                 local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
@@ -89,49 +45,45 @@ getgenv().PathToLoop = function()
                     local HasKey = Character:FindFirstChild("Key") or Player.Backpack:FindFirstChild("Key")
                     local KeyObj = Room:FindFirstChild("KeyObtain", true)
                     local Goal = nil
+
                     if KeyObj and not HasKey then
                         Goal = (KeyObj:IsA("Model") and KeyObj.PrimaryPart or KeyObj).Position
                     elseif Room:FindFirstChild("Door") then
-                        local D = Room.Door:FindFirstChild("Door") or Room.Door:FindFirstChild("Hidden")
-                        if D then Goal = D.Position end
+                        local Door = Room.Door:FindFirstChild("Door") or Room.Door:FindFirstChild("Hidden")
+                        if Door then Goal = Door.Position end
                     end
 
-                    if Goal then
-                        TargetPos = Goal
-                        local P = SolveBFS(Root.Position, Goal)
-                        if P then 
-                            CurrentPath = P 
-                            Visuals:ClearAllChildren()
-                            for _, pt in pairs(P) do
-                                local p = Instance.new("Part", Visuals)
-                                p.Size, p.Anchored, p.CanCollide, p.Position, p.Color, p.Shape = Vector3.new(0.5,0.5,0.5), true, false, pt, Color3.new(1,1,1), "Ball"
-                            end
-                        end
-                    end
+                    if Goal then PathTo(Goal) end
                 end
             end
         end)
 
-        local con; con = RunService.RenderStepped:Connect(function()
-            if not getgenv().PathfindingThread then con:Disconnect() return end
-            if #CurrentPath > 0 then
-                if (Root.Position - LastPosition).Magnitude < 0.1 then
-                    StuckTime = StuckTime + task.wait()
-                    if StuckTime > 0.5 then
-                        if TargetPos then SolveBFS(Root.Position, TargetPos) end
+        RunService.Heartbeat:Connect(function()
+            if not getgenv().PathfindingThread then return end
+            
+            if Waypoints and CurrentIndex <= #Waypoints then
+                local Point = Waypoints[CurrentIndex]
+                Humanoid:MoveTo(Point.Position)
+
+                if (Root.Position - LastPos).Magnitude < 0.1 then
+                    StuckTimer = StuckTimer + task.wait()
+                    if StuckTimer > 0.5 then
                         Humanoid.Jump = true
-                        StuckTime = 0
+                        StuckTimer = 0
+                        local Room = workspace.CurrentRooms:FindFirstChild(tostring(ReplicatedStorage.GameData.LatestRoom.Value))
+                        if Room and Room:FindFirstChild("Door") then 
+                            local D = Room.Door:FindFirstChild("Door") or Room.Door:FindFirstChild("Hidden")
+                            if D then PathTo(D.Position) end
+                        end
                     end
                 else
-                    StuckTime = 0
+                    StuckTimer = 0
                 end
-                LastPosition = Root.Position
+                LastPos = Root.Position
 
-                local Node = CurrentPath[1]
-                Humanoid:MoveTo(Node)
-                if Node.Y > Root.Position.Y + 2 then Humanoid.Jump = true end
-                if (Root.Position - Node).Magnitude < 2.5 then
-                    table.remove(CurrentPath, 1)
+                if Point.Action == Enum.PathWaypointAction.Jump then Humanoid.Jump = true end
+                if (Root.Position - Point.Position).Magnitude < 2.5 then
+                    CurrentIndex = CurrentIndex + 1
                 end
             end
         end)
