@@ -5,52 +5,99 @@ local LocalPlayer = Players.LocalPlayer
 local Pathfinding = {}
 Pathfinding.__index = Pathfinding
 
+local GRID_SIZE = 3 
+local SCAN_RANGE = 120 
+
 local function GetDistance(nodeA, nodeB)
 	local dx = math.abs(nodeA.x - nodeB.x)
-	local dy = math.abs(nodeA.y - nodeB.y)
-	return (dx > dy) and (14 * dy + 10 * (dx - dy)) or (14 * dx + 10 * (dy - dx))
+	local dz = math.abs(nodeA.z - nodeB.z)
+	return (dx > dz) and (14 * dz + 10 * (dx - dz)) or (14 * dx + 10 * (dy - dx))
 end
 
-function Pathfinding.new(gridData)
+local function GetPosition(input)
+	if typeof(input) == "Vector3" then return input end
+	if typeof(input) == "Instance" then
+		if input:IsA("BasePart") then return input.Position end
+		if input:IsA("Model") then return input:GetPivot().Position end
+	end
+	return nil
+end
+
+function Pathfinding.new()
 	local self = setmetatable({}, Pathfinding)
-	self.Grid = gridData
+	self.Grid = {}
 	self.Active = false
 	self.FollowConnection = nil
 	return self
 end
 
-function Pathfinding:FindNearestNode(position)
-	local targetX, targetY = math.round(position.X), math.round(position.Z)
-	if self.Grid[targetX] and self.Grid[targetX][targetY] then
-		return self.Grid[targetX][targetY]
-	end
+function Pathfinding:GenerateGrid(centerPos)
+	self.Grid = {}
+	local startX = math.round(centerPos.X - SCAN_RANGE/2)
+	local startZ = math.round(centerPos.Z - SCAN_RANGE/2)
 	
-	local nearest = nil
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+	overlapParams.FilterDescendantsInstances = {LocalPlayer.Character}
+
+	for x = 0, SCAN_RANGE, GRID_SIZE do
+		local worldX = startX + x
+		self.Grid[worldX] = {}
+		for z = 0, SCAN_RANGE, GRID_SIZE do
+			local worldZ = startZ + z
+			local rayOrigin = Vector3.new(worldX, centerPos.Y + 10, worldZ)
+			local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -20, 0), rayParams)
+			
+			if rayResult then
+				local isBlocked = false
+				local parts = workspace:GetPartBoundsInBox(CFrame.new(rayResult.Position + Vector3.new(0, 2, 0)), Vector3.new(GRID_SIZE, 3, GRID_SIZE), overlapParams)
+				
+				for _, part in ipairs(parts) do
+					if part.CanCollide or part.Transparency < 0.9 then
+						isBlocked = true
+						break
+					end
+				end
+				
+				self.Grid[worldX][worldZ] = {
+					x = worldX, 
+					z = worldZ, 
+					y = rayResult.Position.Y, 
+					walkable = not isBlocked
+				}
+			end
+		end
+	end
+end
+
+function Pathfinding:FindNearestNode(position)
+	local bestNode = nil
 	local minDist = math.huge
-	for x, column in pairs(self.Grid) do
-		for y, node in pairs(column) do
+	for x, col in pairs(self.Grid) do
+		for z, node in pairs(col) do
 			if node.walkable then
-				local d = (Vector2.new(x, y) - Vector2.new(position.X, position.Z)).SqrMagnitude
+				local d = (Vector2.new(x, z) - Vector2.new(position.X, position.Z)).SqrMagnitude
 				if d < minDist then
 					minDist = d
-					nearest = node
+					bestNode = node
 				end
 			end
 		end
 	end
-	return nearest
+	return bestNode
 end
 
 function Pathfinding:GetNeighbors(node)
 	local neighbors = {}
-	local grid = self.Grid
-	local x, y = node.x, node.y
-	for i = -1, 1 do
-		local row = grid[x + i]
-		if not row then continue end
-		for j = -1, 1 do
+	for i = -GRID_SIZE, GRID_SIZE, GRID_SIZE do
+		for j = -GRID_SIZE, GRID_SIZE, GRID_SIZE do
 			if i == 0 and j == 0 then continue end
-			local neighbor = row[y + j]
+			local row = self.Grid[node.x + i]
+			local neighbor = row and row[node.z + j]
 			if neighbor and neighbor.walkable then
 				table.insert(neighbors, neighbor)
 			end
@@ -62,40 +109,37 @@ end
 function Pathfinding:CalculatePath(startNode, endNode)
 	local openSet = {startNode}
 	local closedSet = {}
-	local nodeData = {}
-	nodeData[startNode] = {g = 0, h = GetDistance(startNode, endNode)}
-	nodeData[startNode].f = nodeData[startNode].g + nodeData[startNode].h
+	local nodeData = {[startNode] = {g = 0, h = GetDistance(startNode, endNode)}}
+	nodeData[startNode].f = nodeData[startNode].h
 
 	while #openSet > 0 do
-		local currentNode = openSet[1]
+		local current = openSet[1]
 		local currentIndex = 1
 		for i = 2, #openSet do
-			local node = openSet[i]
-			if nodeData[node].f < nodeData[currentNode].f or (nodeData[node].f == nodeData[currentNode].f and nodeData[node].h < nodeData[currentNode].h) then
-				currentNode = node
+			if nodeData[openSet[i]].f < nodeData[current].f then
+				current = openSet[i]
 				currentIndex = i
 			end
 		end
 		table.remove(openSet, currentIndex)
-		closedSet[currentNode] = true
-		if currentNode == endNode then
+		closedSet[current] = true
+		if current == endNode then
 			local path = {}
-			local curr = endNode
-			while curr do
-				table.insert(path, curr)
-				curr = nodeData[curr] and nodeData[curr].parent
+			while current do
+				table.insert(path, current)
+				current = nodeData[current].parent
 			end
 			return path
 		end
-		for _, neighbor in ipairs(self:GetNeighbors(currentNode)) do
+		for _, neighbor in ipairs(self:GetNeighbors(current)) do
 			if closedSet[neighbor] then continue end
-			local gScore = nodeData[currentNode].g + GetDistance(currentNode, neighbor)
+			local gScore = nodeData[current].g + GetDistance(current, neighbor)
 			if not nodeData[neighbor] or gScore < nodeData[neighbor].g then
 				nodeData[neighbor] = {
 					g = gScore,
 					h = GetDistance(neighbor, endNode),
 					f = gScore + GetDistance(neighbor, endNode),
-					parent = currentNode
+					parent = current
 				}
 				if not table.find(openSet, neighbor) then table.insert(openSet, neighbor) end
 			end
@@ -104,15 +148,17 @@ function Pathfinding:CalculatePath(startNode, endNode)
 	return nil
 end
 
-function Pathfinding:WalkPath(destinationVector)
+function Pathfinding:WalkPath(destinationInput)
 	self:StopPath()
+	local destPos = GetPosition(destinationInput)
 	local char = LocalPlayer.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChild("Humanoid")
-	if not hrp or not hum then return end
+	if not hrp or not hum or not destPos then return end
 
+	self:GenerateGrid(hrp.Position)
 	local startNode = self:FindNearestNode(hrp.Position)
-	local endNode = self:FindNearestNode(destinationVector)
+	local endNode = self:FindNearestNode(destPos)
 	if not startNode or not endNode then return end
 
 	local path = self:CalculatePath(startNode, endNode)
@@ -123,9 +169,8 @@ function Pathfinding:WalkPath(destinationVector)
 	self.FollowConnection = RunService.Heartbeat:Connect(function()
 		if not self.Active or index < 1 then self:StopPath() return end
 		local target = path[index]
-		local targetPos = Vector3.new(target.x, hrp.Position.Y, target.y)
-		hum:MoveTo(targetPos)
-		if (Vector2.new(hrp.Position.X, hrp.Position.Z) - Vector2.new(target.x, target.y)).Magnitude < 1.5 then
+		hum:MoveTo(Vector3.new(target.x, target.y, target.z))
+		if (Vector2.new(hrp.Position.X, hrp.Position.Z) - Vector2.new(target.x, target.z)).Magnitude < 2.5 then
 			index -= 1
 		end
 	end)
@@ -133,19 +178,14 @@ end
 
 function Pathfinding:StopPath()
 	self.Active = false
-	if self.FollowConnection then
-		self.FollowConnection:Disconnect()
-		self.FollowConnection = nil
-	end
-	local char = LocalPlayer.Character
-	local hum = char and char:FindFirstChild("Humanoid")
+	if self.FollowConnection then self.FollowConnection:Disconnect() self.FollowConnection = nil end
+	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
 	if hum then hum:Move(Vector3.zero) end
 end
 
 function Pathfinding:Unload()
 	self:StopPath()
 	self.Grid = nil
-	setmetatable(self, nil)
 end
 
 return Pathfinding
