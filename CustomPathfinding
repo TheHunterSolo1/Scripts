@@ -1,93 +1,151 @@
-getgenv().PathToLoop = function()
-    if getgenv().PathfindingThread then task.cancel(getgenv().PathfindingThread) end
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-    getgenv().PathfindingThread = task.spawn(function()
-        local PathfindingService = game:GetService("PathfindingService")
-        local Players = game:GetService("Players")
-        local RunService = game:GetService("RunService")
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        
-        local Player = Players.LocalPlayer
-        local Character = Player.Character or Player.CharacterAdded:Wait()
-        local Root = Character:WaitForChild("HumanoidRootPart")
-        local Humanoid = Character:WaitForChild("Humanoid")
+local LocalPlayer = Players.LocalPlayer
+local Pathfinding = {}
+Pathfinding.__index = Pathfinding
 
-        local Waypoints = {}
-        local CurrentIndex = 0
-        local LastPos = Root.Position
-        local StuckTimer = 0
-
-        local Path = PathfindingService:CreatePath({
-            AgentRadius = 0.01,
-            AgentHeight = 3.5,
-            AgentCanJump = true,
-            WaypointSpacing = 2
-        })
-
-        local function PathTo(Target)
-            local success, _ = pcall(function()
-                Path:ComputeAsync(Root.Position, Target)
-            end)
-            if success and Path.Status == Enum.PathStatus.Success then
-                Waypoints = Path:GetWaypoints()
-                CurrentIndex = 1
-            else
-                Humanoid:MoveTo(Target)
-            end
-        end
-
-        task.spawn(function()
-            while task.wait(0.3) do
-                if not getgenv().PathfindingThread then break end
-                local LatestRoom = ReplicatedStorage.GameData.LatestRoom.Value
-                local Room = workspace.CurrentRooms:FindFirstChild(tostring(LatestRoom))
-                if Room then
-                    local HasKey = Character:FindFirstChild("Key") or Player.Backpack:FindFirstChild("Key")
-                    local KeyObj = Room:FindFirstChild("KeyObtain", true)
-                    local Goal = nil
-
-                    if KeyObj and not HasKey then
-                        Goal = (KeyObj:IsA("Model") and KeyObj.PrimaryPart or KeyObj).Position
-                    elseif Room:FindFirstChild("Door") then
-                        local Door = Room.Door:FindFirstChild("Door") or Room.Door:FindFirstChild("Hidden")
-                        if Door then Goal = Door.Position end
-                    end
-
-                    if Goal then PathTo(Goal) end
-                end
-            end
-        end)
-
-        RunService.Heartbeat:Connect(function()
-            if not getgenv().PathfindingThread then return end
-            
-            if Waypoints and CurrentIndex <= #Waypoints then
-                local Point = Waypoints[CurrentIndex]
-                Humanoid:MoveTo(Point.Position)
-
-                if (Root.Position - LastPos).Magnitude < 0.1 then
-                    StuckTimer = StuckTimer + task.wait()
-                    if StuckTimer > 0.5 then
-                        Humanoid.Jump = true
-                        StuckTimer = 0
-                        local Room = workspace.CurrentRooms:FindFirstChild(tostring(ReplicatedStorage.GameData.LatestRoom.Value))
-                        if Room and Room:FindFirstChild("Door") then 
-                            local D = Room.Door:FindFirstChild("Door") or Room.Door:FindFirstChild("Hidden")
-                            if D then PathTo(D.Position) end
-                        end
-                    end
-                else
-                    StuckTimer = 0
-                end
-                LastPos = Root.Position
-
-                if Point.Action == Enum.PathWaypointAction.Jump then Humanoid.Jump = true end
-                if (Root.Position - Point.Position).Magnitude < 2.5 then
-                    CurrentIndex = CurrentIndex + 1
-                end
-            end
-        end)
-    end)
+local function GetDistance(nodeA, nodeB)
+	local dx = math.abs(nodeA.x - nodeB.x)
+	local dy = math.abs(nodeA.y - nodeB.y)
+	return (dx > dy) and (14 * dy + 10 * (dx - dy)) or (14 * dx + 10 * (dy - dx))
 end
 
-PathToLoop()
+function Pathfinding.new(gridData)
+	local self = setmetatable({}, Pathfinding)
+	self.Grid = gridData
+	self.Active = false
+	self.FollowConnection = nil
+	return self
+end
+
+function Pathfinding:FindNearestNode(position)
+	local targetX, targetY = math.round(position.X), math.round(position.Z)
+	if self.Grid[targetX] and self.Grid[targetX][targetY] then
+		return self.Grid[targetX][targetY]
+	end
+	
+	local nearest = nil
+	local minDist = math.huge
+	for x, column in pairs(self.Grid) do
+		for y, node in pairs(column) do
+			if node.walkable then
+				local d = (Vector2.new(x, y) - Vector2.new(position.X, position.Z)).SqrMagnitude
+				if d < minDist then
+					minDist = d
+					nearest = node
+				end
+			end
+		end
+	end
+	return nearest
+end
+
+function Pathfinding:GetNeighbors(node)
+	local neighbors = {}
+	local grid = self.Grid
+	local x, y = node.x, node.y
+	for i = -1, 1 do
+		local row = grid[x + i]
+		if not row then continue end
+		for j = -1, 1 do
+			if i == 0 and j == 0 then continue end
+			local neighbor = row[y + j]
+			if neighbor and neighbor.walkable then
+				table.insert(neighbors, neighbor)
+			end
+		end
+	end
+	return neighbors
+end
+
+function Pathfinding:CalculatePath(startNode, endNode)
+	local openSet = {startNode}
+	local closedSet = {}
+	local nodeData = {}
+	nodeData[startNode] = {g = 0, h = GetDistance(startNode, endNode)}
+	nodeData[startNode].f = nodeData[startNode].g + nodeData[startNode].h
+
+	while #openSet > 0 do
+		local currentNode = openSet[1]
+		local currentIndex = 1
+		for i = 2, #openSet do
+			local node = openSet[i]
+			if nodeData[node].f < nodeData[currentNode].f or (nodeData[node].f == nodeData[currentNode].f and nodeData[node].h < nodeData[currentNode].h) then
+				currentNode = node
+				currentIndex = i
+			end
+		end
+		table.remove(openSet, currentIndex)
+		closedSet[currentNode] = true
+		if currentNode == endNode then
+			local path = {}
+			local curr = endNode
+			while curr do
+				table.insert(path, curr)
+				curr = nodeData[curr] and nodeData[curr].parent
+			end
+			return path
+		end
+		for _, neighbor in ipairs(self:GetNeighbors(currentNode)) do
+			if closedSet[neighbor] then continue end
+			local gScore = nodeData[currentNode].g + GetDistance(currentNode, neighbor)
+			if not nodeData[neighbor] or gScore < nodeData[neighbor].g then
+				nodeData[neighbor] = {
+					g = gScore,
+					h = GetDistance(neighbor, endNode),
+					f = gScore + GetDistance(neighbor, endNode),
+					parent = currentNode
+				}
+				if not table.find(openSet, neighbor) then table.insert(openSet, neighbor) end
+			end
+		end
+	end
+	return nil
+end
+
+function Pathfinding:WalkPath(destinationVector)
+	self:StopPath()
+	local char = LocalPlayer.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChild("Humanoid")
+	if not hrp or not hum then return end
+
+	local startNode = self:FindNearestNode(hrp.Position)
+	local endNode = self:FindNearestNode(destinationVector)
+	if not startNode or not endNode then return end
+
+	local path = self:CalculatePath(startNode, endNode)
+	if not path then return end
+
+	self.Active = true
+	local index = #path - 1
+	self.FollowConnection = RunService.Heartbeat:Connect(function()
+		if not self.Active or index < 1 then self:StopPath() return end
+		local target = path[index]
+		local targetPos = Vector3.new(target.x, hrp.Position.Y, target.y)
+		hum:MoveTo(targetPos)
+		if (Vector2.new(hrp.Position.X, hrp.Position.Z) - Vector2.new(target.x, target.y)).Magnitude < 1.5 then
+			index -= 1
+		end
+	end)
+end
+
+function Pathfinding:StopPath()
+	self.Active = false
+	if self.FollowConnection then
+		self.FollowConnection:Disconnect()
+		self.FollowConnection = nil
+	end
+	local char = LocalPlayer.Character
+	local hum = char and char:FindFirstChild("Humanoid")
+	if hum then hum:Move(Vector3.zero) end
+end
+
+function Pathfinding:Unload()
+	self:StopPath()
+	self.Grid = nil
+	setmetatable(self, nil)
+end
+
+return Pathfinding
