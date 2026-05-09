@@ -64,9 +64,9 @@ function Pathfinding:GenerateGrid(centerPos)
 				end
 				
 				self.Grid[worldX][worldZ] = {
+					Position = Vector3.new(worldX, rayResult.Position.Y, worldZ),
 					x = worldX, 
 					z = worldZ, 
-					y = rayResult.Position.Y, 
 					walkable = not isBlocked
 				}
 			end
@@ -77,12 +77,12 @@ end
 function Pathfinding:FindNearestNode(position)
 	local bestNode = nil
 	local minDist = math.huge
-	for x, col in pairs(self.Grid) do
-		for z, node in pairs(col) do
+	for _, col in pairs(self.Grid) do
+		for _, node in pairs(col) do
 			if node.walkable then
-				local d = (Vector2.new(x, z) - Vector2.new(position.X, position.Z)).SqrMagnitude
-				if d < minDist then
-					minDist = d
+				local dist = (node.Position - position).Magnitude
+				if dist < minDist then
+					minDist = dist
 					bestNode = node
 				end
 			end
@@ -123,6 +123,7 @@ function Pathfinding:CalculatePath(startNode, endNode)
 		end
 		table.remove(openSet, currentIndex)
 		closedSet[current] = true
+		
 		if current == endNode then
 			local path = {}
 			while current do
@@ -131,6 +132,7 @@ function Pathfinding:CalculatePath(startNode, endNode)
 			end
 			return path
 		end
+		
 		for _, neighbor in ipairs(self:GetNeighbors(current)) do
 			if closedSet[neighbor] then continue end
 			local gScore = nodeData[current].g + GetDistance(current, neighbor)
@@ -169,8 +171,8 @@ function Pathfinding:WalkPath(destinationInput)
 	self.FollowConnection = RunService.Heartbeat:Connect(function()
 		if not self.Active or index < 1 then self:StopPath() return end
 		local target = path[index]
-		hum:MoveTo(Vector3.new(target.x, target.y, target.z))
-		if (Vector2.new(hrp.Position.X, hrp.Position.Z) - Vector2.new(target.x, target.z)).Magnitude < 2.5 then
+		hum:MoveTo(target.Position)
+		if (hrp.Position - target.Position).Magnitude < 2.5 then
 			index -= 1
 		end
 	end)
