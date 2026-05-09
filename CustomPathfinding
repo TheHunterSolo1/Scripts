@@ -5,12 +5,12 @@ local LocalPlayer = Players.LocalPlayer
 local Pathfinding = {}
 Pathfinding.__index = Pathfinding
 
-local GRID_SIZE = 3 
-local SCAN_RANGE = 120 
+local GRID_SIZE = 4
+local SCAN_RANGE = 150
 
 local function GetDistance(nodeA, nodeB)
-    if not nodeA or not nodeB then return 0 end
-    return (nodeA.Position - nodeB.Position).Magnitude
+	if not nodeA or not nodeB then return 0 end
+	return (nodeA.Position - nodeB.Position).Magnitude
 end
 
 local function GetPosition(input)
@@ -37,7 +37,7 @@ function Pathfinding:GenerateGrid(centerPos)
 	
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
-	rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+	rayParams.FilterDescendantsInstances = {LocalPlayer.Character, workspace.CurrentCamera}
 
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -48,22 +48,22 @@ function Pathfinding:GenerateGrid(centerPos)
 		self.Grid[worldX] = {}
 		for z = 0, SCAN_RANGE, GRID_SIZE do
 			local worldZ = startZ + z
-			local rayOrigin = Vector3.new(worldX, centerPos.Y + 10, worldZ)
-			local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -20, 0), rayParams)
+			local rayOrigin = Vector3.new(worldX, centerPos.Y + 20, worldZ)
+			local rayResult = workspace:Raycast(rayOrigin, Vector3.new(0, -40, 0), rayParams)
 			
 			if rayResult then
 				local isBlocked = false
-				local parts = workspace:GetPartBoundsInBox(CFrame.new(rayResult.Position + Vector3.new(0, 2, 0)), Vector3.new(GRID_SIZE, 3, GRID_SIZE), overlapParams)
+				local parts = workspace:GetPartBoundsInBox(CFrame.new(rayResult.Position + Vector3.new(0, 2, 0)), Vector3.new(GRID_SIZE - 0.5, 3.5, GRID_SIZE - 0.5), overlapParams)
 				
 				for _, part in ipairs(parts) do
-					if part.CanCollide or part.Transparency < 0.9 then
+					if part.CanCollide or (part.Transparency < 0.9 and part.Transparency > 0) then
 						isBlocked = true
 						break
 					end
 				end
 				
 				self.Grid[worldX][worldZ] = {
-					Position = Vector3.new(worldX, rayResult.Position.Y, worldZ),
+					Position = rayResult.Position,
 					x = worldX, 
 					z = worldZ, 
 					walkable = not isBlocked
@@ -74,7 +74,7 @@ function Pathfinding:GenerateGrid(centerPos)
 end
 
 function Pathfinding:FindNearestNode(position)
-    if not position then return nil end
+	if not position then return nil end
 	local bestNode = nil
 	local minDist = math.huge
 	for _, col in pairs(self.Grid) do
@@ -113,7 +113,11 @@ function Pathfinding:CalculatePath(startNode, endNode)
 	local nodeData = {[startNode] = {g = 0, h = GetDistance(startNode, endNode)}}
 	nodeData[startNode].f = nodeData[startNode].h
 
+	local iterations = 0
 	while #openSet > 0 do
+		iterations += 1
+		if iterations > 1000 then break end
+		
 		local current = openSet[1]
 		local currentIndex = 1
 		for i = 2, #openSet do
@@ -122,10 +126,11 @@ function Pathfinding:CalculatePath(startNode, endNode)
 				currentIndex = i
 			end
 		end
+		
 		table.remove(openSet, currentIndex)
 		closedSet[current] = true
 		
-		if current == endNode then
+		if (current.Position - endNode.Position).Magnitude < GRID_SIZE then
 			local path = {}
 			local temp = current
 			while temp do
@@ -158,28 +163,34 @@ function Pathfinding:WalkPath(destinationInput)
 	local char = LocalPlayer.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChild("Humanoid")
+	
 	if not hrp or not hum or not destPos then return end
 
 	self:GenerateGrid(hrp.Position)
 	local startNode = self:FindNearestNode(hrp.Position)
 	local endNode = self:FindNearestNode(destPos)
-	if not startNode or not endNode then return end
+	
+	if not startNode or not endNode then 
+		warn("Pathfinding: Nodes not found.")
+		return 
+	end
 
 	local path = self:CalculatePath(startNode, endNode)
-	if not path then return end
+	if not path or #path == 0 then 
+		warn("Pathfinding: No valid path found.")
+		return 
+	end
 
 	self.Active = true
-	local index = #path - 1
+	local index = #path
 	self.FollowConnection = RunService.Heartbeat:Connect(function()
 		if not self.Active or index < 1 then self:StopPath() return end
 		local target = path[index]
-		if target and target.Position then
+		if target then
 			hum:MoveTo(target.Position)
-			if (hrp.Position - target.Position).Magnitude < 2.5 then
+			if (hrp.Position - target.Position).Magnitude < 3 then
 				index -= 1
 			end
-		else
-			self:StopPath()
 		end
 	end)
 end
@@ -189,11 +200,6 @@ function Pathfinding:StopPath()
 	if self.FollowConnection then self.FollowConnection:Disconnect() self.FollowConnection = nil end
 	local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
 	if hum then hum:Move(Vector3.zero) end
-end
-
-function Pathfinding:Unload()
-	self:StopPath()
-	self.Grid = nil
 end
 
 return Pathfinding
