@@ -9,9 +9,8 @@ local GRID_SIZE = 3
 local SCAN_RANGE = 120 
 
 local function GetDistance(nodeA, nodeB)
-	local dx = math.abs(nodeA.x - nodeB.x)
-	local dz = math.abs(nodeA.z - nodeB.z)
-	return (dx > dz) and (14 * dz + 10 * (dx - dz)) or (14 * dx + 10 * (dy - dx))
+    if not nodeA or not nodeB then return 0 end
+    return (nodeA.Position - nodeB.Position).Magnitude
 end
 
 local function GetPosition(input)
@@ -75,6 +74,7 @@ function Pathfinding:GenerateGrid(centerPos)
 end
 
 function Pathfinding:FindNearestNode(position)
+    if not position then return nil end
 	local bestNode = nil
 	local minDist = math.huge
 	for _, col in pairs(self.Grid) do
@@ -107,6 +107,7 @@ function Pathfinding:GetNeighbors(node)
 end
 
 function Pathfinding:CalculatePath(startNode, endNode)
+	if not startNode or not endNode then return nil end
 	local openSet = {startNode}
 	local closedSet = {}
 	local nodeData = {[startNode] = {g = 0, h = GetDistance(startNode, endNode)}}
@@ -126,9 +127,10 @@ function Pathfinding:CalculatePath(startNode, endNode)
 		
 		if current == endNode then
 			local path = {}
-			while current do
-				table.insert(path, current)
-				current = nodeData[current].parent
+			local temp = current
+			while temp do
+				table.insert(path, temp)
+				temp = nodeData[temp] and nodeData[temp].parent
 			end
 			return path
 		end
@@ -171,9 +173,13 @@ function Pathfinding:WalkPath(destinationInput)
 	self.FollowConnection = RunService.Heartbeat:Connect(function()
 		if not self.Active or index < 1 then self:StopPath() return end
 		local target = path[index]
-		hum:MoveTo(target.Position)
-		if (hrp.Position - target.Position).Magnitude < 2.5 then
-			index -= 1
+		if target and target.Position then
+			hum:MoveTo(target.Position)
+			if (hrp.Position - target.Position).Magnitude < 2.5 then
+				index -= 1
+			end
+		else
+			self:StopPath()
 		end
 	end)
 end
