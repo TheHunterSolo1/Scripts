@@ -61,7 +61,7 @@ function Library:AddESP(Cfg)
             Billboard.Name = "ESPLibrary"
             Billboard.Size = UDim2.new(0, 250, 0, 60)
             Billboard.AlwaysOnTop = true
-            Billboard.Adornee = Obj
+            Billboard.Adornee = GetRoot
             
             local Label = Instance.new("TextLabel", Billboard)
             Label.BackgroundTransparency = 1
