@@ -174,14 +174,15 @@ end)
 
 Test("fireproximityprompt", function()
     if not fireproximityprompt then return false end
-    if ExecutorName == "Delta" then return false end
-    local part = Instance.new("Part", workspace)
+    local part = Instance.new("Part")
     part.Anchored = true
-    local prompt = Instance.new("ProximityPrompt", part)
+    part.Parent = workspace
+    local prompt = Instance.new("ProximityPrompt")
+    prompt.Parent = part
     local done = false
     local conn = prompt.Triggered:Connect(function() done = true end)
     fireproximityprompt(prompt)
-    task.wait(0.5)
+    task.wait(1)
     conn:Disconnect()
     part:Destroy()
     return done
@@ -189,16 +190,22 @@ end)
 
 Test("firetouchinterest", function()
     if not IsFunction(firetouchinterest) then return false end
-    if ExecutorName == "Delta" then return false end
     local touched = false
-    local partA = Instance.new("Part", Workspace)
-    local partB = Instance.new("Part", Workspace)
+    local partA = Instance.new("Part")
+    local partB = Instance.new("Part")
     partA.Anchored = true
     partB.Anchored = true
+    partA.Size = Vector3.new(4, 4, 4)
+    partB.Size = Vector3.new(4, 4, 4)
+    partA.Position = LocalPlayer.Character and LocalPlayer.Character:GetPivot().Position or Vector3.new(0, 10, 0)
+    partB.Position = partA.Position
+    partA.Parent = workspace
+    partB.Parent = workspace
     local conn = partA.Touched:Connect(function() touched = true end)
     firetouchinterest(partA, partB, 0)
+    task.wait(0.1)
     firetouchinterest(partA, partB, 1)
-    task.wait(0.3)
+    task.wait(0.5)
     conn:Disconnect()
     partA:Destroy()
     partB:Destroy()
