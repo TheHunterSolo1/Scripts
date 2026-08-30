@@ -212,6 +212,663 @@ Test("firetouchinterest", function()
     return touched
 end)
 
+Test("getconnections", function()
+    if not IsFunction(getconnections) then return false end
+    local part = Instance.new("Part")
+    local conn = part.Changed:Connect(function() end)
+    local connections = getconnections(part.Changed)
+    local ok = IsTable(connections) and #connections > 0
+    conn:Disconnect()
+    part:Destroy()
+    return ok
+end)
+
+Test("getcustomasset", function()
+    if not IsFunction(getcustomasset) then return false end
+    if not IsFunction(writefile) then return false end
+    local path = "__compat_asset.txt"
+    pcall(function() writefile(path, "test") end)
+    local asset = pcall(getcustomasset, path)
+    if IsFunction(delfile) then pcall(delfile, path) end
+    return asset
+end)
+
+Test("getscriptbytecode", function()
+    if not IsFunction(getscriptbytecode) then return false end
+    local bytecode = pcall(getscriptbytecode, game:GetService("Players").LocalPlayer:FindFirstChildOfClass("LocalScript") or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("Script"))
+    return bytecode
+end)
+
+Test("getscriptclosure", function()
+    if not IsFunction(getscriptclosure) then return false end
+    local scriptObj = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("LocalScript") or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("Script")
+    if not scriptObj then return false end
+    local closure = pcall(getscriptclosure, scriptObj)
+    return closure
+end)
+
+Test("getscripts", function()
+    if not IsFunction(getscripts) then return false end
+    local scripts = getscripts()
+    return IsTable(scripts) and #scripts > 0
+end)
+
+Test("getrunningscripts", function()
+    if not IsFunction(getrunningscripts) then return false end
+    local scripts = getrunningscripts()
+    return IsTable(scripts) and #scripts > 0
+end)
+
+Test("getloadedmodules", function()
+    if not IsFunction(getloadedmodules) then return false end
+    local modules = getloadedmodules()
+    return IsTable(modules) and #modules > 0
+end)
+
+Test("getcallingscript", function()
+    if not IsFunction(getcallingscript) then return false end
+    local script = getcallingscript()
+    return script == nil or script:IsA("Instance")
+end)
+
+Test("getnamecallmethod", function()
+    if not IsFunction(getnamecallmethod) then return false end
+    local called = false
+    local original
+    local ok = pcall(function()
+        original = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if method == "__CompatNamecallTest__" then
+                called = true
+            end
+            return original(self, ...)
+        end)
+    end)
+    if ok and original then
+        pcall(function() game:__CompatNamecallTest__() end)
+        pcall(function() hookmetamethod(game, "__namecall", original) end)
+    end
+    return called
+end)
+
+Test("setnamecallmethod", function()
+    if not IsFunction(setnamecallmethod) then return false end
+    if not IsFunction(getnamecallmethod) then return false end
+    local called = false
+    local original
+    local ok = pcall(function()
+        original = hookmetamethod(game, "__namecall", function(self, ...)
+            if getnamecallmethod() == "__CompatSetNamecallTest__" then
+                called = true
+            end
+            return original(self, ...)
+        end)
+    end)
+    if ok and original then
+        pcall(function()
+            setnamecallmethod("__CompatSetNamecallTest__")
+            game:__CompatSetNamecallTest__()
+        end)
+        pcall(function() hookmetamethod(game, "__namecall", original) end)
+    end
+    return called
+end)
+
+Test("getrawmetatable", function()
+    if not IsFunction(getrawmetatable) then return false end
+    local mt = getrawmetatable(game)
+    return IsTable(mt) and IsFunction(mt.__index)
+end)
+
+Test("setrawmetatable", function()
+    if not IsFunction(setrawmetatable) then return false end
+    local mt = getrawmetatable(game)
+    if not IsTable(mt) then return false end
+    local original = mt.__index
+    mt.__index = function() return true end
+    local test = game.__CompatRawTest__
+    mt.__index = original
+    return test == true
+end)
+
+Test("hookfunction", function()
+    if not IsFunction(hookfunction) then return false end
+    local called = false
+    local function target() return false end
+    local original
+    local ok = pcall(function()
+        original = hookfunction(target, function()
+            called = true
+            return original()
+        end)
+    end)
+    if ok and original then
+        target()
+    end
+    return called
+end)
+
+Test("newcclosure", function()
+    if not IsFunction(newcclosure) then return false end
+    local f = newcclosure(function() return true end)
+    return IsFunction(f) and f() == true
+end)
+
+Test("iscclosure", function()
+    if not IsFunction(iscclosure) then return false end
+    return iscclosure(print) == true and iscclosure(function() end) == false
+end)
+
+Test("islclosure", function()
+    if not IsFunction(islclosure) then return false end
+    return islclosure(function() end) == true and islclosure(print) == false
+end)
+
+Test("isexecutorclosure", function()
+    if not IsFunction(isexecutorclosure) then return false end
+    return isexecutorclosure(function() end) == false and isexecutorclosure(print) == false
+end)
+
+Test("checkparallel", function()
+    return IsFunction(checkparallel)
+end)
+
+Test("getthreadidentity", function()
+    if not IsFunction(getthreadidentity) then return false end
+    local id = getthreadidentity()
+    return type(id) == "number" and id >= 0
+end)
+
+Test("setthreadidentity", function()
+    if not IsFunction(setthreadidentity) then return false end
+    if not IsFunction(getthreadidentity) then return false end
+    local original = getthreadidentity()
+    setthreadidentity(3)
+    local new = getthreadidentity()
+    setthreadidentity(original)
+    return new == 3
+end)
+
+Test("lz4compress", function()
+    if not IsFunction(lz4compress) then return false end
+    local compressed = pcall(lz4compress, "test")
+    return compressed
+end)
+
+Test("lz4decompress", function()
+    if not IsFunction(lz4decompress) then return false end
+    if not IsFunction(lz4compress) then return false end
+    local ok, compressed = pcall(lz4compress, "test")
+    if not ok then return false end
+    local ok2, decompressed = pcall(lz4decompress, compressed, 4)
+    return ok2 and decompressed == "test"
+end)
+
+Test("base64_encode", function()
+    if not IsFunction(base64_encode) then return false end
+    local encoded = base64_encode("test")
+    return IsString(encoded) and #encoded > 0
+end)
+
+Test("base64_decode", function()
+    if not IsFunction(base64_decode) then return false end
+    if not IsFunction(base64_encode) then return false end
+    local encoded = base64_encode("test")
+    local decoded = base64_decode(encoded)
+    return decoded == "test"
+end)
+
+Test("crypt.encrypt", function()
+    if not IsFunction(crypt) or not IsFunction(crypt.encrypt) then return false end
+    local ok = pcall(function()
+        local encrypted = crypt.encrypt("test", "key", "IV")
+        return encrypted ~= nil
+    end)
+    return ok
+end)
+
+Test("crypt.decrypt", function()
+    if not IsFunction(crypt) or not IsFunction(crypt.decrypt) or not IsFunction(crypt.encrypt) then return false end
+    local ok, encrypted = pcall(crypt.encrypt, "test", "key", "IV")
+    if not ok then return false end
+    local ok2, decrypted = pcall(crypt.decrypt, encrypted, "key", "IV")
+    return ok2 and decrypted == "test"
+end)
+
+Test("crypt.generatebytes", function()
+    if not IsFunction(crypt) or not IsFunction(crypt.generatebytes) then return false end
+    local bytes = crypt.generatebytes(16)
+    return IsString(bytes) and #bytes > 0
+end)
+
+Test("crypt.generatekey", function()
+    if not IsFunction(crypt) or not IsFunction(crypt.generatekey) then return false end
+    local key = crypt.generatekey()
+    return IsString(key) and #key > 0
+end)
+
+Test("crypt.hash", function()
+    if not IsFunction(crypt) or not IsFunction(crypt.hash) then return false end
+    local hash = crypt.hash("test")
+    return IsString(hash) and #hash > 0
+end)
+
+Test("request", function()
+    if not IsFunction(request) then return false end
+    local ok = pcall(function()
+        local res = request({
+            Url = "https://httpbin.org/get",
+            Method = "GET"
+        })
+        return res and res.StatusCode == 200
+    end)
+    return ok
+end)
+
+Test("http_request", function()
+    return IsFunction(http_request)
+end)
+
+Test("websocket", function()
+    return IsFunction(websocket) or (IsFunction(WebSocket) and IsFunction(WebSocket.connect))
+end)
+
+Test("keypress", function()
+    return IsFunction(keypress)
+end)
+
+Test("keyrelease", function()
+    return IsFunction(keyrelease)
+end)
+
+Test("mouse1click", function()
+    return IsFunction(mouse1click)
+end)
+
+Test("mouse1press", function()
+    return IsFunction(mouse1press)
+end)
+
+Test("mouse1release", function()
+    return IsFunction(mouse1release)
+end)
+
+Test("mouse2click", function()
+    return IsFunction(mouse2click)
+end)
+
+Test("mouse2press", function()
+    return IsFunction(mouse2press)
+end)
+
+Test("mouse2release", function()
+    return IsFunction(mouse2release)
+end)
+
+Test("mousemoveabs", function()
+    return IsFunction(mousemoveabs)
+end)
+
+Test("mousemoverel", function()
+    return IsFunction(mousemoverel)
+end)
+
+Test("mousescroll", function()
+    return IsFunction(mousescroll)
+end)
+
+Test("getfpscap", function()
+    if not IsFunction(getfpscap) then return false end
+    local cap = getfpscap()
+    return type(cap) == "number" and cap > 0
+end)
+
+Test("setfpscap", function()
+    if not IsFunction(setfpscap) then return false end
+    if not IsFunction(getfpscap) then return false end
+    local original = getfpscap()
+    setfpscap(60)
+    local new = getfpscap()
+    setfpscap(original)
+    return new == 60
+end)
+
+Test("setclipboard", function()
+    return IsFunction(setclipboard)
+end)
+
+Test("getclipboard", function()
+    return IsFunction(getclipboard)
+end)
+
+Test("messagebox", function()
+    return IsFunction(messagebox)
+end)
+
+Test("rconsoleprint", function()
+    return IsFunction(rconsoleprint)
+end)
+
+Test("rconsolewarn", function()
+    return IsFunction(rconsolewarn)
+end)
+
+Test("rconsoleerr", function()
+    return IsFunction(rconsoleerr)
+end)
+
+Test("rconsoleinfo", function()
+    return IsFunction(rconsoleinfo)
+end)
+
+Test("rconsolename", function()
+    return IsFunction(rconsolename)
+end)
+
+Test("rconsoleclear", function()
+    return IsFunction(rconsoleclear)
+end)
+
+Test("rconsoleinput", function()
+    return IsFunction(rconsoleinput)
+end)
+
+Test("rconsoleinputasync", function()
+    return IsFunction(rconsoleinputasync)
+end)
+
+Test("isrbxactive", function()
+    return IsFunction(isrbxactive)
+end)
+
+Test("queue_on_teleport", function()
+    return IsFunction(queue_on_teleport)
+end)
+
+Test("getcallbackvalue", function()
+    if not IsFunction(getcallbackvalue) then return false end
+    local part = Instance.new("Part")
+    local conn = part.Changed:Connect(function() end)
+    local callback = pcall(getcallbackvalue, conn, "Function")
+    conn:Disconnect()
+    part:Destroy()
+    return callback
+end)
+
+Test("gethui", function()
+    if not IsFunction(gethui) then return false end
+    local hui = gethui()
+    return hui ~= nil and hui:IsA("Instance")
+end)
+
+Test("appendfile", function()
+    if not IsFunction(appendfile) then return false end
+    if not IsFunction(writefile) then return false end
+    if not IsFunction(readfile) then return false end
+    pcall(function() writefile("__compat_a.txt", "hello") end)
+    pcall(function() appendfile("__compat_a.txt", " world") end)
+    local content = readfile("__compat_a.txt")
+    local ok = content == "hello world"
+    if IsFunction(delfile) then pcall(delfile, "__compat_a.txt") end
+    return ok
+end)
+
+Test("listfiles", function()
+    if not IsFunction(listfiles) then return false end
+    local files = listfiles("")
+    return IsTable(files)
+end)
+
+Test("isfile", function()
+    if not IsFunction(isfile) then return false end
+    if not IsFunction(writefile) then return false end
+    pcall(function() writefile("__compat_i.txt", "test") end)
+    local ok = isfile("__compat_i.txt")
+    if IsFunction(delfile) then pcall(delfile, "__compat_i.txt") end
+    return ok
+end)
+
+Test("isfolder", function()
+    if not IsFunction(isfolder) then return false end
+    return isfolder("") == true
+end)
+
+Test("makefolder", function()
+    if not IsFunction(makefolder) then return false end
+    if not IsFunction(isfolder) then return false end
+    pcall(function() makefolder("__compat_f") end)
+    local ok = isfolder("__compat_f")
+    if IsFunction(delfolder) then pcall(delfolder, "__compat_f") end
+    return ok
+end)
+
+Test("delfolder", function()
+    if not IsFunction(delfolder) then return false end
+    if not IsFunction(makefolder) then return false end
+    pcall(function() makefolder("__compat_d") end)
+    pcall(function() delfolder("__compat_d") end)
+    if not IsFunction(isfolder) then return true end
+    return isfolder("__compat_d") == false
+end)
+
+Test("delfile", function()
+    if not IsFunction(delfile) then return false end
+    if not IsFunction(writefile) then return false end
+    pcall(function() writefile("__compat_df.txt", "test") end)
+    pcall(function() delfile("__compat_df.txt") end)
+    if not IsFunction(isfile) then return true end
+    return isfile("__compat_df.txt") == false
+end)
+
+Test("loadstring", function()
+    if not IsFunction(loadstring) then return false end
+    local f = loadstring("return true")
+    return IsFunction(f) and f() == true
+end)
+
+Test("loadfile", function()
+    return IsFunction(loadfile)
+end)
+
+Test("dofile", function()
+    return IsFunction(dofile)
+end)
+
+Test("saveinstance", function()
+    return IsFunction(saveinstance)
+end)
+
+Test("decompile", function()
+    return IsFunction(decompile)
+end)
+
+Test("getinstances", function()
+    if not IsFunction(getinstances) then return false end
+    local instances = getinstances()
+    return IsTable(instances) and #instances > 0
+end)
+
+Test("getspecialinfo", function()
+    if not IsFunction(getspecialinfo) then return false end
+    local info = pcall(getspecialinfo, game:GetService("Players").LocalPlayer)
+    return info
+end)
+
+Test("getmemoryaddress", function()
+    if not IsFunction(getmemoryaddress) then return false end
+    local addr = getmemoryaddress(game)
+    return type(addr) == "number" or IsString(addr)
+end)
+
+Test("setscriptable", function()
+    if not IsFunction(setscriptable) then return false end
+    local part = Instance.new("Part")
+    local ok = pcall(function()
+        setscriptable(part, "Position", true)
+        part.Position = Vector3.new(1, 2, 3)
+    end)
+    part:Destroy()
+    return ok
+end)
+
+Test("getscriptable", function()
+    if not IsFunction(getscriptable) then return false end
+    local part = Instance.new("Part")
+    local ok = pcall(function()
+        return getscriptable(part, "Position")
+    end)
+    part:Destroy()
+    return ok
+end)
+
+Test("setsimulationradius", function()
+    return IsFunction(setsimulationradius)
+end)
+
+Test("getsimulationradius", function()
+    return IsFunction(getsimulationradius)
+end)
+
+Test("gethiddenproperty", function()
+    if not IsFunction(gethiddenproperty) then return false end
+    local part = Instance.new("Part")
+    local ok = pcall(function()
+        return gethiddenproperty(part, "Massless")
+    end)
+    part:Destroy()
+    return ok
+end)
+
+Test("sethiddenproperty", function()
+    if not IsFunction(sethiddenproperty) then return false end
+    local part = Instance.new("Part")
+    local ok = pcall(function()
+        sethiddenproperty(part, "Massless", true)
+    end)
+    part:Destroy()
+    return ok
+end)
+
+Test("getconstants", function()
+    if not IsFunction(getconstants) then return false end
+    local constants = pcall(getconstants, print)
+    return constants
+end)
+
+Test("getupvalues", function()
+    if not IsFunction(getupvalues) then return false end
+    local function test() local x = 1 return x end
+    local upvalues = pcall(getupvalues, test)
+    return upvalues
+end)
+
+Test("getupvalue", function()
+    if not IsFunction(getupvalue) then return false end
+    local function test() local x = 1 return x end
+    local ok, val = pcall(getupvalue, test, 1)
+    return ok and val == 1
+end)
+
+Test("setupvalue", function()
+    if not IsFunction(setupvalue) then return false end
+    local function test() local x = 1 return x end
+    local ok = pcall(setupvalue, test, 1, 2)
+    if not ok then return false end
+    return test() == 2
+end)
+
+Test("getprotos", function()
+    if not IsFunction(getprotos) then return false end
+    local function outer() local function inner() end return inner end
+    local protos = pcall(getprotos, outer)
+    return protos
+end)
+
+Test("getproto", function()
+    if not IsFunction(getproto) then return false end
+    local function outer() local function inner() return true end return inner end
+    local ok, proto = pcall(getproto, outer, 1)
+    if not ok then return false end
+    return IsFunction(proto) and proto() == true
+end)
+
+Test("getstack", function()
+    if not IsFunction(getstack) then return false end
+    local ok = pcall(getstack, 1)
+    return ok
+end)
+
+Test("setstack", function()
+    if not IsFunction(setstack) then return false end
+    return true
+end)
+
+Test("getinfo", function()
+    if not IsFunction(getinfo) then return false end
+    local info = pcall(getinfo, print)
+    return info
+end)
+
+Test("debug.getproto", function()
+    if not IsFunction(debug) or not IsFunction(debug.getproto) then return false end
+    local function outer() local function inner() return true end return inner end
+    local ok, proto = pcall(debug.getproto, outer, 1)
+    if not ok then return false end
+    return IsFunction(proto) and proto() == true
+end)
+
+Test("debug.getconstants", function()
+    if not IsFunction(debug) or not IsFunction(debug.getconstants) then return false end
+    local constants = pcall(debug.getconstants, print)
+    return constants
+end)
+
+Test("debug.getupvalues", function()
+    if not IsFunction(debug) or not IsFunction(debug.getupvalues) then return false end
+    local function test() local x = 1 return x end
+    local upvalues = pcall(debug.getupvalues, test)
+    return upvalues
+end)
+
+Test("debug.getupvalue", function()
+    if not IsFunction(debug) or not IsFunction(debug.getupvalue) then return false end
+    local function test() local x = 1 return x end
+    local ok, val = pcall(debug.getupvalue, test, 1)
+    return ok and val == 1
+end)
+
+Test("debug.setupvalue", function()
+    if not IsFunction(debug) or not IsFunction(debug.setupvalue) then return false end
+    local function test() local x = 1 return x end
+    local ok = pcall(debug.setupvalue, test, 1, 2)
+    if not ok then return false end
+    return test() == 2
+end)
+
+Test("debug.getprotos", function()
+    if not IsFunction(debug) or not IsFunction(debug.getprotos) then return false end
+    local function outer() local function inner() end return inner end
+    local protos = pcall(debug.getprotos, outer)
+    return protos
+end)
+
+Test("debug.getstack", function()
+    if not IsFunction(debug) or not IsFunction(debug.getstack) then return false end
+    local ok = pcall(debug.getstack, 1)
+    return ok
+end)
+
+Test("debug.setstack", function()
+    if not IsFunction(debug) or not IsFunction(debug.setstack) then return false end
+    return true
+end)
+
+Test("debug.getinfo", function()
+    if not IsFunction(debug) or not IsFunction(debug.getinfo) then return false end
+    local info = pcall(debug.getinfo, print)
+    return info
+end)
+
 local passed = 0
 local total = 0
 for _, v in pairs(Support) do
