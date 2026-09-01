@@ -1,6 +1,12 @@
 local UserInputService = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 
 local Device = UserInputService.TouchEnabled and "Mobile" or UserInputService.KeyboardEnabled and "PC"
+local CoreGui = gethui and gethui() or game:GetService("CoreGui")
+local LP = Players.LocalPlayer
 
 local Library = {
     Settings = {
@@ -21,15 +27,10 @@ local Library = {
     TweenInfoFadeOut = nil,
 }
 
-local RS = game:GetService("RunService")
-local CoreGui = gethui and gethui() or game:GetService("CoreGui")
-local LP = game:GetService("Players").LocalPlayer
-local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
-
-local Screen = Instance.new("ScreenGui", CoreGui)
+local Screen = Instance.new("ScreenGui")
 Screen.Name = HttpService:GenerateGUID(false)
 Screen.IgnoreGuiInset = true
+Screen.Parent = CoreGui
 
 function Library:RebuildTweenInfo()
     local FT = self.Settings.FadeTime
@@ -41,34 +42,91 @@ Library:RebuildTweenInfo()
 
 local function GetRoot(Obj)
     if not Obj then return nil end
-    return Obj:IsA("Model") and (Obj.PrimaryPart or Obj:FindFirstChild("HumanoidRootPart") or Obj:FindFirstChildWhichIsA("BasePart")) or (Obj:IsA("BasePart") and Obj) or nil
+    if Obj:IsA("Model") then
+        return Obj.PrimaryPart or Obj:FindFirstChild("HumanoidRootPart") or Obj:FindFirstChildWhichIsA("BasePart")
+    end
+    if Obj:IsA("BasePart") then
+        return Obj
+    end
+    return nil
 end
 
 function Library:SetFont(Font)
     self.Settings.Font = Font
-    for _, Data in pairs(self.Cache) do Data.Text.Font = Font end
+    for _, Data in pairs(self.Cache) do
+        Data.Text.Font = Font
+    end
 end
 
-function Library:SetRainbow(Bool) self.Settings.Rainbow = Bool end
+function Library:SetRainbow(Bool)
+    self.Settings.Rainbow = Bool
+end
+
 function Library:SetFadeTime(Value)
     self.Settings.FadeTime = Value
     self:RebuildTweenInfo()
 end
-function Library:SetArrows(Bool) self.Settings.Arrows = Bool end
-function Library:SetTracers(Bool) self.Settings.Tracers = Bool end
-function Library:SetShowDistance(Bool) self.Settings.Distance = Bool end
-function Library:SetESPMode(Value) self.Settings.ESPMode = Value end
-function Library:SetRenderingSpeed(Value) self.Settings.RenderTime = Value end
+
+function Library:SetArrows(Bool)
+    self.Settings.Arrows = Bool
+end
+
+function Library:SetTracers(Bool)
+    self.Settings.Tracers = Bool
+end
+
+function Library:SetShowDistance(Bool)
+    self.Settings.Distance = Bool
+end
+
+function Library:SetESPMode(Value)
+    self.Settings.ESPMode = Value
+end
+
+function Library:SetRenderingSpeed(Value)
+    self.Settings.RenderTime = Value
+end
+
+function Library:HasESP(Obj)
+    return self.Cache[Obj] ~= nil
+end
+
+function Library:GetESPData(Obj)
+    return self.Cache[Obj]
+end
+
+function Library:GetAllESP()
+    local Result = {}
+    for Obj, Data in pairs(self.Cache) do
+        Result[Obj] = {
+            Name = Data.Name,
+            Color = Data.Color,
+            Root = Data.Root,
+        }
+    end
+    return Result
+end
+
+function Library:CountESP()
+    local Count = 0
+    for _ in pairs(self.Cache) do
+        Count = Count + 1
+    end
+    return Count
+end
 
 function Library:AddESP(Cfg)
     local Obj = Cfg.Object
-    if not Obj or self.Cache[Obj] then return end
+    if not Obj then return end
+    if self.Cache[Obj] then return end
 
     local Root = GetRoot(Obj)
     if not Root then
         task.spawn(function()
-            while not Root do
+            local Attempts = 0
+            while not Root and Attempts < 60 do
                 Root = GetRoot(Obj)
+                Attempts = Attempts + 1
                 task.wait(0.5)
             end
             if Root and Obj.Parent then
@@ -86,7 +144,7 @@ function Library:AddESP(Cfg)
     Billboard.MaxDistance = self.Settings.MaxDistance
     Billboard.Parent = Obj
 
-    local Label = Instance.new("TextLabel", Billboard)
+    local Label = Instance.new("TextLabel")
     Label.BackgroundTransparency = 1
     Label.Size = UDim2.new(1, 0, 1, 0)
     Label.TextColor3 = Cfg.Color
@@ -95,6 +153,7 @@ function Library:AddESP(Cfg)
     Label.TextStrokeTransparency = 0
     Label.TextTransparency = 1
     Label.Text = Cfg.Text
+    Label.Parent = Billboard
 
     local Highlight = Instance.new("Highlight")
     Highlight.Adornee = Obj
@@ -104,20 +163,22 @@ function Library:AddESP(Cfg)
     Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     Highlight.Parent = Obj
 
-    local Line = Instance.new("Frame", Screen)
+    local Line = Instance.new("Frame")
     Line.AnchorPoint = Vector2.new(0.5, 0.5)
     Line.BorderSizePixel = 0
     Line.BackgroundColor3 = Cfg.Color
     Line.Visible = true
     Line.BackgroundTransparency = 1
+    Line.Parent = Screen
 
-    local Arrow = Instance.new("ImageLabel", Screen)
+    local Arrow = Instance.new("ImageLabel")
     Arrow.BackgroundTransparency = 1
     Arrow.AnchorPoint = Vector2.new(0.5, 0.5)
     Arrow.Size = UDim2.new(0, 32, 0, 32)
     Arrow.Image = "rbxassetid://10526559647"
     Arrow.ImageColor3 = Cfg.Color
     Arrow.Visible = false
+    Arrow.Parent = Screen
 
     local FT = self.Settings.FadeTime
     if FT > 0 then
@@ -166,21 +227,21 @@ function Library:RemoveESP(Obj)
             end
         end)
     else
-        Data.Tag:Destroy()
-        Data.Line:Destroy()
-        Data.Box:Destroy()
-        Data.Arrow:Destroy()
+        if Data.Tag then Data.Tag:Destroy() end
+        if Data.Line then Data.Line:Destroy() end
+        if Data.Box then Data.Box:Destroy() end
+        if Data.Arrow then Data.Arrow:Destroy() end
     end
 end
 
 function Library:UpdateESP(Obj, NewText, NewColor)
     local Data = self.Cache[Obj]
     if Data then
-        if Data.Name ~= NewText then
+        if NewText and Data.Name ~= NewText then
             Data.Name = NewText
             Data.Text.Text = NewText
         end
-        if Data.Color ~= NewColor then
+        if NewColor and Data.Color ~= NewColor then
             Data.Color = NewColor
             Data.Text.TextColor3 = NewColor
             Data.Box.FillColor = NewColor
@@ -188,7 +249,7 @@ function Library:UpdateESP(Obj, NewText, NewColor)
             Data.Arrow.ImageColor3 = NewColor
         end
     else
-        self:AddESP({Object = Obj, Text = NewText, Color = NewColor})
+        self:AddESP({Object = Obj, Text = NewText or "ESP", Color = NewColor or Color3.new(1, 1, 1)})
     end
 end
 
@@ -196,16 +257,16 @@ function Library:BulkUpdateESP(UpdateTable)
     for Obj, Info in pairs(UpdateTable) do
         local Data = self.Cache[Obj]
         if Data then
-            local NeedsUpdate = false
+            local NeedsColorUpdate = false
             if Info.Text and Data.Name ~= Info.Text then
                 Data.Name = Info.Text
                 Data.Text.Text = Info.Text
             end
             if Info.Color and Data.Color ~= Info.Color then
                 Data.Color = Info.Color
-                NeedsUpdate = true
+                NeedsColorUpdate = true
             end
-            if NeedsUpdate then
+            if NeedsColorUpdate then
                 local Color = Info.Color
                 Data.Text.TextColor3 = Color
                 Data.Box.FillColor = Color
@@ -217,6 +278,16 @@ function Library:BulkUpdateESP(UpdateTable)
                 self:AddESP({Object = Obj, Text = Info.Text, Color = Info.Color})
             end
         end
+    end
+end
+
+function Library:ClearAllESP()
+    local Objects = {}
+    for Obj in pairs(self.Cache) do
+        table.insert(Objects, Obj)
+    end
+    for i = 1, #Objects do
+        self:RemoveESP(Objects[i])
     end
 end
 
@@ -291,8 +362,9 @@ Library.Connection = RS.Heartbeat:Connect(function()
         end
 
         if IsOnScreen then
-            local ShowHighlight = (Library.Settings.ESPMode == "Highlight" or Library.Settings.ESPMode == "Highlight/Text")
-            local ShowText = (Library.Settings.ESPMode == "Text" or Library.Settings.ESPMode == "Highlight/Text")
+            local ESPMode = Library.Settings.ESPMode
+            local ShowHighlight = ESPMode == "Highlight" or ESPMode == "Highlight/Text"
+            local ShowText = ESPMode == "Text" or ESPMode == "Highlight/Text"
 
             Data.Tag.Enabled = true
             Data.Arrow.Visible = false
@@ -301,7 +373,11 @@ Library.Connection = RS.Heartbeat:Connect(function()
                 Data.Text.Visible = true
                 Data.Text.TextColor3 = DisplayColor
                 Data.Text.TextSize = Library.Settings.TextSize * FOVScale
-                Data.Text.Text = string.format("%s%s", Data.Name, Library.Settings.Distance and string.format("\n[%dm]", math.floor(CalculatedDistance)) or "")
+                local DistanceStr = ""
+                if Library.Settings.Distance then
+                    DistanceStr = "\n[" .. math.floor(CalculatedDistance) .. "m]"
+                end
+                Data.Text.Text = Data.Name .. DistanceStr
             else
                 Data.Text.Visible = false
             end
