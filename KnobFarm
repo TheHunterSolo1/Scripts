@@ -167,24 +167,22 @@ local function HandlePlayerDeath()
 	
 	task.spawn(function()
 		local remotesFolder = ReplicatedStorage:WaitForChild("RemotesFolder", 5)
-		if remotesFolder then
-			local statisticsRemote = remotesFolder:FindFirstChild("Statistics")
-			local playAgainRemote = remotesFolder:FindFirstChild("PlayAgain")
-			
-			local startTime = tick()
-			while tick() - startTime < 3 do
-				if statisticsRemote then
-					statisticsRemote:FireServer()
-				end
-				task.wait(0.05)
-			end
-			
-			while not IsPlayerReady() do
+		local playAgainRemote = remotesFolder and remotesFolder:FindFirstChild("PlayAgain")
+		if not playAgainRemote then
+			playAgainRemote = ReplicatedStorage:FindFirstChild("PlayAgain", true)
+		end
+
+		while true do
+			if not IsPlayerReady() then
 				if playAgainRemote then
-					playAgainRemote:FireServer()
+					if playAgainRemote:IsA("RemoteEvent") then
+						playAgainRemote:FireServer()
+					elseif playAgainRemote:IsA("RemoteFunction") then
+						pcall(function() playAgainRemote:InvokeServer() end)
+					end
 				end
-				task.wait(0.2)
 			end
+			task.wait(0.2)
 		end
 	end)
 end
@@ -219,27 +217,9 @@ local function ProcessAutomation()
 			local wardrobePos = GetTargetPosition(wardrobe)
 			if wardrobePos then
 				TeleportToPosition(character, wardrobePos)
-
-				local entityPos = GetTargetPosition(activeEntity)
-				if entityPos and rootPart then
-					local distance = (rootPart.Position - entityPos).Magnitude
-					if distance < 150 then
-						if not character:GetAttribute("Hiding") then
-							FirePrompt(wardrobe)
-						end
-					else
-						if character:GetAttribute("Hiding") then
-							character:SetAttribute("Hiding", false)
-						end
-					end
-				end
 			end
 		end
 		return
-	else
-		if character:GetAttribute("Hiding") then
-			character:SetAttribute("Hiding", false)
-		end
 	end
 
 	local drawerTarget = GetNextValidDrawer()
