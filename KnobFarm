@@ -9,6 +9,14 @@ local LocalPlayer = Players.LocalPlayer
 local DISTANCE_THRESHOLD = 5
 local IsHandlingDeath = false
 
+local QueueOnTeleport = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+if QueueOnTeleport then
+	pcall(QueueOnTeleport, [[
+		repeat task.wait() until game:IsLoaded()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/KnobFarm"))()
+	]])
+end
+
 local function GetTargetPosition(Target)
 	if not Target then return nil end
 	
