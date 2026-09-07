@@ -7,7 +7,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local DISTANCE_THRESHOLD = 5
 local IsHandlingDeath = false
+
 local Drawers = {}
+local Wardrobes = {}
 
 local QueueOnTeleport = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
 if QueueOnTeleport then
@@ -61,23 +63,45 @@ local function IsValidDrawerItem(instance)
 	return false
 end
 
-local function AddDrawerItem(instance)
+local function IsValidWardrobeItem(instance)
+	if not instance or not instance:IsDescendantOf(workspace) then
+		return false
+	end
+	return instance.Name == "Wardrobe"
+end
+
+local function AddTrackedItem(instance)
 	if IsValidDrawerItem(instance) and not table.find(Drawers, instance) then
 		table.insert(Drawers, instance)
+	end
+	if IsValidWardrobeItem(instance) and not table.find(Wardrobes, instance) then
+		table.insert(Wardrobes, instance)
 	end
 end
 
 for _, descendant in ipairs(workspace:GetDescendants()) do
-	AddDrawerItem(descendant)
+	AddTrackedItem(descendant)
 end
 
-workspace.DescendantAdded:Connect(AddDrawerItem)
+workspace.DescendantAdded:Connect(AddTrackedItem)
 
 local function GetNextValidDrawer()
 	while #Drawers > 0 do
 		local item = Drawers[1]
 		if not IsValidDrawerItem(item) then
 			table.remove(Drawers, 1)
+		else
+			return item
+		end
+	end
+	return nil
+end
+
+local function GetNextValidWardrobe()
+	while #Wardrobes > 0 do
+		local item = Wardrobes[1]
+		if not IsValidWardrobeItem(item) then
+			table.remove(Wardrobes, 1)
 		else
 			return item
 		end
@@ -161,6 +185,26 @@ local function ProcessAutomation()
 	
 	if IsHandlingDeath then return end
 	
+	local activeEntity = workspace:FindFirstChild("RushMoving") or workspace:FindFirstChild("AmbushMoving")
+	if activeEntity then
+		local isHiding = character:GetAttribute("Hiding")
+		if not isHiding then
+			local wardrobe = GetNextValidWardrobe()
+			if wardrobe then
+				local targetPos = GetTargetPosition(wardrobe)
+				if targetPos then
+					TeleportToPosition(character, targetPos)
+					FirePrompt(wardrobe)
+				end
+			end
+		end
+		return
+	else
+		if character:GetAttribute("Hiding") then
+			character:SetAttribute("Hiding", false)
+		end
+	end
+
 	local drawerTarget = GetNextValidDrawer()
 	if drawerTarget then
 		local targetPosition = GetTargetPosition(drawerTarget)
