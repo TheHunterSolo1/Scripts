@@ -205,26 +205,33 @@ local function ProcessAutomation()
 	local latestRoom = gameData and gameData:FindFirstChild("LatestRoom")
 	local currentRoomVal = latestRoom and latestRoom.Value or 0
 	
+	local targetRoomNum = currentRoomVal
+	if currentRoomVal >= 50 then
+		targetRoomNum = currentRoomVal + 1
+	end
+	
 	local activeEntity = workspace:FindFirstChild("RushMoving") or workspace:FindFirstChild("AmbushMoving")
-	local shouldHide = false
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
 
 	if activeEntity then
-		shouldHide = true
-	elseif currentRoomVal >= 90 then
-		if activeEntity then
-			shouldHide = true
-		end
-	end
+		local wardrobe = GetClosestWardrobe()
+		if wardrobe then
+			local wardrobePos = GetTargetPosition(wardrobe)
+			if wardrobePos then
+				TeleportToPosition(character, wardrobePos)
 
-	if shouldHide then
-		local isHiding = character:GetAttribute("Hiding")
-		if not isHiding then
-			local wardrobe = GetClosestWardrobe()
-			if wardrobe then
-				local targetPos = GetTargetPosition(wardrobe)
-				if targetPos then
-					TeleportToPosition(character, targetPos)
-					FirePrompt(wardrobe)
+				local entityPos = GetTargetPosition(activeEntity)
+				if entityPos and rootPart then
+					local distance = (rootPart.Position - entityPos).Magnitude
+					if distance < 150 then
+						if not character:GetAttribute("Hiding") then
+							FirePrompt(wardrobe)
+						end
+					else
+						if character:GetAttribute("Hiding") then
+							character:SetAttribute("Hiding", false)
+						end
+					end
 				end
 			end
 		end
@@ -232,27 +239,6 @@ local function ProcessAutomation()
 	else
 		if character:GetAttribute("Hiding") then
 			character:SetAttribute("Hiding", false)
-		end
-	end
-
-	if currentRoomVal == 50 then
-		local nextRoomNum = currentRoomVal + 1
-		local nextRoom = workspace.CurrentRooms:FindFirstChild(tostring(nextRoomNum))
-		if nextRoom then
-			local doorModel = nextRoom:FindFirstChild("Door") or nextRoom:FindFirstChild("Door", true)
-			if doorModel then
-				local doorPos = GetTargetPosition(doorModel)
-				if doorPos then
-					TeleportToPosition(character, doorPos)
-					local clientOpenRemote = doorModel:FindFirstChild("ClientOpen")
-					if clientOpenRemote and clientOpenRemote:IsA("RemoteEvent") then
-						clientOpenRemote:FireServer()
-					end
-					local lockModel = doorModel:FindFirstChild("Lock")
-					FirePrompt(lockModel or doorModel)
-					return
-				end
-			end
 		end
 	end
 
@@ -278,14 +264,11 @@ local function ProcessAutomation()
 		end
 	end
 	
-	if not currentRoomVal then return end
-	
-	local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(currentRoomVal))
+	local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(targetRoomNum))
 	if not currentRoom then return end
 	
 	local keyObtainModel = currentRoom:FindFirstChild("KeyObtain", true)
-	local doorModel = currentRoom:FindFirstChild("Door")
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local doorModel = currentRoom:FindFirstChild("Door") or currentRoom:FindFirstChild("Door", true)
 	
 	if not PlayerHasKey() and keyObtainModel then
 		local parentContainer = keyObtainModel.Parent
