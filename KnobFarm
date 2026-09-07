@@ -100,12 +100,14 @@ local function HandlePlayerDeath()
 				task.wait(0.05)
 			end
 			
-			while not IsPlayerReady() do
+			while true do 
+    if not IsPlayerReady() then
 				if PlayAgainRemote then
 					PlayAgainRemote:FireServer()
 				end
 				task.wait(0.2)
 			end
+       end
 		end
 	end)
 end
