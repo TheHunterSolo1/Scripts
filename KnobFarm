@@ -173,16 +173,14 @@ local function HandlePlayerDeath()
 		end
 
 		while true do
+task.wait(0.2)
 			if not IsPlayerReady() then
 				if playAgainRemote then
-					if playAgainRemote:IsA("RemoteEvent") then
+					
 						playAgainRemote:FireServer()
-					elseif playAgainRemote:IsA("RemoteFunction") then
-						pcall(function() playAgainRemote:InvokeServer() end)
-					end
 				end
 			end
-			task.wait(0.2)
+			
 		end
 	end)
 end
