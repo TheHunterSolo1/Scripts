@@ -19,219 +19,246 @@ if QueueOnTeleport then
 	]])
 end
 
-local function FirePrompt(instance)
-	if not instance then return end
-	
-	if instance:IsA("ProximityPrompt") then
-		fireproximityprompt(instance)
+local RemotesFolder = ReplicatedStorage:WaitForChild("RemotesFolder", 5)
+local Crouch = RemotesFolder and RemotesFolder:FindFirstChild("Crouch")
+if not Crouch then
+	Crouch = ReplicatedStorage:FindFirstChild("Crouch", true)
+end
+
+local PlayAgainRemote = RemotesFolder and RemotesFolder:FindFirstChild("PlayAgain")
+if not PlayAgainRemote then
+	PlayAgainRemote = ReplicatedStorage:FindFirstChild("PlayAgain", true)
+end
+
+local function FirePrompt(TargetInstance)
+	if not TargetInstance then return end
+
+	if TargetInstance:IsA("ProximityPrompt") then
+		fireproximityprompt(TargetInstance)
 		return
 	end
-	
-	local prompt = instance:FindFirstChildOfClass("ProximityPrompt")
-	if prompt then
-		fireproximityprompt(prompt)
+
+	local Prompt = TargetInstance:FindFirstChildOfClass("ProximityPrompt")
+	if Prompt then
+		fireproximityprompt(Prompt)
 		return
 	end
-	
-	for _, descendant in ipairs(instance:GetDescendants()) do
-		if descendant:IsA("ProximityPrompt") then
-			fireproximityprompt(descendant)
+
+	for _, Descendant in ipairs(TargetInstance:GetDescendants()) do
+		if Descendant:IsA("ProximityPrompt") then
+			fireproximityprompt(Descendant)
 			return
 		end
 	end
 end
 
-local function IsValidDrawerItem(instance)
-	if not instance or not instance:IsDescendantOf(workspace) then
+local function IsValidDrawerItem(TargetInstance)
+	if not TargetInstance or not TargetInstance:IsDescendantOf(workspace) then
 		return false
 	end
-	
-	local name = instance.Name
-	if name == "GoldPile" or name == "Stardust" or name == "DrawerContainer" then
-		if name == "DrawerContainer" then
-			local main = instance:FindFirstChild("Main")
-			if main then
-				local openSound = main:FindFirstChild("Open")
-				if openSound and openSound:IsA("Sound") and openSound.IsPlaying then
+
+	local Name = TargetInstance.Name
+	if Name == "GoldPile" or Name == "Stardust" or Name == "DrawerContainer" then
+		if Name == "DrawerContainer" then
+			local Main = TargetInstance:FindFirstChild("Main")
+			if Main then
+				local OpenSound = Main:FindFirstChild("Open")
+				if OpenSound and OpenSound:IsA("Sound") and OpenSound.IsPlaying then
 					return false
 				end
 			end
 		end
 		return true
 	end
-	
+
 	return false
 end
 
-local function IsValidWardrobeItem(instance)
-	if not instance or not instance:IsDescendantOf(workspace) then
+local function IsValidWardrobeItem(TargetInstance)
+	if not TargetInstance or not TargetInstance:IsDescendantOf(workspace) then
 		return false
 	end
-	return instance.Name == "Wardrobe"
+	return TargetInstance.Name == "Wardrobe"
 end
 
-local function AddTrackedItem(instance)
-	if IsValidDrawerItem(instance) and not table.find(Drawers, instance) then
-		table.insert(Drawers, instance)
+local function AddTrackedItem(TargetInstance)
+	if IsValidDrawerItem(TargetInstance) and not table.find(Drawers, TargetInstance) then
+		table.insert(Drawers, TargetInstance)
 	end
-	if IsValidWardrobeItem(instance) and not table.find(Wardrobes, instance) then
-		table.insert(Wardrobes, instance)
+	if IsValidWardrobeItem(TargetInstance) and not table.find(Wardrobes, TargetInstance) then
+		table.insert(Wardrobes, TargetInstance)
 	end
 end
 
-for _, descendant in ipairs(workspace:GetDescendants()) do
-	AddTrackedItem(descendant)
+for _, Descendant in ipairs(workspace:GetDescendants()) do
+	AddTrackedItem(Descendant)
 end
-
 workspace.DescendantAdded:Connect(AddTrackedItem)
 
 local function GetNextValidDrawer()
 	while #Drawers > 0 do
-		local item = Drawers[1]
-		if not IsValidDrawerItem(item) then
+		local Item = Drawers[1]
+		if not IsValidDrawerItem(Item) then
 			table.remove(Drawers, 1)
 		else
-			return item
+			return Item
 		end
 	end
 	return nil
 end
 
-local function GetTargetPosition(target)
-	if not target then return nil end
-	if target:IsA("Model") then
-		return target.PrimaryPart and target.PrimaryPart.Position or target:GetPivot().Position
-	elseif target:IsA("BasePart") then
-		return target.Position
+local function GetTargetPosition(Target)
+	if not Target then return nil end
+	if Target:IsA("Model") then
+		return Target.PrimaryPart and Target.PrimaryPart.Position or Target:GetPivot().Position
+	elseif Target:IsA("BasePart") then
+		return Target.Position
 	end
 	return nil
 end
 
 local function GetClosestWardrobe()
-	local character = LocalPlayer.Character
-	if not character then return nil end
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
-	if not rootPart then return nil end
+	local Character = LocalPlayer.Character
+	if not Character then return nil end
 
-	local closest = nil
-	local shortestDistance = math.huge
+	local RootPart = Character:FindFirstChild("HumanoidRootPart")
+	if not RootPart then return nil end
 
-	for i = #Wardrobes, 1, -1 do
-		local wardrobe = Wardrobes[i]
-		if IsValidWardrobeItem(wardrobe) then
-			local pos = GetTargetPosition(wardrobe)
-			if pos then
-				local dist = (rootPart.Position - pos).Magnitude
-				if dist < shortestDistance then
-					shortestDistance = dist
-					closest = wardrobe
+	local Closest = nil
+	local ShortestDistance = math.huge
+
+	for Index = #Wardrobes, 1, -1 do
+		local Wardrobe = Wardrobes[Index]
+		if IsValidWardrobeItem(Wardrobe) then
+			local Pos = GetTargetPosition(Wardrobe)
+			if Pos then
+				local Dist = (RootPart.Position - Pos).Magnitude
+				if Dist < ShortestDistance then
+					ShortestDistance = Dist
+					Closest = Wardrobe
 				end
 			end
 		else
-			table.remove(Wardrobes, i)
+			table.remove(Wardrobes, Index)
 		end
 	end
 
-	return closest
+	return Closest
 end
 
 local function PlayerHasKey()
-	local character = LocalPlayer.Character
-	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-	local keyInChar = character and character:FindFirstChild("Key")
-	local keyInBackpack = backpack and backpack:FindFirstChild("Key")
-	return (keyInChar or keyInBackpack) ~= nil
+	local Character = LocalPlayer.Character
+	local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	local KeyInChar = Character and Character:FindFirstChild("Key")
+	local KeyInBackpack = Backpack and Backpack:FindFirstChild("Key")
+	return (KeyInChar or KeyInBackpack) ~= nil
 end
 
-local function TeleportToPosition(character, targetPosition)
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
-	if rootPart and targetPosition then
-		rootPart.CFrame = CFrame.new(targetPosition)
+local function TeleportToPosition(Character, TargetPosition)
+	local RootPart = Character:FindFirstChild("HumanoidRootPart")
+	if RootPart and TargetPosition then
+		RootPart.CFrame = CFrame.new(TargetPosition)
 	end
 end
 
 local function IsPlayerReady()
-	local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	local mainUI = playerGui and playerGui:FindFirstChild("MainUI")
-	local deathPanel = mainUI and mainUI:FindFirstChild("DeathPanel")
-	local playAgainUI = deathPanel and deathPanel:FindFirstChild("PlayAgain")
-	local playersFolder = playAgainUI and playAgainUI:FindFirstChild("Players")
-	local playerFrame = playersFolder and playersFolder:FindFirstChild(LocalPlayer.Name)
-	local readyFrame = playerFrame and playerFrame:FindFirstChild("Ready")
-	return readyFrame and readyFrame.Visible or false
+	local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	local MainUI = PlayerGui and PlayerGui:FindFirstChild("MainUI")
+	local DeathPanel = MainUI and MainUI:FindFirstChild("DeathPanel")
+	local PlayAgainUI = DeathPanel and DeathPanel:FindFirstChild("PlayAgain")
+	local PlayersFolder = PlayAgainUI and PlayAgainUI:FindFirstChild("Players")
+	local PlayerFrame = PlayersFolder and PlayersFolder:FindFirstChild(LocalPlayer.Name)
+	local ReadyFrame = PlayerFrame and PlayerFrame:FindFirstChild("Ready")
+	return ReadyFrame and ReadyFrame.Visible or false
 end
 
 local function HandlePlayerDeath()
 	if IsHandlingDeath then return end
 	IsHandlingDeath = true
-	
-	task.spawn(function()
-		local remotesFolder = ReplicatedStorage:WaitForChild("RemotesFolder", 5)
-		local playAgainRemote = remotesFolder and remotesFolder:FindFirstChild("PlayAgain")
-		if not playAgainRemote then
-			playAgainRemote = ReplicatedStorage:FindFirstChild("PlayAgain", true)
-		end
 
-		while true do
-task.wait(0.2)
-			if not IsPlayerReady() then
-				if playAgainRemote then
-					
-						playAgainRemote:FireServer()
+	task.spawn(function()
+		while task.wait(0.2) do
+			if not IsPlayerReady() and PlayAgainRemote then
+				if PlayAgainRemote:IsA("RemoteEvent") then
+					PlayAgainRemote:FireServer()
+				elseif PlayAgainRemote:IsA("RemoteFunction") then
+					pcall(function() PlayAgainRemote:InvokeServer() end)
 				end
 			end
-			
 		end
 	end)
 end
 
 local function ProcessAutomation()
-	local character = LocalPlayer.Character
-	if not character then return end
-	
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if humanoid and humanoid.Health <= 0 then
+	if Crouch and Crouch:IsA("RemoteEvent") then
+		Crouch:FireServer(false, true)
+	end
+
+	local Character = LocalPlayer.Character
+	if not Character then return end
+
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+	if Humanoid and Humanoid.Health <= 0 then
 		HandlePlayerDeath()
 		return
 	end
-	
+
 	if IsHandlingDeath then return end
 
-	local gameData = ReplicatedStorage:FindFirstChild("GameData")
-	local latestRoom = gameData and gameData:FindFirstChild("LatestRoom")
-	local currentRoomVal = latestRoom and latestRoom.Value or 0
-	
-	local targetRoomNum = currentRoomVal
-	if currentRoomVal >= 50 then
-		targetRoomNum = currentRoomVal + 1
-	end
-	
-	local activeEntity = workspace:FindFirstChild("RushMoving") or workspace:FindFirstChild("AmbushMoving")
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local GameData = ReplicatedStorage:FindFirstChild("GameData")
+	local LatestRoom = GameData and GameData:FindFirstChild("LatestRoom")
+	local CurrentRoomVal = LatestRoom and LatestRoom.Value or 0
 
-	if activeEntity then
-		local wardrobe = GetClosestWardrobe()
-		if wardrobe then
-			local wardrobePos = GetTargetPosition(wardrobe)
-			if wardrobePos then
-				TeleportToPosition(character, wardrobePos)
+	local TargetRoomNum = CurrentRoomVal
+	if CurrentRoomVal >= 50 then
+		TargetRoomNum = CurrentRoomVal + 1
+	end
+
+	local ActiveEntity = workspace:FindFirstChild("RushMoving") or workspace:FindFirstChild("AmbushMoving")
+	local RootPart = Character:FindFirstChild("HumanoidRootPart")
+
+	if ActiveEntity then
+		local Wardrobe = GetClosestWardrobe()
+		if Wardrobe then
+			local WardrobePos = GetTargetPosition(Wardrobe)
+			if WardrobePos then
+				TeleportToPosition(Character, WardrobePos)
+
+				local EntityPos = GetTargetPosition(ActiveEntity)
+				if EntityPos and RootPart then
+					local EntityDistance = (RootPart.Position - EntityPos).Magnitude
+					
+					if EntityDistance < 130 then
+						if not Character:GetAttribute("Hiding") then
+							FirePrompt(Wardrobe)
+						end
+					else
+						if Character:GetAttribute("Hiding") then
+							Character:SetAttribute("Hiding", false)
+						end
+					end
+				end
 			end
 		end
 		return
+	else
+		if Character and Character:GetAttribute("Hiding") then
+			Character:SetAttribute("Hiding", false)
+		end
 	end
 
-	local drawerTarget = GetNextValidDrawer()
-	if drawerTarget then
-		local targetPosition = GetTargetPosition(drawerTarget)
-		if targetPosition then
-			TeleportToPosition(character, targetPosition)
-			FirePrompt(drawerTarget)
-			
-			if drawerTarget.Name == "DrawerContainer" then
-				local main = drawerTarget:FindFirstChild("Main")
-				if main then
-					local openSound = main:FindFirstChild("Open")
-					if openSound and openSound:IsA("Sound") and openSound.IsPlaying then
+	local DrawerTarget = GetNextValidDrawer()
+	if DrawerTarget then
+		local TargetPosition = GetTargetPosition(DrawerTarget)
+		if TargetPosition then
+			TeleportToPosition(Character, TargetPosition)
+			FirePrompt(DrawerTarget)
+
+			if DrawerTarget.Name == "DrawerContainer" then
+				local Main = DrawerTarget:FindFirstChild("Main")
+				if Main then
+					local OpenSound = Main:FindFirstChild("Open")
+					if OpenSound and OpenSound:IsA("Sound") and OpenSound.IsPlaying then
 						table.remove(Drawers, 1)
 					end
 				end
@@ -241,45 +268,45 @@ local function ProcessAutomation()
 			table.remove(Drawers, 1)
 		end
 	end
-	
-	local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(targetRoomNum))
-	if not currentRoom then return end
-	
-	local keyObtainModel = currentRoom:FindFirstChild("KeyObtain", true)
-	local doorModel = currentRoom:FindFirstChild("Door") or currentRoom:FindFirstChild("Door", true)
-	
-	if not PlayerHasKey() and keyObtainModel then
-		local parentContainer = keyObtainModel.Parent
-		if parentContainer and parentContainer.Name == "DrawerContainer" then
-			local knobs = parentContainer:FindFirstChild("Knobs")
-			if knobs then
-				FirePrompt(knobs)
+
+	local CurrentRoom = workspace.CurrentRooms:FindFirstChild(tostring(TargetRoomNum))
+	if not CurrentRoom then return end
+
+	local KeyObtainModel = CurrentRoom:FindFirstChild("KeyObtain", true)
+	local DoorModel = CurrentRoom:FindFirstChild("Door") or CurrentRoom:FindFirstChild("Door", true)
+
+	if not PlayerHasKey() and KeyObtainModel then
+		local ParentContainer = KeyObtainModel.Parent
+		if ParentContainer and ParentContainer.Name == "DrawerContainer" then
+			local Knobs = ParentContainer:FindFirstChild("Knobs")
+			if Knobs then
+				FirePrompt(Knobs)
 			end
 		end
-		
-		local keyPosition = GetTargetPosition(keyObtainModel)
-		if keyPosition then
-			TeleportToPosition(character, keyPosition)
-			FirePrompt(keyObtainModel)
+
+		local KeyPosition = GetTargetPosition(KeyObtainModel)
+		if KeyPosition then
+			TeleportToPosition(Character, KeyPosition)
+			FirePrompt(KeyObtainModel)
 		end
-	elseif doorModel and rootPart then
-		local doorPosition = GetTargetPosition(doorModel)
-		if not doorPosition then return end
-		
-		local distanceToDoor = (rootPart.Position - doorPosition).Magnitude
-		if distanceToDoor > DISTANCE_THRESHOLD then
-			TeleportToPosition(character, doorPosition)
+	elseif DoorModel and RootPart then
+		local DoorPosition = GetTargetPosition(DoorModel)
+		if not DoorPosition then return end
+
+		local DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
+		if DistanceToDoor > DISTANCE_THRESHOLD then
+			TeleportToPosition(Character, DoorPosition)
 		end
-		
-		distanceToDoor = (rootPart.Position - doorPosition).Magnitude
-		if distanceToDoor <= DISTANCE_THRESHOLD then
-			local clientOpenRemote = doorModel:FindFirstChild("ClientOpen")
-			if clientOpenRemote and clientOpenRemote:IsA("RemoteEvent") then
-				clientOpenRemote:FireServer()
+
+		DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
+		if DistanceToDoor <= DISTANCE_THRESHOLD then
+			local ClientOpenRemote = DoorModel:FindFirstChild("ClientOpen")
+			if ClientOpenRemote and ClientOpenRemote:IsA("RemoteEvent") then
+				ClientOpenRemote:FireServer()
 			end
-			
-			local lockModel = doorModel:FindFirstChild("Lock")
-			FirePrompt(lockModel or doorModel)
+
+			local LockModel = DoorModel:FindFirstChild("Lock")
+			FirePrompt(LockModel or DoorModel)
 		end
 	end
 end
