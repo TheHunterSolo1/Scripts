@@ -1,0 +1,153 @@
+if not fireproximityprompt then return end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+
+local DISTANCE_THRESHOLD = 5
+local IsHandlingDeath = false
+
+local function GetTargetPosition(Target)
+	if not Target then return nil end
+	
+	if Target:IsA("Model") then
+		return Target.PrimaryPart and Target.PrimaryPart.Position or Target:GetPivot().Position
+	elseif Target:IsA("BasePart") then
+		return Target.Position
+	end
+	
+	return nil
+end
+
+local function PlayerHasKey()
+	local Character = LocalPlayer.Character
+	local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	
+	local KeyInCharacter = Character and Character:FindFirstChild("Key")
+	local KeyInBackpack = Backpack and Backpack:FindFirstChild("Key")
+	
+	return (KeyInCharacter or KeyInBackpack) ~= nil
+end
+
+local function TeleportToPosition(Character, TargetPosition)
+	local RootPart = Character:FindFirstChild("HumanoidRootPart")
+	if not RootPart or not TargetPosition then return end
+	
+	RootPart.CFrame = CFrame.new(TargetPosition)
+end
+
+local function FirePrompt(Instance)
+	if not Instance then return end
+	
+	local Prompt = Instance:FindFirstChildOfClass("ProximityPrompt") 
+		or Instance:FindFirstChildWhichIsA("ProximityPrompt", true)
+		
+	if Prompt then
+		fireproximityprompt(Prompt)
+	end
+end
+
+local function HandlePlayerDeath()
+	if IsHandlingDeath then return end
+	IsHandlingDeath = true
+	
+	task.spawn(function()
+		local RemotesFolder = ReplicatedStorage:WaitForChild("RemotesFolder", 5)
+		if RemotesFolder then
+			local StatisticsRemote = RemotesFolder:FindFirstChild("Statistics")
+			local PlayAgainRemote = RemotesFolder:FindFirstChild("PlayAgain")
+			
+			local StartTime = tick()
+			while tick() - StartTime < 3 do
+				if StatisticsRemote then
+					StatisticsRemote:FireServer()
+				end
+				task.wait(0.05)
+			end
+			
+			if PlayAgainRemote then
+				PlayAgainRemote:FireServer()
+			end
+		end
+	end)
+end
+
+local function ProcessAutomation()
+	local Character = LocalPlayer.Character
+	if not Character then return end
+	
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+	if Humanoid and Humanoid.Health <= 0 then
+		HandlePlayerDeath()
+		return
+	end
+	
+	if IsHandlingDeath then return end
+	
+	local Rush = workspace:FindFirstChild("RushMoving", true)
+	local Ambush = workspace:FindFirstChild("AmbushMoving", true)
+	local Threat = Rush or Ambush
+	
+	if Threat then
+		local ThreatPosition = GetTargetPosition(Threat)
+		if ThreatPosition then
+			TeleportToPosition(Character, ThreatPosition)
+			return
+		end
+	end
+	
+	local GameData = ReplicatedStorage:FindFirstChild("GameData")
+	local LatestRoom = GameData and GameData:FindFirstChild("LatestRoom")
+	if not LatestRoom then return end
+	
+	local CurrentRoomNumber = LatestRoom.Value
+	local CurrentRoom = workspace.CurrentRooms:FindFirstChild(tostring(CurrentRoomNumber))
+	if not CurrentRoom then return end
+	
+	local KeyObtainModel = CurrentRoom:FindFirstChild("KeyObtain", true)
+	local DoorModel = CurrentRoom:FindFirstChild("Door")
+	local RootPart = Character:FindFirstChild("HumanoidRootPart")
+	
+	if not PlayerHasKey() and KeyObtainModel then
+		local ParentContainer = KeyObtainModel.Parent
+		if ParentContainer and ParentContainer.Name == "DrawerContainer" then
+			local Knobs = ParentContainer:FindFirstChild("Knobs")
+			if Knobs then
+				FirePrompt(Knobs)
+			end
+		end
+		
+		local KeyPosition = GetTargetPosition(KeyObtainModel)
+		if KeyPosition then
+			TeleportToPosition(Character, KeyPosition)
+			FirePrompt(KeyObtainModel)
+		end
+	elseif DoorModel and RootPart then
+		local DoorPosition = GetTargetPosition(DoorModel)
+		if not DoorPosition then return end
+		
+		local DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
+		if DistanceToDoor > DISTANCE_THRESHOLD then
+			TeleportToPosition(Character, DoorPosition)
+		end
+		
+		DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
+		if DistanceToDoor <= DISTANCE_THRESHOLD then
+			local ClientOpenRemote = DoorModel:FindFirstChild("ClientOpen")
+			if ClientOpenRemote and ClientOpenRemote:IsA("RemoteEvent") then
+				ClientOpenRemote:FireServer()
+			end
+			
+			local LockModel = DoorModel:FindFirstChild("Lock")
+			if LockModel then
+				FirePrompt(LockModel)
+			else
+				FirePrompt(DoorModel)
+			end
+		end
+	end
+end
+
+RunService.Heartbeat:Connect(ProcessAutomation)
