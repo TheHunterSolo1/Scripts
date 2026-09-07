@@ -47,9 +47,12 @@ local function IsValidDrawerItem(instance)
 	local name = instance.Name
 	if name == "GoldPile" or name == "Stardust" or name == "DrawerContainer" then
 		if name == "DrawerContainer" then
-			local interactions = instance:GetAttribute("Interactions") or instance:GetAttribute("Interaction")
-			if interactions and interactions >= 1 then
-				return false
+			local prompt = instance:FindFirstChildWhichIsA("ProximityPrompt", true)
+			if prompt then
+				local interactions = prompt:GetAttribute("Interactions") or prompt:GetAttribute("Interaction")
+				if interactions and interactions >= 1 then
+					return false
+				end
 			end
 		end
 		return true
@@ -166,9 +169,12 @@ local function ProcessAutomation()
 			FirePrompt(drawerTarget)
 			
 			if drawerTarget.Name == "DrawerContainer" then
-				local interactions = drawerTarget:GetAttribute("Interactions") or drawerTarget:GetAttribute("Interaction")
-				if interactions and interactions >= 1 then
-					table.remove(Drawers, 1)
+				local prompt = drawerTarget:FindFirstChildWhichIsA("ProximityPrompt", true)
+				if prompt then
+					local interactions = prompt:GetAttribute("Interactions") or prompt:GetAttribute("Interaction")
+					if interactions and interactions >= 1 then
+						table.remove(Drawers, 1)
+					end
 				end
 			end
 			return
@@ -182,7 +188,7 @@ local function ProcessAutomation()
 	if not latestRoom then return end
 	
 	local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(latestRoom.Value))
-	if not currentRoom then return end
+	if not currentRoom me then end
 	
 	local keyObtainModel = currentRoom:FindFirstChild("KeyObtain", true)
 	local doorModel = currentRoom:FindFirstChild("Door")
