@@ -5,9 +5,9 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
-
 local DISTANCE_THRESHOLD = 5
 local IsHandlingDeath = false
+local Drawers = {}
 
 local QueueOnTeleport = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
 if QueueOnTeleport then
@@ -17,69 +17,105 @@ if QueueOnTeleport then
 	]])
 end
 
-local function GetTargetPosition(Target)
-	if not Target then return nil end
+local function FirePrompt(instance)
+	if not instance then return end
 	
-	if Target:IsA("Model") then
-		return Target.PrimaryPart and Target.PrimaryPart.Position or Target:GetPivot().Position
-	elseif Target:IsA("BasePart") then
-		return Target.Position
+	if instance:IsA("ProximityPrompt") then
+		fireproximityprompt(instance)
+		return
 	end
 	
+	local prompt = instance:FindFirstChildOfClass("ProximityPrompt")
+	if prompt then
+		fireproximityprompt(prompt)
+		return
+	end
+	
+	for _, descendant in ipairs(instance:GetDescendants()) do
+		if descendant:IsA("ProximityPrompt") then
+			fireproximityprompt(descendant)
+			return
+		end
+	end
+end
+
+local function IsValidDrawerItem(instance)
+	if not instance or not instance:IsDescendantOf(workspace) then
+		return false
+	end
+	
+	local name = instance.Name
+	if name == "GoldPile" or name == "Stardust" or name == "DrawerContainer" then
+		if name == "DrawerContainer" then
+			local interactions = instance:GetAttribute("Interactions") or instance:GetAttribute("Interaction")
+			if interactions and interactions >= 1 then
+				return false
+			end
+		end
+		return true
+	end
+	
+	return false
+end
+
+local function AddDrawerItem(instance)
+	if IsValidDrawerItem(instance) and not table.find(Drawers, instance) then
+		table.insert(Drawers, instance)
+	end
+end
+
+for _, descendant in ipairs(workspace:GetDescendants()) do
+	AddDrawerItem(descendant)
+end
+
+workspace.DescendantAdded:Connect(AddDrawerItem)
+
+local function GetNextValidDrawer()
+	while #Drawers > 0 do
+		local item = Drawers[1]
+		if not IsValidDrawerItem(item) then
+			table.remove(Drawers, 1)
+		else
+			return item
+		end
+	end
+	return nil
+end
+
+local function GetTargetPosition(target)
+	if not target then return nil end
+	if target:IsA("Model") then
+		return target.PrimaryPart and target.PrimaryPart.Position or target:GetPivot().Position
+	elseif target:IsA("BasePart") then
+		return target.Position
+	end
 	return nil
 end
 
 local function PlayerHasKey()
-	local Character = LocalPlayer.Character
-	local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-	
-	local KeyInCharacter = Character and Character:FindFirstChild("Key")
-	local KeyInBackpack = Backpack and Backpack:FindFirstChild("Key")
-	
-	return (KeyInCharacter or KeyInBackpack) ~= nil
+	local character = LocalPlayer.Character
+	local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+	local keyInChar = character and character:FindFirstChild("Key")
+	local keyInBackpack = backpack and backpack:FindFirstChild("Key")
+	return (keyInChar or keyInBackpack) ~= nil
 end
 
-local function TeleportToPosition(Character, TargetPosition)
-	local RootPart = Character:FindFirstChild("HumanoidRootPart")
-	if not RootPart or not TargetPosition then return end
-	
-	RootPart.CFrame = CFrame.new(TargetPosition)
-end
-
-local function FirePrompt(Instance)
-	if not Instance then return end
-	
-	local Prompt = Instance:FindFirstChildOfClass("ProximityPrompt") 
-		or Instance:FindFirstChildWhichIsA("ProximityPrompt", true)
-		
-	if Prompt then
-		fireproximityprompt(Prompt)
+local function TeleportToPosition(character, targetPosition)
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if rootPart and targetPosition then
+		rootPart.CFrame = CFrame.new(targetPosition)
 	end
 end
 
 local function IsPlayerReady()
-	local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	if not PlayerGui then return false end
-	
-	local MainUI = PlayerGui:FindFirstChild("MainUI")
-	if not MainUI then return false end
-	
-	local DeathPanel = MainUI:FindFirstChild("DeathPanel")
-	if not DeathPanel then return false end
-	
-	local PlayAgainUI = DeathPanel:FindFirstChild("PlayAgain")
-	if not PlayAgainUI then return false end
-	
-	local PlayersFolder = PlayAgainUI:FindFirstChild("Players")
-	if not PlayersFolder then return false end
-	
-	local PlayerFrame = PlayersFolder:FindFirstChild(LocalPlayer.Name)
-	if not PlayerFrame then return false end
-	
-	local ReadyFrame = PlayerFrame:FindFirstChild("Ready")
-	if not ReadyFrame then return false end
-	
-	return ReadyFrame.Visible
+	local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	local mainUI = playerGui and playerGui:FindFirstChild("MainUI")
+	local deathPanel = mainUI and mainUI:FindFirstChild("DeathPanel")
+	local playAgainUI = deathPanel and deathPanel:FindFirstChild("PlayAgain")
+	local playersFolder = playAgainUI and playAgainUI:FindFirstChild("Players")
+	local playerFrame = playersFolder and playersFolder:FindFirstChild(LocalPlayer.Name)
+	local readyFrame = playerFrame and playerFrame:FindFirstChild("Ready")
+	return readyFrame and readyFrame.Visible or false
 end
 
 local function HandlePlayerDeath()
@@ -87,103 +123,103 @@ local function HandlePlayerDeath()
 	IsHandlingDeath = true
 	
 	task.spawn(function()
-		local RemotesFolder = ReplicatedStorage:WaitForChild("RemotesFolder", 5)
-		if RemotesFolder then
-			local StatisticsRemote = RemotesFolder:FindFirstChild("Statistics")
-			local PlayAgainRemote = RemotesFolder:FindFirstChild("PlayAgain")
+		local remotesFolder = ReplicatedStorage:WaitForChild("RemotesFolder", 5)
+		if remotesFolder then
+			local statisticsRemote = remotesFolder:FindFirstChild("Statistics")
+			local playAgainRemote = remotesFolder:FindFirstChild("PlayAgain")
 			
-			local StartTime = tick()
-			while tick() - StartTime < 3 do
-				if StatisticsRemote then
-					StatisticsRemote:FireServer()
+			local startTime = tick()
+			while tick() - startTime < 3 do
+				if statisticsRemote then
+					statisticsRemote:FireServer()
 				end
 				task.wait(0.05)
 			end
 			
-			while true do 
-    if not IsPlayerReady() then
-				if PlayAgainRemote then
-					PlayAgainRemote:FireServer()
+			while not IsPlayerReady() do
+				if playAgainRemote then
+					playAgainRemote:FireServer()
 				end
 				task.wait(0.2)
 			end
-       end
 		end
 	end)
 end
 
 local function ProcessAutomation()
-	local Character = LocalPlayer.Character
-	if not Character then return end
+	local character = LocalPlayer.Character
+	if not character then return end
 	
-	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-	if Humanoid and Humanoid.Health <= 0 then
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health <= 0 then
 		HandlePlayerDeath()
 		return
 	end
 	
 	if IsHandlingDeath then return end
 	
-	local Rush = workspace:FindFirstChild("RushMoving", true)
-	local Ambush = workspace:FindFirstChild("AmbushMoving", true)
-	local Threat = Rush or Ambush
-	
-	if Threat then
-		local ThreatPosition = GetTargetPosition(Threat)
-		if ThreatPosition then
-			TeleportToPosition(Character, ThreatPosition)
+	local drawerTarget = GetNextValidDrawer()
+	if drawerTarget then
+		local targetPosition = GetTargetPosition(drawerTarget)
+		if targetPosition then
+			TeleportToPosition(character, targetPosition)
+			FirePrompt(drawerTarget)
+			
+			if drawerTarget.Name == "DrawerContainer" then
+				local interactions = drawerTarget:GetAttribute("Interactions") or drawerTarget:GetAttribute("Interaction")
+				if interactions and interactions >= 1 then
+					table.remove(Drawers, 1)
+				end
+			end
 			return
+		else
+			table.remove(Drawers, 1)
 		end
 	end
 	
-	local GameData = ReplicatedStorage:FindFirstChild("GameData")
-	local LatestRoom = GameData and GameData:FindFirstChild("LatestRoom")
-	if not LatestRoom then return end
+	local gameData = ReplicatedStorage:FindFirstChild("GameData")
+	local latestRoom = gameData and gameData:FindFirstChild("LatestRoom")
+	if not latestRoom then return end
 	
-	local CurrentRoomNumber = LatestRoom.Value
-	local CurrentRoom = workspace.CurrentRooms:FindFirstChild(tostring(CurrentRoomNumber))
-	if not CurrentRoom then return end
+	local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(latestRoom.Value))
+	if not currentRoom then return end
 	
-	local KeyObtainModel = CurrentRoom:FindFirstChild("KeyObtain", true)
-	local DoorModel = CurrentRoom:FindFirstChild("Door")
-	local RootPart = Character:FindFirstChild("HumanoidRootPart")
+	local keyObtainModel = currentRoom:FindFirstChild("KeyObtain", true)
+	local doorModel = currentRoom:FindFirstChild("Door")
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
 	
-	if not PlayerHasKey() and KeyObtainModel then
-		local ParentContainer = KeyObtainModel.Parent
-		if ParentContainer and ParentContainer.Name == "DrawerContainer" then
-			local Knobs = ParentContainer:FindFirstChild("Knobs")
-			if Knobs then
-				FirePrompt(Knobs)
+	if not PlayerHasKey() and keyObtainModel then
+		local parentContainer = keyObtainModel.Parent
+		if parentContainer and parentContainer.Name == "DrawerContainer" then
+			local knobs = parentContainer:FindFirstChild("Knobs")
+			if knobs then
+				FirePrompt(knobs)
 			end
 		end
 		
-		local KeyPosition = GetTargetPosition(KeyObtainModel)
-		if KeyPosition then
-			TeleportToPosition(Character, KeyPosition)
-			FirePrompt(KeyObtainModel)
+		local keyPosition = GetTargetPosition(keyObtainModel)
+		if keyPosition then
+			TeleportToPosition(character, keyPosition)
+			FirePrompt(keyObtainModel)
 		end
-	elseif DoorModel and RootPart then
-		local DoorPosition = GetTargetPosition(DoorModel)
-		if not DoorPosition then return end
+	elseif doorModel and rootPart then
+		local doorPosition = GetTargetPosition(doorModel)
+		if not doorPosition then return end
 		
-		local DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
-		if DistanceToDoor > DISTANCE_THRESHOLD then
-			TeleportToPosition(Character, DoorPosition)
+		local distanceToDoor = (rootPart.Position - doorPosition).Magnitude
+		if distanceToDoor > DISTANCE_THRESHOLD then
+			TeleportToPosition(character, doorPosition)
 		end
 		
-		DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
-		if DistanceToDoor <= DISTANCE_THRESHOLD then
-			local ClientOpenRemote = DoorModel:FindFirstChild("ClientOpen")
-			if ClientOpenRemote and ClientOpenRemote:IsA("RemoteEvent") then
-				ClientOpenRemote:FireServer()
+		distanceToDoor = (rootPart.Position - doorPosition).Magnitude
+		if distanceToDoor <= DISTANCE_THRESHOLD then
+			local clientOpenRemote = doorModel:FindFirstChild("ClientOpen")
+			if clientOpenRemote and clientOpenRemote:IsA("RemoteEvent") then
+				clientOpenRemote:FireServer()
 			end
 			
-			local LockModel = DoorModel:FindFirstChild("Lock")
-			if LockModel then
-				FirePrompt(LockModel)
-			else
-				FirePrompt(DoorModel)
-			end
+			local lockModel = doorModel:FindFirstChild("Lock")
+			FirePrompt(lockModel or doorModel)
 		end
 	end
 end
