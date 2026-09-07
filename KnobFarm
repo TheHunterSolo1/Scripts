@@ -57,6 +57,31 @@ local function FirePrompt(Instance)
 	end
 end
 
+local function IsPlayerReady()
+	local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if not PlayerGui then return false end
+	
+	local MainUI = PlayerGui:FindFirstChild("MainUI")
+	if not MainUI then return false end
+	
+	local DeathPanel = MainUI:FindFirstChild("DeathPanel")
+	if not DeathPanel then return false end
+	
+	local PlayAgainUI = DeathPanel:FindFirstChild("PlayAgain")
+	if not PlayAgainUI then return false end
+	
+	local PlayersFolder = PlayAgainUI:FindFirstChild("Players")
+	if not PlayersFolder then return false end
+	
+	local PlayerFrame = PlayersFolder:FindFirstChild(LocalPlayer.Name)
+	if not PlayerFrame then return false end
+	
+	local ReadyFrame = PlayerFrame:FindFirstChild("Ready")
+	if not ReadyFrame then return false end
+	
+	return ReadyFrame.Visible
+end
+
 local function HandlePlayerDeath()
 	if IsHandlingDeath then return end
 	IsHandlingDeath = true
@@ -75,9 +100,11 @@ local function HandlePlayerDeath()
 				task.wait(0.05)
 			end
 			
-			if PlayAgainRemote then
-				PlayAgainRemote:FireServer()
-        PlayAgainRemote:FireServer()
+			while not IsPlayerReady() do
+				if PlayAgainRemote then
+					PlayAgainRemote:FireServer()
+				end
+				task.wait(0.2)
 			end
 		end
 	end)
