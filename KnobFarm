@@ -97,18 +97,6 @@ local function GetNextValidDrawer()
 	return nil
 end
 
-local function GetNextValidWardrobe()
-	while #Wardrobes > 0 do
-		local item = Wardrobes[1]
-		if not IsValidWardrobeItem(item) then
-			table.remove(Wardrobes, 1)
-		else
-			return item
-		end
-	end
-	return nil
-end
-
 local function GetTargetPosition(target)
 	if not target then return nil end
 	if target:IsA("Model") then
@@ -117,6 +105,34 @@ local function GetTargetPosition(target)
 		return target.Position
 	end
 	return nil
+end
+
+local function GetClosestWardrobe()
+	local character = LocalPlayer.Character
+	if not character then return nil end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return nil end
+
+	local closest = nil
+	local shortestDistance = math.huge
+
+	for i = #Wardrobes, 1, -1 do
+		local wardrobe = Wardrobes[i]
+		if IsValidWardrobeItem(wardrobe) then
+			local pos = GetTargetPosition(wardrobe)
+			if pos then
+				local dist = (rootPart.Position - pos).Magnitude
+				if dist < shortestDistance then
+					shortestDistance = dist
+					closest = wardrobe
+				end
+			end
+		else
+			table.remove(Wardrobes, i)
+		end
+	end
+
+	return closest
 end
 
 local function PlayerHasKey()
@@ -184,12 +200,26 @@ local function ProcessAutomation()
 	end
 	
 	if IsHandlingDeath then return end
+
+	local gameData = ReplicatedStorage:FindFirstChild("GameData")
+	local latestRoom = gameData and gameData:FindFirstChild("LatestRoom")
+	local currentRoomVal = latestRoom and latestRoom.Value or 0
 	
 	local activeEntity = workspace:FindFirstChild("RushMoving") or workspace:FindFirstChild("AmbushMoving")
+	local shouldHide = false
+
 	if activeEntity then
+		shouldHide = true
+	elseif currentRoomVal >= 90 then
+		if activeEntity then
+			shouldHide = true
+		end
+	end
+
+	if shouldHide then
 		local isHiding = character:GetAttribute("Hiding")
 		if not isHiding then
-			local wardrobe = GetNextValidWardrobe()
+			local wardrobe = GetClosestWardrobe()
 			if wardrobe then
 				local targetPos = GetTargetPosition(wardrobe)
 				if targetPos then
@@ -202,6 +232,27 @@ local function ProcessAutomation()
 	else
 		if character:GetAttribute("Hiding") then
 			character:SetAttribute("Hiding", false)
+		end
+	end
+
+	if currentRoomVal == 50 then
+		local nextRoomNum = currentRoomVal + 1
+		local nextRoom = workspace.CurrentRooms:FindFirstChild(tostring(nextRoomNum))
+		if nextRoom then
+			local doorModel = nextRoom:FindFirstChild("Door") or nextRoom:FindFirstChild("Door", true)
+			if doorModel then
+				local doorPos = GetTargetPosition(doorModel)
+				if doorPos then
+					TeleportToPosition(character, doorPos)
+					local clientOpenRemote = doorModel:FindFirstChild("ClientOpen")
+					if clientOpenRemote and clientOpenRemote:IsA("RemoteEvent") then
+						clientOpenRemote:FireServer()
+					end
+					local lockModel = doorModel:FindFirstChild("Lock")
+					FirePrompt(lockModel or doorModel)
+					return
+				end
+			end
 		end
 	end
 
@@ -227,11 +278,9 @@ local function ProcessAutomation()
 		end
 	end
 	
-	local gameData = ReplicatedStorage:FindFirstChild("GameData")
-	local latestRoom = gameData and gameData:FindFirstChild("LatestRoom")
-	if not latestRoom then return end
+	if not currentRoomVal then return end
 	
-	local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(latestRoom.Value))
+	local currentRoom = workspace.CurrentRooms:FindFirstChild(tostring(currentRoomVal))
 	if not currentRoom then return end
 	
 	local keyObtainModel = currentRoom:FindFirstChild("KeyObtain", true)
