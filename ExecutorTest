@@ -1,9 +1,10 @@
-Local Support = {}
+local Support = {}
 local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-repeat task.wait() until LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+repeat task.wait() until LocalPlayer.Character
+
 local function IsFunction(v) return type(v) == "function" end
 local function IsTable(v) return type(v) == "table" end
 local function IsString(v) return type(v) == "string" end
@@ -206,9 +207,9 @@ Test("firetouchinterest", function()
     partA.Parent = workspace
     partB.Parent = workspace
     local conn = partA.Touched:Connect(function() touched = true end)
-    firetouchinterest(game.Players.LocalPlayer.Character.HumanoidRootPart, partA, 0)
+    firetouchinterest(LocalPlayer.Character.HumanoidRootPart, partA, 0)
     task.wait(0.1)
-    firetouchinterest(game.Players.LocalPlayer.Character.HumanoidRootPart, partA, 1)
+    firetouchinterest(LocalPlayer.Character.HumanoidRootPart, partA, 1)
 
     task.wait(0.5)
     conn:Disconnect()
