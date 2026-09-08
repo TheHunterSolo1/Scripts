@@ -191,6 +191,68 @@ Test("getgc", function()
     return IsTable(gc) and #gc > 0
 end)
 
+Test("fireproximityprompt", function()
+    if not IsFunction(fireproximityprompt) then return false end
+    local part = Instance.new("Part")
+    part.Anchored = true
+    part.Parent = workspace
+    local prompt = Instance.new("ProximityPrompt")
+    prompt.Parent = part
+    local done = false
+    local conn = prompt.Triggered:Connect(function() done = true end)
+    pcall(function() fireproximityprompt(prompt) end)
+    task.wait(0.2)
+    conn:Disconnect()
+    part:Destroy()
+    return done and true or "noop"
+end)
+
+Test("firetouchinterest", function()
+    if not IsFunction(firetouchinterest) then return false end
+    local touched = false
+    local partA = Instance.new("Part")
+    local partB = Instance.new("Part")
+    partA.Anchored = true
+    partB.Anchored = true
+    partA.Transparency = 1
+    partB.Transparency = 1
+    partA.Size = Vector3.new(4, 4, 4)
+    partB.Size = Vector3.new(4, 4, 4)
+    partA.Position = Vector3.new(0, 100, 0)
+    partB.Position = Vector3.new(0, 104, 0)
+    partA.Parent = workspace
+    partB.Parent = workspace
+    local conn = partA.Touched:Connect(function(hit)
+        if hit == partB then
+            touched = true
+        end
+    end)
+    pcall(function()
+        firetouchinterest(partA, partB, 0)
+        firetouchinterest(partA, partB, 1)
+    end)
+    task.wait(0.2)
+    conn:Disconnect()
+    partA:Destroy()
+    partB:Destroy()
+    return touched and true or "noop"
+end)
+
+Test("getconnections", function()
+    if not IsFunction(getconnections) then return false end
+    local part = Instance.new("Part")
+    local conn = part.Changed:Connect(function() end)
+    local ok, connections = pcall(getconnections, part.Changed)
+    conn:Disconnect()
+    part:Destroy()
+    return ok and IsTable(connections) and #connections > 0
+end)
+
+Test("queue_on_teleport", function()
+    if not IsFunction(queue_on_teleport) then return false end
+    return true
+end)
+
 local passed, yellow, failed = 0, 0, 0
 for _, data in pairs(Support) do
     if data.Status == "green" then
