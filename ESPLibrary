@@ -2,7 +2,7 @@ local UserInputService = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
 local Players = game:GetService("Players")
 
-local Device = UserInputService.TouchEnabled and "Mobile" | "PC"
+local Device = UserInputService.TouchEnabled and "Mobile" or "PC"
 local UseDrawing = (typeof(Drawing) == "table" and type(Drawing.new) == "function")
 
 local floor = math.floor
