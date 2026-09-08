@@ -1,314 +1,829 @@
-if not fireproximityprompt then return end
+if not fireproximityprompt then
+	return
+end
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
 local DISTANCE_THRESHOLD = 5
+local ENTITY_HIDE_DISTANCE = 130
+local PROMPT_INTERVAL = 0.05
+local AUTOMATION_INTERVAL = 0.05
+
+local AutomationEnabled = true
+local GuiDestroyed = false
 local IsHandlingDeath = false
+
+local LastPromptFire = 0
+local LastAutomationUpdate = 0
+
+local CurrentState = "Starting"
+local CurrentRoomNumber = 0
+local TargetRoomNumber = 0
+local NotificationId = 0
+
+local Character = LocalPlayer.Character
+local Humanoid = nil
+local RootPart = nil
+local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
 
 local Drawers = {}
 local Wardrobes = {}
 
-local QueueOnTeleport = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
-if QueueOnTeleport then
-	pcall(QueueOnTeleport, [[
-		repeat task.wait() until game:IsLoaded()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/KnobFarm"))()
-	]])
-end
+local DeathConnection = nil
+local CharacterConnection = nil
+local RoomConnection = nil
+local AutomationConnection = nil
 
 local RemotesFolder = ReplicatedStorage:WaitForChild("RemotesFolder", 5)
+
 local Crouch = RemotesFolder and RemotesFolder:FindFirstChild("Crouch")
+
 if not Crouch then
 	Crouch = ReplicatedStorage:FindFirstChild("Crouch", true)
 end
 
 local PlayAgainRemote = RemotesFolder and RemotesFolder:FindFirstChild("PlayAgain")
+
 if not PlayAgainRemote then
 	PlayAgainRemote = ReplicatedStorage:FindFirstChild("PlayAgain", true)
 end
 
-local function FirePrompt(TargetInstance)
-	if not TargetInstance then return end
+local GameData = ReplicatedStorage:FindFirstChild("GameData")
+local LatestRoom = GameData and GameData:FindFirstChild("LatestRoom")
+local CurrentRooms = workspace:FindFirstChild("CurrentRooms")
 
-	if TargetInstance:IsA("ProximityPrompt") then
-		fireproximityprompt(TargetInstance)
+local QueueOnTeleport = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+
+if QueueOnTeleport then
+	pcall(function()
+		QueueOnTeleport([[
+			repeat task.wait() until game:IsLoaded()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/KnobFarm"))()
+		]])
+	end)
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KnobFarmController"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.fromOffset(285, 205)
+Main.Position = UDim2.new(0.5, -142, 0.5, -102)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = Main
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Thickness = 1
+Stroke.Transparency = 0.45
+Stroke.Parent = Main
+
+local TopBar = Instance.new("Frame")
+TopBar.Name = "TopBar"
+TopBar.Size = UDim2.new(1, 0, 0, 42)
+TopBar.BackgroundTransparency = 1
+TopBar.Active = true
+TopBar.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -28, 1, 0)
+Title.Position = UDim2.fromOffset(14, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Knob Farm"
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Parent = TopBar
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -28, 0, 28)
+StatusLabel.Position = UDim2.fromOffset(14, 48)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Status: Starting"
+StatusLabel.TextSize = 14
+StatusLabel.Font = Enum.Font.GothamMedium
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 140)
+StatusLabel.Parent = Main
+
+local RoomLabel = Instance.new("TextLabel")
+RoomLabel.Size = UDim2.new(1, -28, 0, 25)
+RoomLabel.Position = UDim2.fromOffset(14, 76)
+RoomLabel.BackgroundTransparency = 1
+RoomLabel.Text = "Room: 0"
+RoomLabel.TextSize = 13
+RoomLabel.Font = Enum.Font.Gotham
+RoomLabel.TextXAlignment = Enum.TextXAlignment.Left
+RoomLabel.TextColor3 = Color3.fromRGB(210, 210, 215)
+RoomLabel.Parent = Main
+
+local TargetLabel = Instance.new("TextLabel")
+TargetLabel.Size = UDim2.new(1, -28, 0, 25)
+TargetLabel.Position = UDim2.fromOffset(14, 101)
+TargetLabel.BackgroundTransparency = 1
+TargetLabel.Text = "Target: 0"
+TargetLabel.TextSize = 13
+TargetLabel.Font = Enum.Font.Gotham
+TargetLabel.TextXAlignment = Enum.TextXAlignment.Left
+TargetLabel.TextColor3 = Color3.fromRGB(210, 210, 215)
+TargetLabel.Parent = Main
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.fromOffset(120, 40)
+ToggleButton.Position = UDim2.fromOffset(14, 145)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 145, 75)
+ToggleButton.BorderSizePixel = 0
+ToggleButton.Text = "STOP"
+ToggleButton.TextSize = 14
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Parent = Main
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 8)
+ToggleCorner.Parent = ToggleButton
+
+local DestroyButton = Instance.new("TextButton")
+DestroyButton.Size = UDim2.fromOffset(120, 40)
+DestroyButton.Position = UDim2.fromOffset(151, 145)
+DestroyButton.BackgroundColor3 = Color3.fromRGB(150, 55, 55)
+DestroyButton.BorderSizePixel = 0
+DestroyButton.Text = "DESTROY GUI"
+DestroyButton.TextSize = 13
+DestroyButton.Font = Enum.Font.GothamBold
+DestroyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+DestroyButton.Parent = Main
+
+local DestroyCorner = Instance.new("UICorner")
+DestroyCorner.CornerRadius = UDim.new(0, 8)
+DestroyCorner.Parent = DestroyButton
+
+local NotificationHolder = Instance.new("Frame")
+NotificationHolder.Name = "Notifications"
+NotificationHolder.Size = UDim2.fromOffset(310, 400)
+NotificationHolder.Position = UDim2.new(1, -325, 0, 20)
+NotificationHolder.BackgroundTransparency = 1
+NotificationHolder.Parent = ScreenGui
+
+local NotificationLayout = Instance.new("UIListLayout")
+NotificationLayout.Padding = UDim.new(0, 7)
+NotificationLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+NotificationLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+NotificationLayout.Parent = NotificationHolder
+
+local function UpdateGui()
+	if GuiDestroyed then
 		return
 	end
 
-	local Prompt = TargetInstance:FindFirstChildOfClass("ProximityPrompt")
-	if Prompt then
-		fireproximityprompt(Prompt)
-		return
-	end
+	StatusLabel.Text = "Status: " .. CurrentState
+	RoomLabel.Text = "Room: " .. tostring(CurrentRoomNumber)
+	TargetLabel.Text = "Target: " .. tostring(TargetRoomNumber)
 
-	for _, Descendant in ipairs(TargetInstance:GetDescendants()) do
-		if Descendant:IsA("ProximityPrompt") then
-			fireproximityprompt(Descendant)
-			return
-		end
+	if AutomationEnabled then
+		ToggleButton.Text = "STOP"
+		ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 145, 75)
+		StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 140)
+	else
+		ToggleButton.Text = "START"
+		ToggleButton.BackgroundColor3 = Color3.fromRGB(65, 105, 175)
+		StatusLabel.TextColor3 = Color3.fromRGB(255, 190, 80)
 	end
 end
 
-local function IsValidDrawerItem(TargetInstance)
-	if not TargetInstance or not TargetInstance:IsDescendantOf(workspace) then
+local function Notify(Text)
+	if GuiDestroyed then
+		return
+	end
+
+	NotificationId = NotificationId + 1
+
+	local Notification = Instance.new("Frame")
+	Notification.Size = UDim2.fromOffset(290, 46)
+	Notification.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+	Notification.BorderSizePixel = 0
+	Notification.LayoutOrder = -NotificationId
+	Notification.Parent = NotificationHolder
+
+	local NotificationCorner = Instance.new("UICorner")
+	NotificationCorner.CornerRadius = UDim.new(0, 8)
+	NotificationCorner.Parent = Notification
+
+	local NotificationStroke = Instance.new("UIStroke")
+	NotificationStroke.Transparency = 0.5
+	NotificationStroke.Parent = Notification
+
+	local NotificationText = Instance.new("TextLabel")
+	NotificationText.Size = UDim2.new(1, -20, 1, 0)
+	NotificationText.Position = UDim2.fromOffset(10, 0)
+	NotificationText.BackgroundTransparency = 1
+	NotificationText.Text = Text
+	NotificationText.TextSize = 13
+	NotificationText.Font = Enum.Font.GothamMedium
+	NotificationText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	NotificationText.TextWrapped = true
+	NotificationText.Parent = Notification
+
+	task.delay(3, function()
+		if Notification and Notification.Parent then
+			local Tween = TweenService:Create(
+				Notification,
+				TweenInfo.new(0.25),
+				{BackgroundTransparency = 1}
+			)
+
+			Tween:Play()
+
+			task.wait(0.3)
+
+			if Notification then
+				Notification:Destroy()
+			end
+		end
+	end)
+end
+
+local function SetState(State)
+	if CurrentState == State then
+		UpdateGui()
+		return
+	end
+
+	CurrentState = State
+	UpdateGui()
+end
+
+local function RefreshCharacter(NewCharacter)
+	Character = NewCharacter
+	Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+	RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+	Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+
+	if DeathConnection then
+		DeathConnection:Disconnect()
+		DeathConnection = nil
+	end
+
+	if Humanoid then
+		DeathConnection = Humanoid.Died:Connect(function()
+			IsHandlingDeath = true
+			SetState("Dead")
+			Notify("Player died")
+		end)
+	end
+end
+
+local function GetTargetPosition(Target)
+	if not Target then
+		return nil
+	end
+
+	if Target:IsA("Model") then
+		if Target.PrimaryPart then
+			return Target.PrimaryPart.Position
+		end
+
+		return Target:GetPivot().Position
+	end
+
+	if Target:IsA("BasePart") then
+		return Target.Position
+	end
+
+	return nil
+end
+
+local function IsValidDrawerItem(Target)
+	if not Target or not Target:IsDescendantOf(workspace) then
 		return false
 	end
 
-	local Name = TargetInstance.Name
-	if Name == "GoldPile" or Name == "Stardust" or Name == "DrawerContainer" then
-		if Name == "DrawerContainer" then
-			local Main = TargetInstance:FindFirstChild("Main")
-			if Main then
-				local OpenSound = Main:FindFirstChild("Open")
-				if OpenSound and OpenSound:IsA("Sound") and OpenSound.IsPlaying then
-					return false
-				end
+	if Target:GetAttribute("KnobFarmIgnored") then
+		return false
+	end
+
+	local Name = Target.Name
+
+	if Name == "GoldPile" or Name == "Stardust" then
+		return true
+	end
+
+	if Name == "DrawerContainer" then
+		local MainPart = Target:FindFirstChild("Main")
+
+		if MainPart then
+			local OpenSound = MainPart:FindFirstChild("Open")
+
+			if OpenSound and OpenSound:IsA("Sound") and OpenSound.IsPlaying then
+				Target:SetAttribute("KnobFarmIgnored", true)
+				Drawers[Target] = nil
+				return false
 			end
 		end
+
 		return true
 	end
 
 	return false
 end
 
-local function IsValidWardrobeItem(TargetInstance)
-	if not TargetInstance or not TargetInstance:IsDescendantOf(workspace) then
+local function IsValidWardrobeItem(Target)
+	if not Target or not Target:IsDescendantOf(workspace) then
 		return false
 	end
-	return TargetInstance.Name == "Wardrobe"
+
+	return Target.Name == "Wardrobe"
 end
 
-local function AddTrackedItem(TargetInstance)
-	if IsValidDrawerItem(TargetInstance) and not table.find(Drawers, TargetInstance) then
-		table.insert(Drawers, TargetInstance)
+local function AddTrackedItem(Target)
+	if IsValidDrawerItem(Target) then
+		Drawers[Target] = true
 	end
-	if IsValidWardrobeItem(TargetInstance) and not table.find(Wardrobes, TargetInstance) then
-		table.insert(Wardrobes, TargetInstance)
+
+	if IsValidWardrobeItem(Target) then
+		Wardrobes[Target] = true
 	end
 end
 
-for _, Descendant in ipairs(workspace:GetDescendants()) do
-	AddTrackedItem(Descendant)
+local function RemoveTrackedItem(Target)
+	Drawers[Target] = nil
+	Wardrobes[Target] = nil
 end
-workspace.DescendantAdded:Connect(AddTrackedItem)
 
 local function GetNextValidDrawer()
-	while #Drawers > 0 do
-		local Item = Drawers[1]
-		if not IsValidDrawerItem(Item) then
-			table.remove(Drawers, 1)
-		else
-			return Item
+	for Target in pairs(Drawers) do
+		if IsValidDrawerItem(Target) then
+			return Target
 		end
-	end
-	return nil
-end
 
-local function GetTargetPosition(Target)
-	if not Target then return nil end
-	if Target:IsA("Model") then
-		return Target.PrimaryPart and Target.PrimaryPart.Position or Target:GetPivot().Position
-	elseif Target:IsA("BasePart") then
-		return Target.Position
+		Drawers[Target] = nil
 	end
+
 	return nil
 end
 
 local function GetClosestWardrobe()
-	local Character = LocalPlayer.Character
-	if not Character then return nil end
-
-	local RootPart = Character:FindFirstChild("HumanoidRootPart")
-	if not RootPart then return nil end
+	if not RootPart then
+		return nil
+	end
 
 	local Closest = nil
 	local ShortestDistance = math.huge
 
-	for Index = #Wardrobes, 1, -1 do
-		local Wardrobe = Wardrobes[Index]
+	for Wardrobe in pairs(Wardrobes) do
 		if IsValidWardrobeItem(Wardrobe) then
-			local Pos = GetTargetPosition(Wardrobe)
-			if Pos then
-				local Dist = (RootPart.Position - Pos).Magnitude
-				if Dist < ShortestDistance then
-					ShortestDistance = Dist
+			local Position = GetTargetPosition(Wardrobe)
+
+			if Position then
+				local Distance = (RootPart.Position - Position).Magnitude
+
+				if Distance < ShortestDistance then
+					ShortestDistance = Distance
 					Closest = Wardrobe
 				end
 			end
 		else
-			table.remove(Wardrobes, Index)
+			Wardrobes[Wardrobe] = nil
 		end
 	end
 
 	return Closest
 end
 
-local function PlayerHasKey()
-	local Character = LocalPlayer.Character
-	local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-	local KeyInChar = Character and Character:FindFirstChild("Key")
-	local KeyInBackpack = Backpack and Backpack:FindFirstChild("Key")
-	return (KeyInChar or KeyInBackpack) ~= nil
+local function GetPrompt(Target)
+	if not Target then
+		return nil
+	end
+
+	if Target:IsA("ProximityPrompt") then
+		return Target
+	end
+
+	local Prompt = Target:FindFirstChildOfClass("ProximityPrompt")
+
+	if Prompt then
+		return Prompt
+	end
+
+	for _, Descendant in ipairs(Target:GetDescendants()) do
+		if Descendant:IsA("ProximityPrompt") then
+			return Descendant
+		end
+	end
+
+	return nil
 end
 
-local function TeleportToPosition(Character, TargetPosition)
-	local RootPart = Character:FindFirstChild("HumanoidRootPart")
-	if RootPart and TargetPosition then
-		RootPart.CFrame = CFrame.new(TargetPosition)
+local function FirePrompt(Target)
+	if not Target then
+		return false
 	end
+
+	local Now = os.clock()
+
+	if Now - LastPromptFire < PROMPT_INTERVAL then
+		return false
+	end
+
+	local Prompt = GetPrompt(Target)
+
+	if not Prompt then
+		return false
+	end
+
+	LastPromptFire = Now
+
+	pcall(function()
+		fireproximityprompt(Prompt)
+	end)
+
+	return true
+end
+
+local function PlayerHasKey()
+	if Character and Character:FindFirstChild("Key") then
+		return true
+	end
+
+	if Backpack and Backpack:FindFirstChild("Key") then
+		return true
+	end
+
+	return false
+end
+
+local function TeleportToPosition(TargetPosition)
+	if not Character or not RootPart or not TargetPosition then
+		return
+	end
+
+	RootPart.CFrame = CFrame.new(TargetPosition)
 end
 
 local function IsPlayerReady()
-	local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	local MainUI = PlayerGui and PlayerGui:FindFirstChild("MainUI")
+	local CurrentPlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	local MainUI = CurrentPlayerGui and CurrentPlayerGui:FindFirstChild("MainUI")
 	local DeathPanel = MainUI and MainUI:FindFirstChild("DeathPanel")
 	local PlayAgainUI = DeathPanel and DeathPanel:FindFirstChild("PlayAgain")
 	local PlayersFolder = PlayAgainUI and PlayAgainUI:FindFirstChild("Players")
 	local PlayerFrame = PlayersFolder and PlayersFolder:FindFirstChild(LocalPlayer.Name)
 	local ReadyFrame = PlayerFrame and PlayerFrame:FindFirstChild("Ready")
+
 	return ReadyFrame and ReadyFrame.Visible or false
 end
 
-local function HandlePlayerDeath()
-	if IsHandlingDeath then return end
-	IsHandlingDeath = true
+local function HandleDeath()
+	if not PlayAgainRemote then
+		return
+	end
 
-	task.spawn(function()
-		while task.wait(0.2) do
-			if not IsPlayerReady() and PlayAgainRemote then
-				if PlayAgainRemote:IsA("RemoteEvent") then
-					PlayAgainRemote:FireServer()
-				elseif PlayAgainRemote:IsA("RemoteFunction") then
-					pcall(function() PlayAgainRemote:InvokeServer() end)
-				end
-			end
+	if IsPlayerReady() then
+		IsHandlingDeath = false
+		SetState("Recovering")
+		Notify("Death recovery complete")
+		return
+	end
+
+	if PlayAgainRemote:IsA("RemoteEvent") then
+		pcall(function()
+			PlayAgainRemote:FireServer()
+		end)
+	elseif PlayAgainRemote:IsA("RemoteFunction") then
+		pcall(function()
+			PlayAgainRemote:InvokeServer()
+		end)
+	end
+end
+
+local function UpdateRoom()
+	if not LatestRoom then
+		return
+	end
+
+	local NewRoom = LatestRoom.Value
+
+	if NewRoom ~= CurrentRoomNumber then
+		CurrentRoomNumber = NewRoom
+
+		if NewRoom >= 50 then
+			TargetRoomNumber = NewRoom + 1
+		else
+			TargetRoomNumber = NewRoom
 		end
-	end)
+
+		UpdateGui()
+		Notify("Room " .. tostring(NewRoom) .. " | Target " .. tostring(TargetRoomNumber))
+	end
 end
 
 local function ProcessAutomation()
-	if Crouch and Crouch:IsA("RemoteEvent") then
-		Crouch:FireServer(false, true)
-	end
-
-	local Character = LocalPlayer.Character
-	if not Character then return end
-
-	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-	if Humanoid and Humanoid.Health <= 0 then
-		HandlePlayerDeath()
+	if GuiDestroyed or not AutomationEnabled then
 		return
 	end
 
-	if IsHandlingDeath then return end
+	local Now = os.clock()
 
-	local GameData = ReplicatedStorage:FindFirstChild("GameData")
-	local LatestRoom = GameData and GameData:FindFirstChild("LatestRoom")
-	local CurrentRoomVal = LatestRoom and LatestRoom.Value or 0
+	if Now - LastAutomationUpdate < AUTOMATION_INTERVAL then
+		return
+	end
 
-	local TargetRoomNum = CurrentRoomVal
-	if CurrentRoomVal >= 50 then
-		TargetRoomNum = CurrentRoomVal + 1
+	LastAutomationUpdate = Now
+
+	if not Character or not RootPart or not Humanoid then
+		return
+	end
+
+	if Humanoid.Health <= 0 then
+		IsHandlingDeath = true
+		SetState("Dead")
+		HandleDeath()
+		return
+	end
+
+	if IsHandlingDeath then
+		if IsPlayerReady() then
+			IsHandlingDeath = false
+			SetState("Recovering")
+		else
+			HandleDeath()
+			return
+		end
+	end
+
+	if Crouch and Crouch:IsA("RemoteEvent") then
+		pcall(function()
+			Crouch:FireServer(false, true)
+		end)
 	end
 
 	local ActiveEntity = workspace:FindFirstChild("RushMoving") or workspace:FindFirstChild("AmbushMoving")
-	local RootPart = Character:FindFirstChild("HumanoidRootPart")
 
 	if ActiveEntity then
-		local Wardrobe = GetClosestWardrobe()
-		if Wardrobe then
-			local WardrobePos = GetTargetPosition(Wardrobe)
-			if WardrobePos then
-				TeleportToPosition(Character, WardrobePos)
+		SetState("Hiding")
 
-				local EntityPos = GetTargetPosition(ActiveEntity)
-				if EntityPos and RootPart then
-					local EntityDistance = (RootPart.Position - EntityPos).Magnitude
-					
-					if EntityDistance < 130 then
+		local Wardrobe = GetClosestWardrobe()
+
+		if Wardrobe then
+			local WardrobePosition = GetTargetPosition(Wardrobe)
+
+			if WardrobePosition then
+				TeleportToPosition(WardrobePosition)
+
+				local EntityPosition = GetTargetPosition(ActiveEntity)
+
+				if EntityPosition then
+					local EntityDistance = (RootPart.Position - EntityPosition).Magnitude
+
+					if EntityDistance < ENTITY_HIDE_DISTANCE then
 						if not Character:GetAttribute("Hiding") then
 							FirePrompt(Wardrobe)
 						end
-					else
-						if Character:GetAttribute("Hiding") then
-							Character:SetAttribute("Hiding", false)
-						end
+					elseif Character:GetAttribute("Hiding") then
+						Character:SetAttribute("Hiding", false)
 					end
 				end
 			end
 		end
+
 		return
-	else
-		if Character and Character:GetAttribute("Hiding") then
-			Character:SetAttribute("Hiding", false)
-		end
+	end
+
+	if Character:GetAttribute("Hiding") then
+		Character:SetAttribute("Hiding", false)
 	end
 
 	local DrawerTarget = GetNextValidDrawer()
+
 	if DrawerTarget then
-		local TargetPosition = GetTargetPosition(DrawerTarget)
-		if TargetPosition then
-			TeleportToPosition(Character, TargetPosition)
+		SetState("Looting")
+
+		local DrawerPosition = GetTargetPosition(DrawerTarget)
+
+		if DrawerPosition then
+			TeleportToPosition(DrawerPosition)
+
 			FirePrompt(DrawerTarget)
 
 			if DrawerTarget.Name == "DrawerContainer" then
-				local Main = DrawerTarget:FindFirstChild("Main")
-				if Main then
-					local OpenSound = Main:FindFirstChild("Open")
+				local MainPart = DrawerTarget:FindFirstChild("Main")
+
+				if MainPart then
+					local OpenSound = MainPart:FindFirstChild("Open")
+
 					if OpenSound and OpenSound:IsA("Sound") and OpenSound.IsPlaying then
-						table.remove(Drawers, 1)
+						DrawerTarget:SetAttribute("KnobFarmIgnored", true)
+						Drawers[DrawerTarget] = nil
 					end
 				end
 			end
+
 			return
-		else
-			table.remove(Drawers, 1)
 		end
+
+		Drawers[DrawerTarget] = nil
 	end
 
-	local CurrentRoom = workspace.CurrentRooms:FindFirstChild(tostring(TargetRoomNum))
-	if not CurrentRoom then return end
+	if not CurrentRooms then
+		return
+	end
 
-	local KeyObtainModel = CurrentRoom:FindFirstChild("KeyObtain", true)
-	local DoorModel = CurrentRoom:FindFirstChild("Door") or CurrentRoom:FindFirstChild("Door", true)
+	local TargetRoom = CurrentRooms:FindFirstChild(tostring(TargetRoomNumber))
+
+	if not TargetRoom then
+		SetState("Waiting For Room")
+		return
+	end
+
+	local KeyObtainModel = TargetRoom:FindFirstChild("KeyObtain", true)
+	local DoorModel = TargetRoom:FindFirstChild("Door") or TargetRoom:FindFirstChild("Door", true)
 
 	if not PlayerHasKey() and KeyObtainModel then
+		SetState("Getting Key")
+
 		local ParentContainer = KeyObtainModel.Parent
+
 		if ParentContainer and ParentContainer.Name == "DrawerContainer" then
 			local Knobs = ParentContainer:FindFirstChild("Knobs")
+
 			if Knobs then
 				FirePrompt(Knobs)
 			end
 		end
 
 		local KeyPosition = GetTargetPosition(KeyObtainModel)
+
 		if KeyPosition then
-			TeleportToPosition(Character, KeyPosition)
+			TeleportToPosition(KeyPosition)
 			FirePrompt(KeyObtainModel)
 		end
-	elseif DoorModel and RootPart then
+
+		return
+	end
+
+	if DoorModel and RootPart then
+		SetState("Opening Door")
+
 		local DoorPosition = GetTargetPosition(DoorModel)
-		if not DoorPosition then return end
+
+		if not DoorPosition then
+			return
+		end
 
 		local DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
+
 		if DistanceToDoor > DISTANCE_THRESHOLD then
-			TeleportToPosition(Character, DoorPosition)
+			TeleportToPosition(DoorPosition)
 		end
 
 		DistanceToDoor = (RootPart.Position - DoorPosition).Magnitude
+
 		if DistanceToDoor <= DISTANCE_THRESHOLD then
 			local ClientOpenRemote = DoorModel:FindFirstChild("ClientOpen")
+
 			if ClientOpenRemote and ClientOpenRemote:IsA("RemoteEvent") then
-				ClientOpenRemote:FireServer()
+				pcall(function()
+					ClientOpenRemote:FireServer()
+				end)
 			end
 
 			local LockModel = DoorModel:FindFirstChild("Lock")
+
 			FirePrompt(LockModel or DoorModel)
 		end
+
+		return
 	end
+
+	SetState("Waiting")
 end
 
-RunService.Heartbeat:Connect(ProcessAutomation)
+local Dragging = false
+local DragStart = nil
+local StartPosition = nil
+
+TopBar.InputBegan:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		Dragging = true
+		DragStart = Input.Position
+		StartPosition = Main.Position
+	end
+end)
+
+TopBar.InputEnded:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		Dragging = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(Input)
+	if not Dragging then
+		return
+	end
+
+	if Input.UserInputType ~= Enum.UserInputType.MouseMovement and Input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+
+	local Delta = Input.Position - DragStart
+
+	Main.Position = UDim2.new(
+		StartPosition.X.Scale,
+		StartPosition.X.Offset + Delta.X,
+		StartPosition.Y.Scale,
+		StartPosition.Y.Offset + Delta.Y
+	)
+end)
+
+ToggleButton.Activated:Connect(function()
+	AutomationEnabled = not AutomationEnabled
+
+	if AutomationEnabled then
+		SetState("Running")
+		Notify("Automation started")
+	else
+		SetState("Stopped")
+		Notify("Automation stopped")
+	end
+end)
+
+DestroyButton.Activated:Connect(function()
+	GuiDestroyed = true
+	AutomationEnabled = false
+
+	if AutomationConnection then
+		AutomationConnection:Disconnect()
+		AutomationConnection = nil
+	end
+
+	if CharacterConnection then
+		CharacterConnection:Disconnect()
+		CharacterConnection = nil
+	end
+
+	if RoomConnection then
+		RoomConnection:Disconnect()
+		RoomConnection = nil
+	end
+
+	if DeathConnection then
+		DeathConnection:Disconnect()
+		DeathConnection = nil
+	end
+
+	ScreenGui:Destroy()
+end)
+
+workspace.DescendantAdded:Connect(AddTrackedItem)
+workspace.DescendantRemoving:Connect(RemoveTrackedItem)
+
+CharacterConnection = LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
+	task.wait(0.25)
+
+	RefreshCharacter(NewCharacter)
+
+	IsHandlingDeath = false
+	AutomationEnabled = true
+
+	SetState("Running")
+	Notify("Character loaded")
+end)
+
+if LatestRoom then
+	CurrentRoomNumber = LatestRoom.Value
+
+	if CurrentRoomNumber >= 50 then
+		TargetRoomNumber = CurrentRoomNumber + 1
+	else
+		TargetRoomNumber = CurrentRoomNumber
+	end
+
+	RoomConnection = LatestRoom:GetPropertyChangedSignal("Value"):Connect(UpdateRoom)
+end
+
+for _, Descendant in ipairs(workspace:GetDescendants()) do
+	AddTrackedItem(Descendant)
+end
+
+RefreshCharacter(Character)
+
+AutomationConnection = RunService.Heartbeat:Connect(ProcessAutomation)
+
+UpdateGui()
+Notify("Knob Farm started")
