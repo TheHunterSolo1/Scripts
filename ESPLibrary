@@ -1,12 +1,19 @@
 local UserInputService = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
-local Device = UserInputService.TouchEnabled and "Mobile" or UserInputService.KeyboardEnabled and "PC"
-local CoreGui = gethui and gethui() or game:GetService("CoreGui")
-local LP = Players.LocalPlayer
+local Device = UserInputService.TouchEnabled and "Mobile" | "PC"
+local UseDrawing = (typeof(Drawing) == "table" and type(Drawing.new) == "function")
+
+local floor = math.floor
+local atan2 = math.atan2
+local deg = math.deg
+local sin = math.sin
+local cos = math.cos
+local vector2New = Vector2.new
+local tickFunc = tick
+local pcallFunc = pcall
+local tableClear = table.clear
 
 local Library = {
     Settings = {
@@ -16,29 +23,20 @@ local Library = {
         Rainbow = false,
         MaxDistance = 999999,
         TextSize = 25,
-        Font = Enum.Font.RobotoMono,
+        Font = 2,
         FadeTime = 0.7,
         ESPMode = "Highlight/Text",
-        RenderTime = (Device == "PC" and 240 or Device == "Mobile" and 30) or 60,
+        RenderTime = Device == "PC" and 240 or 60,
     },
     Cache = {},
     ActiveDelays = {},
-    TweenInfoFadeIn = nil,
-    TweenInfoFadeOut = nil,
 }
 
-local Screen = Instance.new("ScreenGui")
-Screen.Name = HttpService:GenerateGUID(false)
-Screen.IgnoreGuiInset = true
-Screen.Parent = CoreGui
-
-function Library:RebuildTweenInfo()
-    local FT = self.Settings.FadeTime
-    self.TweenInfoFadeIn = TweenInfo.new(FT, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-    self.TweenInfoFadeOut = TweenInfo.new(FT, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+local idCounter = 0
+local function GetUniqueId()
+    idCounter = idCounter + 1
+    return "ESP_" .. tostring(idCounter)
 end
-
-Library:RebuildTweenInfo()
 
 local function GetRoot(Obj)
     if not Obj then return nil end
@@ -51,80 +49,41 @@ local function GetRoot(Obj)
     return nil
 end
 
-function Library:SetFont(Font)
-    self.Settings.Font = Font
-    for _, Data in pairs(self.Cache) do
-        Data.Text.Font = Font
-    end
-end
+function Library:SetFont(Font) self.Settings.Font = Font end
+function Library:SetRainbow(Bool) self.Settings.Rainbow = Bool end
+function Library:SetFadeTime(Value) self.Settings.FadeTime = Value end
+function Library:SetArrows(Bool) self.Settings.Arrows = Bool end
+function Library:SetTracers(Bool) self.Settings.Tracers = Bool end
+function Library:SetShowDistance(Bool) self.Settings.Distance = Bool end
+function Library:SetESPMode(Value) self.Settings.ESPMode = Value end
+function Library:SetRenderingSpeed(Value) self.Settings.RenderTime = Value end
 
-function Library:SetRainbow(Bool)
-    self.Settings.Rainbow = Bool
-end
-
-function Library:SetFadeTime(Value)
-    self.Settings.FadeTime = Value
-    self:RebuildTweenInfo()
-end
-
-function Library:SetArrows(Bool)
-    self.Settings.Arrows = Bool
-end
-
-function Library:SetTracers(Bool)
-    self.Settings.Tracers = Bool
-end
-
-function Library:SetShowDistance(Bool)
-    self.Settings.Distance = Bool
-end
-
-function Library:SetESPMode(Value)
-    self.Settings.ESPMode = Value
-end
-
-function Library:SetRenderingSpeed(Value)
-    self.Settings.RenderTime = Value
-end
-
-function Library:HasESP(Obj)
-    return self.Cache[Obj] ~= nil
-end
-
-function Library:GetESPData(Obj)
-    return self.Cache[Obj]
-end
+function Library:HasESP(Obj) return self.Cache[Obj] ~= nil end
+function Library:GetESPData(Obj) return self.Cache[Obj] end
 
 function Library:GetAllESP()
     local Result = {}
     for Obj, Data in pairs(self.Cache) do
-        Result[Obj] = {
-            Name = Data.Name,
-            Color = Data.Color,
-            Root = Data.Root,
-        }
+        Result[Obj] = { Name = Data.Name, Color = Data.Color, Root = Data.Root }
     end
     return Result
 end
 
 function Library:CountESP()
     local Count = 0
-    for _ in pairs(self.Cache) do
-        Count = Count + 1
-    end
+    for _ in pairs(self.Cache) do Count = Count + 1 end
     return Count
 end
 
 function Library:AddESP(Cfg)
     local Obj = Cfg.Object
-    if not Obj then return end
-    if self.Cache[Obj] then return end
+    if not Obj or self.Cache[Obj] then return end
 
     local Root = GetRoot(Obj)
     if not Root then
         task.spawn(function()
             local Attempts = 0
-            while not Root and Attempts < 60 do
+            while not Root and Attempts < 60 and Obj.Parent do
                 Root = GetRoot(Obj)
                 Attempts = Attempts + 1
                 task.wait(0.5)
@@ -136,70 +95,79 @@ function Library:AddESP(Cfg)
         return
     end
 
-    local Billboard = Instance.new("BillboardGui")
-    Billboard.Name = HttpService:GenerateGUID(false)
-    Billboard.Size = UDim2.new(0, 250, 0, 60)
-    Billboard.AlwaysOnTop = true
-    Billboard.Adornee = Root
-    Billboard.MaxDistance = self.Settings.MaxDistance
-    Billboard.Parent = Obj
+    local ElementContainer = {}
 
-    local Label = Instance.new("TextLabel")
-    Label.BackgroundTransparency = 1
-    Label.Size = UDim2.new(1, 0, 1, 0)
-    Label.TextColor3 = Cfg.Color
-    Label.Font = self.Settings.Font
-    Label.TextSize = self.Settings.TextSize
-    Label.TextStrokeTransparency = 0
-    Label.TextTransparency = 1
-    Label.Text = Cfg.Text
-    Label.Parent = Billboard
+    if UseDrawing then
+        local TextObj = Drawing.new("Text")
+        TextObj.Visible = false
+        TextObj.Center = true
+        TextObj.Outline = true
+        TextObj.Font = self.Settings.Font
+        TextObj.Size = self.Settings.TextSize
+        TextObj.Color = Cfg.Color
+        TextObj.Text = Cfg.Text
 
-    local Highlight = Instance.new("Highlight")
-    Highlight.Adornee = Obj
-    Highlight.FillColor = Cfg.Color
-    Highlight.FillTransparency = 1
-    Highlight.OutlineTransparency = 1
-    Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    Highlight.Parent = Obj
+        local TracerObj = Drawing.new("Line")
+        TracerObj.Visible = false
+        TracerObj.Thickness = 1
+        TracerObj.Color = Cfg.Color
 
-    local Line = Instance.new("Frame")
-    Line.AnchorPoint = Vector2.new(0.5, 0.5)
-    Line.BorderSizePixel = 0
-    Line.BackgroundColor3 = Cfg.Color
-    Line.Visible = true
-    Line.BackgroundTransparency = 1
-    Line.Parent = Screen
+        local ArrowObj = Drawing.new("Triangle")
+        ArrowObj.Visible = false
+        ArrowObj.Filled = true
+        ArrowObj.Color = Cfg.Color
 
-    local Arrow = Instance.new("ImageLabel")
-    Arrow.BackgroundTransparency = 1
-    Arrow.AnchorPoint = Vector2.new(0.5, 0.5)
-    Arrow.Size = UDim2.new(0, 32, 0, 32)
-    Arrow.Image = "rbxassetid://10526559647"
-    Arrow.ImageColor3 = Cfg.Color
-    Arrow.Visible = false
-    Arrow.Parent = Screen
+        local BoxObj = Drawing.new("Square")
+        BoxObj.Visible = false
+        BoxObj.Thickness = 1
+        BoxObj.Filled = false
+        BoxObj.Color = Cfg.Color
 
-    local FT = self.Settings.FadeTime
-    if FT > 0 then
-        TweenService:Create(Label, self.TweenInfoFadeIn, {TextTransparency = 0}):Play()
-        TweenService:Create(Highlight, self.TweenInfoFadeIn, {FillTransparency = 0.6}):Play()
-        TweenService:Create(Line, self.TweenInfoFadeIn, {BackgroundTransparency = 0}):Play()
+        ElementContainer = {
+            Text = TextObj,
+            Tracer = TracerObj,
+            Arrow = ArrowObj,
+            Box = BoxObj,
+            IsDrawing = true
+        }
     else
-        Label.TextTransparency = 0
-        Highlight.FillTransparency = 0.6
-        Line.BackgroundTransparency = 0
+        local CoreGui = gethui and gethui() or game:GetService("CoreGui")
+        local Screen = Instance.new("ScreenGui")
+        Screen.Name = GetUniqueId()
+        Screen.IgnoreGuiInset = true
+        Screen.Parent = CoreGui
+
+        local Label = Instance.new("TextLabel")
+        Label.BackgroundTransparency = 1
+        Label.Size = UDim2.new(0, 250, 0, 50)
+        Label.AnchorPoint = vector2New(0.5, 0.5)
+        Label.TextColor3 = Cfg.Color
+        Label.TextSize = self.Settings.TextSize
+        Label.TextStrokeTransparency = 0
+        Label.Text = Cfg.Text
+        Label.Parent = Screen
+
+        local Line = Instance.new("Frame")
+        Line.AnchorPoint = vector2New(0.5, 0.5)
+        Line.BorderSizePixel = 0
+        Line.BackgroundColor3 = Cfg.Color
+        Line.Visible = false
+        Line.Parent = Screen
+
+        ElementContainer = {
+            Gui = Screen,
+            Text = Label,
+            Line = Line,
+            IsDrawing = false
+        }
     end
 
     self.Cache[Obj] = {
-        Tag = Billboard,
-        Text = Label,
-        Line = Line,
-        Box = Highlight,
-        Arrow = Arrow,
+        Container = ElementContainer,
         Name = Cfg.Text,
         Color = Cfg.Color,
         Root = Root,
+        CacheState = {}
     }
 end
 
@@ -208,30 +176,17 @@ function Library:RemoveESP(Obj)
     if not Data then return end
     self.Cache[Obj] = nil
 
-    local FT = self.Settings.FadeTime
-    if FT > 0 then
-        local DelayId = HttpService:GenerateGUID(false)
-        self.ActiveDelays[DelayId] = true
-
-        TweenService:Create(Data.Text, self.TweenInfoFadeOut, {TextTransparency = 1}):Play()
-        TweenService:Create(Data.Box, self.TweenInfoFadeOut, {FillTransparency = 1}):Play()
-        TweenService:Create(Data.Line, self.TweenInfoFadeOut, {BackgroundTransparency = 1}):Play()
-
-        task.delay(FT, function()
-            if self.ActiveDelays[DelayId] then
-                self.ActiveDelays[DelayId] = nil
-                if Data.Tag then Data.Tag:Destroy() end
-                if Data.Line then Data.Line:Destroy() end
-                if Data.Box then Data.Box:Destroy() end
-                if Data.Arrow then Data.Arrow:Destroy() end
+    pcallFunc(function()
+        if Data.Container.IsDrawing then
+            for _, obj in pairs(Data.Container) do
+                if typeof(obj) == "userdata" and type(obj.Remove) == "function" then
+                    obj:Remove()
+                end
             end
-        end)
-    else
-        if Data.Tag then Data.Tag:Destroy() end
-        if Data.Line then Data.Line:Destroy() end
-        if Data.Box then Data.Box:Destroy() end
-        if Data.Arrow then Data.Arrow:Destroy() end
-    end
+        else
+            Data.Container.Gui:Destroy()
+        end
+    end)
 end
 
 function Library:UpdateESP(Obj, NewText, NewColor)
@@ -239,14 +194,23 @@ function Library:UpdateESP(Obj, NewText, NewColor)
     if Data then
         if NewText and Data.Name ~= NewText then
             Data.Name = NewText
-            Data.Text.Text = NewText
+            if Data.Container.IsDrawing then
+                Data.Container.Text.Text = NewText
+            else
+                Data.Container.Text.Text = NewText
+            end
         end
         if NewColor and Data.Color ~= NewColor then
             Data.Color = NewColor
-            Data.Text.TextColor3 = NewColor
-            Data.Box.FillColor = NewColor
-            Data.Line.BackgroundColor3 = NewColor
-            Data.Arrow.ImageColor3 = NewColor
+            if Data.Container.IsDrawing then
+                Data.Container.Text.Color = NewColor
+                Data.Container.Tracer.Color = NewColor
+                Data.Container.Arrow.Color = NewColor
+                Data.Container.Box.Color = NewColor
+            else
+                Data.Container.Text.TextColor3 = NewColor
+                Data.Container.Line.BackgroundColor3 = NewColor
+            end
         end
     else
         self:AddESP({Object = Obj, Text = NewText or "ESP", Color = NewColor or Color3.new(1, 1, 1)})
@@ -255,39 +219,13 @@ end
 
 function Library:BulkUpdateESP(UpdateTable)
     for Obj, Info in pairs(UpdateTable) do
-        local Data = self.Cache[Obj]
-        if Data then
-            local NeedsColorUpdate = false
-            if Info.Text and Data.Name ~= Info.Text then
-                Data.Name = Info.Text
-                Data.Text.Text = Info.Text
-            end
-            if Info.Color and Data.Color ~= Info.Color then
-                Data.Color = Info.Color
-                NeedsColorUpdate = true
-            end
-            if NeedsColorUpdate then
-                local Color = Info.Color
-                Data.Text.TextColor3 = Color
-                Data.Box.FillColor = Color
-                Data.Line.BackgroundColor3 = Color
-                Data.Arrow.ImageColor3 = Color
-            end
-        else
-            if Info.Text and Info.Color then
-                self:AddESP({Object = Obj, Text = Info.Text, Color = Info.Color})
-            end
-        end
+        self:UpdateESP(Obj, Info.Text, Info.Color)
     end
 end
 
 function Library:ClearAllESP()
-    local Objects = {}
     for Obj in pairs(self.Cache) do
-        table.insert(Objects, Obj)
-    end
-    for i = 1, #Objects do
-        self:RemoveESP(Objects[i])
+        self:RemoveESP(Obj)
     end
 end
 
@@ -296,44 +234,32 @@ function Library:Unload()
         self.Connection:Disconnect()
         self.Connection = nil
     end
-
-    for DelayId in pairs(self.ActiveDelays) do
-        self.ActiveDelays[DelayId] = nil
-    end
-
+    tableClear(self.ActiveDelays)
     for Obj in pairs(self.Cache) do
-        local Data = self.Cache[Obj]
-        self.Cache[Obj] = nil
-        if Data then
-            if Data.Tag then Data.Tag:Destroy() end
-            if Data.Line then Data.Line:Destroy() end
-            if Data.Box then Data.Box:Destroy() end
-            if Data.Arrow then Data.Arrow:Destroy() end
-        end
-    end
-
-    if Screen then
-        Screen:Destroy()
+        self:RemoveESP(Obj)
     end
 end
 
-local Camera = workspace.CurrentCamera
-local ScreenCenter = Camera.ViewportSize / 2
-local FOVScale = Camera.FieldOfView / 70
-local RainbowColor = Color3.fromHSV(0, 1, 1)
-local LastUpdateTick = tick()
+local LastUpdateTick = tickFunc()
 
 Library.Connection = RS.Heartbeat:Connect(function()
+    local nextTick = tickFunc()
     local RenderInterval = 1 / Library.Settings.RenderTime
-    if tick() - LastUpdateTick < RenderInterval then return end
-    LastUpdateTick = tick()
+    if nextTick - LastUpdateTick < RenderInterval then return end
+    LastUpdateTick = nextTick
 
-    Camera = workspace.CurrentCamera
-    local ViewportSize = Camera.ViewportSize
-    ScreenCenter = ViewportSize / 2
-    FOVScale = Camera.FieldOfView / 70
-    RainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+    local Camera = workspace.CurrentCamera
+    if not Camera then return end
+    
+    local Count = 0
+    for _ in pairs(Library.Cache) do Count = Count + 1 break end
+    if Count == 0 then return end
+
     local CameraCFrame = Camera.CFrame
+    local CameraPos = CameraCFrame.Position
+    local ViewportSize = Camera.ViewportSize
+    local ScreenCenter = ViewportSize / 2
+    local RainbowColor = Color3.fromHSV(nextTick % 5 / 5, 1, 1)
 
     for Object, Data in pairs(Library.Cache) do
         if not Object or not Object.Parent then
@@ -348,77 +274,99 @@ Library.Connection = RS.Heartbeat:Connect(function()
             if not RootPart then continue end
         end
 
-        local ScreenPosition, IsOnScreen = Camera:WorldToViewportPoint(RootPart.Position)
+        local RootPos = RootPart.Position
+        local CalculatedDistance = (CameraPos - RootPos).Magnitude
+        local State = Data.CacheState
         local DisplayColor = Library.Settings.Rainbow and RainbowColor or Data.Color
-        local CalculatedDistance = Data.Tag.CurrentDistance
+        local ScreenPosition, IsOnScreen = Camera:WorldToViewportPoint(RootPos)
 
         if CalculatedDistance > Library.Settings.MaxDistance then
-            Data.Tag.Enabled = false
-            Data.Text.Visible = false
-            Data.Box.Enabled = false
-            Data.Line.Visible = false
-            Data.Arrow.Visible = false
+            if State.MaxDist ~= true then
+                State.MaxDist = true
+                if Data.Container.IsDrawing then
+                    Data.Container.Text.Visible = false
+                    Data.Container.Tracer.Visible = false
+                    Data.Container.Arrow.Visible = false
+                    Data.Container.Box.Visible = false
+                else
+                    Data.Container.Text.Visible = false
+                    Data.Container.Line.Visible = false
+                end
+            end
             continue
         end
+        State.MaxDist = false
 
-        if IsOnScreen then
-            local ESPMode = Library.Settings.ESPMode
-            local ShowHighlight = ESPMode == "Highlight" or ESPMode == "Highlight/Text"
-            local ShowText = ESPMode == "Text" or ESPMode == "Highlight/Text"
+        if Data.Container.IsDrawing then
+            local C = Data.Container
+            if IsOnScreen then
+                C.Arrow.Visible = false
+                local ESPMode = Library.Settings.ESPMode
+                local ShowText = ESPMode == "Text" or ESPMode == "Highlight/Text"
 
-            Data.Tag.Enabled = true
-            Data.Arrow.Visible = false
-
-            if ShowText then
-                Data.Text.Visible = true
-                Data.Text.TextColor3 = DisplayColor
-                Data.Text.TextSize = Library.Settings.TextSize * FOVScale
-                local DistanceStr = ""
-                if Library.Settings.Distance then
-                    DistanceStr = "\n[" .. math.floor(CalculatedDistance) .. "m]"
+                if ShowText then
+                    C.Text.Visible = true
+                    C.Text.Color = DisplayColor
+                    C.Text.Size = Library.Settings.TextSize
+                    C.Text.Position = vector2New(ScreenPosition.X, ScreenPosition.Y - 20)
+                    local DistanceStr = Library.Settings.Distance and string.format("\n[%dm]", floor(CalculatedDistance)) or ""
+                    C.Text.Text = Data.Name .. DistanceStr
+                else
+                    C.Text.Visible = false
                 end
-                Data.Text.Text = Data.Name .. DistanceStr
-            else
-                Data.Text.Visible = false
-            end
 
-            if ShowHighlight then
-                Data.Box.Enabled = true
-                Data.Box.FillColor = DisplayColor
+                if Library.Settings.Tracers and CalculatedDistance < 1500 then
+                    C.Tracer.Visible = true
+                    C.Tracer.Color = DisplayColor
+                    C.Tracer.From = vector2New(ScreenCenter.X, ViewportSize.Y)
+                    C.Tracer.To = vector2New(ScreenPosition.X, ScreenPosition.Y)
+                else
+                    C.Tracer.Visible = false
+                end
+                C.Box.Visible = false
             else
-                Data.Box.Enabled = false
-            end
+                C.Text.Visible = false
+                C.Tracer.Visible = false
+                C.Box.Visible = false
 
-            if Library.Settings.Tracers and CalculatedDistance < 1500 then
-                local ScreenPoint = Vector2.new(ScreenPosition.X, ScreenPosition.Y)
-                local OriginPoint = Vector2.new(ScreenCenter.X, ViewportSize.Y)
-                local VectorDifference = ScreenPoint - OriginPoint
-
-                Data.Line.Visible = true
-                Data.Line.BackgroundColor3 = DisplayColor
-                Data.Line.Size = UDim2.new(0, VectorDifference.Magnitude, 0, 1)
-                Data.Line.Position = UDim2.new(0, OriginPoint.X + VectorDifference.X / 2, 0, OriginPoint.Y + VectorDifference.Y / 2)
-                Data.Line.Rotation = math.deg(math.atan2(VectorDifference.Y, VectorDifference.X))
-            else
-                Data.Line.Visible = false
+                if Library.Settings.Arrows then
+                    C.Arrow.Visible = true
+                    C.Arrow.Color = DisplayColor
+                    local ObjectRelativeSpace = CameraCFrame:PointToObjectSpace(RootPos)
+                    local DirectionAngle = atan2(-ObjectRelativeSpace.X, -ObjectRelativeSpace.Z)
+                    local Radius = ViewportSize.Y * 0.4
+                    local ArrowPos = vector2New(ScreenCenter.X + sin(DirectionAngle) * Radius, ScreenCenter.Y + cos(DirectionAngle) * Radius)
+                    C.Arrow.PointA = ArrowPos + vector2New(0, -10)
+                    C.Arrow.PointB = ArrowPos + vector2New(-6, 8)
+                    C.Arrow.PointC = ArrowPos + vector2New(6, 8)
+                else
+                    C.Arrow.Visible = false
+                end
             end
         else
-            Data.Tag.Enabled = false
-            Data.Text.Visible = false
-            Data.Box.Enabled = false
-            Data.Line.Visible = false
+            local C = Data.Container
+            if IsOnScreen then
+                C.Text.Visible = true
+                C.Text.TextColor3 = DisplayColor
+                C.Text.Position = UDim2.new(0, ScreenPosition.X, 0, ScreenPosition.Y - 20)
+                local DistanceStr = Library.Settings.Distance and string.format("\n[%dm]", floor(CalculatedDistance)) or ""
+                C.Text.Text = Data.Name .. DistanceStr
 
-            if Library.Settings.Arrows then
-                local ObjectRelativeSpace = CameraCFrame:PointToObjectSpace(RootPart.Position)
-                local DirectionAngle = math.atan2(-ObjectRelativeSpace.X, -ObjectRelativeSpace.Z)
-                local Radius = ViewportSize.Y * 0.4
-
-                Data.Arrow.Visible = true
-                Data.Arrow.ImageColor3 = DisplayColor
-                Data.Arrow.Position = UDim2.new(0, ScreenCenter.X + math.sin(DirectionAngle) * Radius, 0, ScreenCenter.Y + math.cos(DirectionAngle) * Radius)
-                Data.Arrow.Rotation = math.deg(DirectionAngle)
+                if Library.Settings.Tracers and CalculatedDistance < 1500 then
+                    local ScreenPoint = vector2New(ScreenPosition.X, ScreenPosition.Y)
+                    local OriginPoint = vector2New(ScreenCenter.X, ViewportSize.Y)
+                    local VectorDifference = ScreenPoint - OriginPoint
+                    C.Line.Visible = true
+                    C.Line.BackgroundColor3 = DisplayColor
+                    C.Line.Size = UDim2.new(0, VectorDifference.Magnitude, 0, 1)
+                    C.Line.Position = UDim2.new(0, OriginPoint.X + VectorDifference.X / 2, 0, OriginPoint.Y + VectorDifference.Y / 2)
+                    C.Line.Rotation = deg(atan2(VectorDifference.Y, VectorDifference.X))
+                else
+                    C.Line.Visible = false
+                end
             else
-                Data.Arrow.Visible = false
+                C.Text.Visible = false
+                C.Line.Visible = false
             end
         end
     end
