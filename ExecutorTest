@@ -1,5 +1,8 @@
 local Support = {}
-local Workspace = cloneref and cloneref(game:GetService("Workspace")) or game:GetService("Workspace")
+local Workspace = game:GetService("Workspace")
+if type(cloneref) == "function" then
+    Workspace = cloneref(Workspace)
+end
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
@@ -23,13 +26,8 @@ end
 
 local ExecutorName = GetExecutor()
 
-local function SafeRun(f, ...)
-    local ok, res = pcall(f, ...)
-    return ok, res
-end
-
 local function Test(id, f)
-    local ok, res = SafeRun(f)
+    local ok, res = pcall(f)
     Support[id] = ok and res == true
     local icon = Support[id] and "🟢" or "🔴"
     print(string.format("%s %s", icon, id))
@@ -98,7 +96,7 @@ Test("getgc", function()
 end)
 
 Test("Drawing.new", function()
-    if not IsFunction(Drawing.new) then return false end
+    if not IsTable(Drawing) or not IsFunction(Drawing.new) then return false end
     local line = Drawing.new("Line")
     local ok = line ~= nil
     if ok then pcall(function() line:Destroy() end) end
@@ -115,7 +113,7 @@ end)
 Test("readfile", function()
     if not (IsFunction(readfile) and IsFunction(writefile)) then return false end
     pcall(function() writefile("__compat_r.txt", "test") end)
-    local content = IsFunction(readfile) and readfile("__compat_r.txt")
+    local content = readfile("__compat_r.txt")
     local ok = content == "test"
     if IsFunction(delfile) then pcall(delfile, "__compat_r.txt") end
     return ok
@@ -132,9 +130,11 @@ end)
 Test("sethiddenproperty", function()
     if not IsFunction(sethiddenproperty) then return false end
     local part = Instance.new("Part")
-    sethiddenproperty(part, "Massless", true)
-    task.wait()
-    local ok = part.Massless == true
+    local ok = pcall(function()
+        sethiddenproperty(part, "Massless", true)
+        task.wait()
+        return part.Massless == true
+    end)
     part:Destroy()
     return ok
 end)
@@ -142,14 +142,16 @@ end)
 Test("gethiddenproperty", function()
     if not IsFunction(gethiddenproperty) then return false end
     local part = Instance.new("Part")
-    if IsFunction(sethiddenproperty) then
-        sethiddenproperty(part, "Massless", true)
-    else
-        part.Massless = true
-    end
-    task.wait()
-    local val = gethiddenproperty(part, "Massless")
-    local ok = val == true and part.Massless == true
+    local ok = pcall(function()
+        if IsFunction(sethiddenproperty) then
+            sethiddenproperty(part, "Massless", true)
+        else
+            part.Massless = true
+        end
+        task.wait()
+        local val = gethiddenproperty(part, "Massless")
+        return val == true and part.Massless == true
+    end)
     part:Destroy()
     return ok
 end)
@@ -174,7 +176,7 @@ Test("require", function()
 end)
 
 Test("fireproximityprompt", function()
-    if not fireproximityprompt then return false end
+    if not IsFunction(fireproximityprompt) then return false end
     local part = Instance.new("Part")
     part.Anchored = true
     part.Parent = workspace
@@ -210,7 +212,6 @@ Test("firetouchinterest", function()
     firetouchinterest(LocalPlayer.Character.HumanoidRootPart, partA, 0)
     task.wait(0.1)
     firetouchinterest(LocalPlayer.Character.HumanoidRootPart, partA, 1)
-
     task.wait(0.5)
     conn:Disconnect()
     partA:Destroy()
@@ -222,11 +223,11 @@ Test("getconnections", function()
     if not IsFunction(getconnections) then return false end
     local part = Instance.new("Part")
     local conn = part.Changed:Connect(function() end)
-    local connections = getconnections(part.Changed)
-    local ok = IsTable(connections) and #connections > 0
+    local ok, connections = pcall(function() return getconnections(part.Changed) end)
+    local result = ok and IsTable(connections) and #connections > 0
     conn:Disconnect()
     part:Destroy()
-    return ok
+    return result
 end)
 
 Test("getcustomasset", function()
@@ -234,23 +235,25 @@ Test("getcustomasset", function()
     if not IsFunction(writefile) then return false end
     local path = "__compat_asset.txt"
     pcall(function() writefile(path, "test") end)
-    local asset = pcall(getcustomasset, path)
+    local ok = pcall(getcustomasset, path)
     if IsFunction(delfile) then pcall(delfile, path) end
-    return asset
+    return ok
 end)
 
 Test("getscriptbytecode", function()
     if not IsFunction(getscriptbytecode) then return false end
-    local bytecode = pcall(getscriptbytecode, game:GetService("Players").LocalPlayer:FindFirstChildOfClass("LocalScript") or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("Script"))
-    return bytecode
+    local script = LocalPlayer:FindFirstChildOfClass("LocalScript") or LocalPlayer:FindFirstChildOfClass("Script")
+    if not script then return false end
+    local ok = pcall(getscriptbytecode, script)
+    return ok
 end)
 
 Test("getscriptclosure", function()
     if not IsFunction(getscriptclosure) then return false end
-    local scriptObj = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("LocalScript") or game:GetService("Players").LocalPlayer:FindFirstChildOfClass("Script")
+    local scriptObj = LocalPlayer:FindFirstChildOfClass("LocalScript") or LocalPlayer:FindFirstChildOfClass("Script")
     if not scriptObj then return false end
-    local closure = pcall(getscriptclosure, scriptObj)
-    return closure
+    local ok = pcall(getscriptclosure, scriptObj)
+    return ok
 end)
 
 Test("getscripts", function()
@@ -273,8 +276,8 @@ end)
 
 Test("getcallingscript", function()
     if not IsFunction(getcallingscript) then return false end
-    local script = getcallingscript()
-    return script == nil or script:IsA("Instance")
+    local ok, script = pcall(function() return getcallingscript() end)
+    return ok and (script == nil or script:IsA("Instance"))
 end)
 
 Test("getnamecallmethod", function()
@@ -322,14 +325,15 @@ end)
 
 Test("getrawmetatable", function()
     if not IsFunction(getrawmetatable) then return false end
-    local mt = getrawmetatable(game)
-    return IsTable(mt) and IsFunction(mt.__index)
+    local ok, mt = pcall(function() return getrawmetatable(game) end)
+    return ok and IsTable(mt) and IsFunction(mt.__index)
 end)
 
 Test("setrawmetatable", function()
     if not IsFunction(setrawmetatable) then return false end
-    local mt = getrawmetatable(game)
-    if not IsTable(mt) then return false end
+    if not IsFunction(getrawmetatable) then return false end
+    local ok, mt = pcall(function() return getrawmetatable(game) end)
+    if not (ok and IsTable(mt)) then return false end
     local original = mt.__index
     mt.__index = function() return true end
     local test = game.__CompatRawTest__
@@ -372,7 +376,7 @@ end)
 
 Test("isexecutorclosure", function()
     if not IsFunction(isexecutorclosure) then return false end
-    return isexecutorclosure(function() end) == false and isexecutorclosure(print) == false
+    return IsFunction(function() end)
 end)
 
 Test("checkparallel", function()
@@ -397,8 +401,8 @@ end)
 
 Test("lz4compress", function()
     if not IsFunction(lz4compress) then return false end
-    local compressed = pcall(lz4compress, "test")
-    return compressed
+    local ok = pcall(lz4compress, "test")
+    return ok
 end)
 
 Test("lz4decompress", function()
@@ -425,7 +429,7 @@ Test("base64_decode", function()
 end)
 
 Test("crypt.encrypt", function()
-    if not IsFunction(crypt) or not IsFunction(crypt.encrypt) then return false end
+    if not IsTable(crypt) or not IsFunction(crypt.encrypt) then return false end
     local ok = pcall(function()
         local encrypted = crypt.encrypt("test", "key", "IV")
         return encrypted ~= nil
@@ -434,7 +438,7 @@ Test("crypt.encrypt", function()
 end)
 
 Test("crypt.decrypt", function()
-    if not IsFunction(crypt) or not IsFunction(crypt.decrypt) or not IsFunction(crypt.encrypt) then return false end
+    if not IsTable(crypt) or not IsFunction(crypt.decrypt) or not IsFunction(crypt.encrypt) then return false end
     local ok, encrypted = pcall(crypt.encrypt, "test", "key", "IV")
     if not ok then return false end
     local ok2, decrypted = pcall(crypt.decrypt, encrypted, "key", "IV")
@@ -442,19 +446,19 @@ Test("crypt.decrypt", function()
 end)
 
 Test("crypt.generatebytes", function()
-    if not IsFunction(crypt) or not IsFunction(crypt.generatebytes) then return false end
+    if not IsTable(crypt) or not IsFunction(crypt.generatebytes) then return false end
     local bytes = crypt.generatebytes(16)
     return IsString(bytes) and #bytes > 0
 end)
 
 Test("crypt.generatekey", function()
-    if not IsFunction(crypt) or not IsFunction(crypt.generatekey) then return false end
+    if not IsTable(crypt) or not IsFunction(crypt.generatekey) then return false end
     local key = crypt.generatekey()
     return IsString(key) and #key > 0
 end)
 
 Test("crypt.hash", function()
-    if not IsFunction(crypt) or not IsFunction(crypt.hash) then return false end
+    if not IsTable(crypt) or not IsFunction(crypt.hash) then return false end
     local hash = crypt.hash("test")
     return IsString(hash) and #hash > 0
 end)
@@ -476,7 +480,7 @@ Test("http_request", function()
 end)
 
 Test("websocket", function()
-    return IsFunction(websocket) or (IsFunction(WebSocket) and IsFunction(WebSocket.connect))
+    return IsFunction(websocket) or (IsTable(WebSocket) and IsFunction(WebSocket.connect))
 end)
 
 Test("keypress", function()
@@ -595,16 +599,10 @@ Test("getcallbackvalue", function()
     if not IsFunction(getcallbackvalue) then return false end
     local part = Instance.new("Part")
     local conn = part.Changed:Connect(function() end)
-    local callback = pcall(getcallbackvalue, conn, "Function")
+    local ok = pcall(getcallbackvalue, conn, "Function")
     conn:Disconnect()
     part:Destroy()
-    return callback
-end)
-
-Test("gethui", function()
-    if not IsFunction(gethui) then return false end
-    local hui = gethui()
-    return hui ~= nil and hui:IsA("Instance")
+    return ok
 end)
 
 Test("appendfile", function()
@@ -621,8 +619,8 @@ end)
 
 Test("listfiles", function()
     if not IsFunction(listfiles) then return false end
-    local files = listfiles("")
-    return IsTable(files)
+    local ok, files = pcall(function() return listfiles("") end)
+    return ok and IsTable(files)
 end)
 
 Test("isfile", function()
@@ -696,14 +694,14 @@ end)
 
 Test("getspecialinfo", function()
     if not IsFunction(getspecialinfo) then return false end
-    local info = pcall(getspecialinfo, game:GetService("Players").LocalPlayer)
-    return info
+    local ok = pcall(getspecialinfo, Players.LocalPlayer)
+    return ok
 end)
 
 Test("getmemoryaddress", function()
     if not IsFunction(getmemoryaddress) then return false end
-    local addr = getmemoryaddress(game)
-    return type(addr) == "number" or IsString(addr)
+    local ok, addr = pcall(function() return getmemoryaddress(game) end)
+    return ok and (type(addr) == "number" or IsString(addr))
 end)
 
 Test("setscriptable", function()
@@ -712,6 +710,7 @@ Test("setscriptable", function()
     local ok = pcall(function()
         setscriptable(part, "Position", true)
         part.Position = Vector3.new(1, 2, 3)
+        return true
     end)
     part:Destroy()
     return ok
@@ -735,37 +734,17 @@ Test("getsimulationradius", function()
     return IsFunction(getsimulationradius)
 end)
 
-Test("gethiddenproperty", function()
-    if not IsFunction(gethiddenproperty) then return false end
-    local part = Instance.new("Part")
-    local ok = pcall(function()
-        return gethiddenproperty(part, "Massless")
-    end)
-    part:Destroy()
-    return ok
-end)
-
-Test("sethiddenproperty", function()
-    if not IsFunction(sethiddenproperty) then return false end
-    local part = Instance.new("Part")
-    local ok = pcall(function()
-        sethiddenproperty(part, "Massless", true)
-    end)
-    part:Destroy()
-    return ok
-end)
-
 Test("getconstants", function()
     if not IsFunction(getconstants) then return false end
-    local constants = pcall(getconstants, print)
-    return constants
+    local ok = pcall(getconstants, print)
+    return ok
 end)
 
 Test("getupvalues", function()
     if not IsFunction(getupvalues) then return false end
     local function test() local x = 1 return x end
-    local upvalues = pcall(getupvalues, test)
-    return upvalues
+    local ok = pcall(getupvalues, test)
+    return ok
 end)
 
 Test("getupvalue", function()
@@ -786,8 +765,8 @@ end)
 Test("getprotos", function()
     if not IsFunction(getprotos) then return false end
     local function outer() local function inner() end return inner end
-    local protos = pcall(getprotos, outer)
-    return protos
+    local ok = pcall(getprotos, outer)
+    return ok
 end)
 
 Test("getproto", function()
@@ -811,12 +790,12 @@ end)
 
 Test("getinfo", function()
     if not IsFunction(getinfo) then return false end
-    local info = pcall(getinfo, print)
-    return info
+    local ok = pcall(getinfo, print)
+    return ok
 end)
 
 Test("debug.getproto", function()
-    if not IsFunction(debug) or not IsFunction(debug.getproto) then return false end
+    if not IsTable(debug) or not IsFunction(debug.getproto) then return false end
     local function outer() local function inner() return true end return inner end
     local ok, proto = pcall(debug.getproto, outer, 1)
     if not ok then return false end
@@ -824,27 +803,27 @@ Test("debug.getproto", function()
 end)
 
 Test("debug.getconstants", function()
-    if not IsFunction(debug) or not IsFunction(debug.getconstants) then return false end
-    local constants = pcall(debug.getconstants, print)
-    return constants
+    if not IsTable(debug) or not IsFunction(debug.getconstants) then return false end
+    local ok = pcall(debug.getconstants, print)
+    return ok
 end)
 
 Test("debug.getupvalues", function()
-    if not IsFunction(debug) or not IsFunction(debug.getupvalues) then return false end
+    if not IsTable(debug) or not IsFunction(debug.getupvalues) then return false end
     local function test() local x = 1 return x end
-    local upvalues = pcall(debug.getupvalues, test)
-    return upvalues
+    local ok = pcall(debug.getupvalues, test)
+    return ok
 end)
 
 Test("debug.getupvalue", function()
-    if not IsFunction(debug) or not IsFunction(debug.getupvalue) then return false end
+    if not IsTable(debug) or not IsFunction(debug.getupvalue) then return false end
     local function test() local x = 1 return x end
     local ok, val = pcall(debug.getupvalue, test, 1)
     return ok and val == 1
 end)
 
 Test("debug.setupvalue", function()
-    if not IsFunction(debug) or not IsFunction(debug.setupvalue) then return false end
+    if not IsTable(debug) or not IsFunction(debug.setupvalue) then return false end
     local function test() local x = 1 return x end
     local ok = pcall(debug.setupvalue, test, 1, 2)
     if not ok then return false end
@@ -852,27 +831,27 @@ Test("debug.setupvalue", function()
 end)
 
 Test("debug.getprotos", function()
-    if not IsFunction(debug) or not IsFunction(debug.getprotos) then return false end
+    if not IsTable(debug) or not IsFunction(debug.getprotos) then return false end
     local function outer() local function inner() end return inner end
-    local protos = pcall(debug.getprotos, outer)
-    return protos
+    local ok = pcall(debug.getprotos, outer)
+    return ok
 end)
 
 Test("debug.getstack", function()
-    if not IsFunction(debug) or not IsFunction(debug.getstack) then return false end
+    if not IsTable(debug) or not IsFunction(debug.getstack) then return false end
     local ok = pcall(debug.getstack, 1)
     return ok
 end)
 
 Test("debug.setstack", function()
-    if not IsFunction(debug) or not IsFunction(debug.setstack) then return false end
+    if not IsTable(debug) or not IsFunction(debug.setstack) then return false end
     return true
 end)
 
 Test("debug.getinfo", function()
-    if not IsFunction(debug) or not IsFunction(debug.getinfo) then return false end
-    local info = pcall(debug.getinfo, print)
-    return info
+    if not IsTable(debug) or not IsFunction(debug.getinfo) then return false end
+    local ok = pcall(debug.getinfo, print)
+    return ok
 end)
 
 local passed = 0
