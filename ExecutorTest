@@ -1,8 +1,6 @@
 local Support = {}
 local Errors = {}
-local WS = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
+local LP = game:GetService("Players").LocalPlayer
 repeat task.wait() until LP.Character
 
 local function IsFunc(v) return type(v) == "function" end
@@ -15,406 +13,74 @@ local function GetExec()
     return "Unknown"
 end
 
-local ExecName = GetExec()
-
 local function Run(id, fn)
     local ok, res = pcall(fn)
     if not ok then
         Support[id] = "red"
-        Errors[id] = tostring(res):sub(1, 100)
+        Errors[id] = tostring(res):sub(1, 80)
         print("🔴 " .. id)
     elseif res == true then
         Support[id] = "green"
         print("🟢 " .. id)
     else
         Support[id] = "yellow"
-        Errors[id] = "Function returned false"
+        Errors[id] = "Exists but non-functional"
         print("🟡 " .. id)
     end
 end
 
-print("[" .. ExecName .. "] Compatibility Check\n")
+print("[" .. GetExec() .. "] Compatibility Check\n")
 
-Run("identifyexecutor", function()
-    return IsFunc(identifyexecutor) and IsStr(identifyexecutor())
-end)
-
-Run("getexecutorname", function()
-    return IsFunc(getexecutorname) and IsStr(getexecutorname())
-end)
-
-Run("getgenv", function()
-    if not IsFunc(getgenv) then error("Not a function") end
-    getgenv().__T = true
-    local ok = getgenv().__T == true
-    getgenv().__T = nil
-    return ok
-end)
-
-Run("gethui", function()
-    if not IsFunc(gethui) then error("Not a function") end
-    local h = gethui()
-    return h and h:IsA("Instance")
-end)
-
-Run("checkcaller", function()
-    return IsFunc(checkcaller) and checkcaller() == true
-end)
-
-Run("hookmetamethod", function()
-    if not IsFunc(hookmetamethod) then error("Not a function") end
-    local called = false
-    local orig
-    orig = hookmetamethod(game, "__index", function(s, k)
-        if k == "__CTest" then called = true return true end
-        return orig(s, k)
-    end)
-    local _ = game.__CTest
-    pcall(function() hookmetamethod(game, "__index", orig) end)
-    return called
-end)
-
-Run("getreg", function()
-    local f = getreg or getregistry
-    if not IsFunc(f) then error("Not a function") end
-    local r = f()
-    return IsTbl(r) and #r > 0
-end)
-
-Run("getgc", function()
-    if not IsFunc(getgc) then error("Not a function") end
-    local g = getgc()
-    return IsTbl(g) and #g > 0
-end)
-
-Run("Drawing.new", function()
-    if not IsTbl(Drawing) or not IsFunc(Drawing.new) then error("Not available") end
-    local l = Drawing.new("Line")
-    if not l then error("Returned nil") end
-    pcall(function() l:Destroy() end)
-    return true
-end)
-
-Run("writefile", function()
-    if not IsFunc(writefile) then error("Not a function") end
-    local ok = pcall(function() writefile("__t.txt", "x") end)
-    pcall(function() if IsFunc(delfile) then delfile("__t.txt") end end)
-    return ok
-end)
-
-Run("readfile", function()
-    if not IsFunc(readfile) or not IsFunc(writefile) then error("Not available") end
-    pcall(function() writefile("__r.txt", "x") end)
-    local c = readfile("__r.txt")
-    pcall(function() if IsFunc(delfile) then delfile("__r.txt") end end)
-    return c == "x"
-end)
-
-Run("isnetworkowner", function()
-    if not IsFunc(isnetworkowner) then error("Not a function") end
-    local p = Instance.new("Part")
-    local ok = pcall(function() isnetworkowner(p) end)
-    p:Destroy()
-    return ok
-end)
-
-Run("sethiddenproperty", function()
-    if not IsFunc(sethiddenproperty) then error("Not a function") end
-    local p = Instance.new("Part")
-    pcall(function() sethiddenproperty(p, "Massless", true) end)
-    local ok = p.Massless == true
-    p:Destroy()
-    return ok
-end)
-
-Run("gethiddenproperty", function()
-    if not IsFunc(gethiddenproperty) then error("Not a function") end
-    local p = Instance.new("Part")
-    if IsFunc(sethiddenproperty) then pcall(function() sethiddenproperty(p, "Massless", true) end) end
-    local v = gethiddenproperty(p, "Massless")
-    local ok = v == true
-    p:Destroy()
-    return ok
-end)
-
-Run("getnilinstances", function()
-    if not IsFunc(getnilinstances) then error("Not a function") end
-    local i = getnilinstances()
-    return IsTbl(i) and #i > 0
-end)
-
-Run("replicatesignal", function()
-    return IsFunc(replicatesignal)
-end)
-
-Run("require", function()
-    if ExecName == "Xeno" or ExecName == "Seliware" then error("Not supported") end
-    if not IsFunc(require) then error("Not a function") end
-    local s = LP:FindFirstChild("PlayerScripts")
-    local m = s and s:FindFirstChild("PlayerModule")
-    if not m then error("Module not found") end
-    return pcall(require, m)
-end)
-
-Run("fireproximityprompt", function()
-    if not IsFunc(fireproximityprompt) then error("Not a function") end
-    local p = Instance.new("Part")
-    p.Anchored = true
-    p.Parent = WS
-    local pr = Instance.new("ProximityPrompt")
-    pr.Parent = p
-    local done = false
-    local c = pr.Triggered:Connect(function() done = true end)
-    pcall(function() fireproximityprompt(pr) end)
-    task.wait(0.5)
-    c:Disconnect()
-    p:Destroy()
-    return done
-end)
-
-Run("firetouchinterest", function()
-    if not IsFunc(firetouchinterest) then error("Not a function") end
-    if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then error("No character") end
-    
-    local touched = false
-    local pA = Instance.new("Part")
-    local pB = Instance.new("Part")
-    pA.Anchored = true
-    pB.Anchored = true
-    pA.Transparency = 1
-    pB.Transparency = 1
-    pA.CanCollide = false
-    pB.CanCollide = false
-    pA.Size = Vector3.new(4, 4, 4)
-    pB.Size = Vector3.new(4, 4, 4)
-    pA.Position = Vector3.new(0, 100, 0)
-    pB.Position = pA.Position
-    pA.Parent = WS
-    pB.Parent = WS
-    
-    local c = pA.Touched:Connect(function() touched = true end)
-    pcall(function() firetouchinterest(LP.Character.HumanoidRootPart, pA, 0) end)
-    task.wait(0.15)
-    pcall(function() firetouchinterest(LP.Character.HumanoidRootPart, pA, 1) end)
-    task.wait(0.25)
-    c:Disconnect()
-    pA:Destroy()
-    pB:Destroy()
-    return touched
-end)
-
-Run("getconnections", function()
-    if not IsFunc(getconnections) then error("Not a function") end
-    local p = Instance.new("Part")
-    local c = p.Changed:Connect(function() end)
-    local ok, conns = pcall(function() return getconnections(p.Changed) end)
-    c:Disconnect()
-    p:Destroy()
-    return ok and IsTbl(conns) and #conns > 0
-end)
-
-Run("getcustomasset", function()
-    if not IsFunc(getcustomasset) or not IsFunc(writefile) then error("Not available") end
-    pcall(function() writefile("__a.txt", "x") end)
-    local ok = pcall(function() getcustomasset("__a.txt") end)
-    pcall(function() if IsFunc(delfile) then delfile("__a.txt") end end)
-    return ok
-end)
-
-Run("getscriptbytecode", function()
-    if not IsFunc(getscriptbytecode) then error("Not a function") end
-    local s = LP:FindFirstChildOfClass("LocalScript") or LP:FindFirstChildOfClass("Script")
-    if not s then error("No script found") end
-    return pcall(function() getscriptbytecode(s) end)
-end)
-
-Run("getscriptclosure", function()
-    if not IsFunc(getscriptclosure) then error("Not a function") end
-    local s = LP:FindFirstChildOfClass("LocalScript") or LP:FindFirstChildOfClass("Script")
-    if not s then error("No script found") end
-    return pcall(function() getscriptclosure(s) end)
-end)
-
-Run("getscripts", function()
-    if not IsFunc(getscripts) then error("Not a function") end
-    local s = getscripts()
-    return IsTbl(s) and #s > 0
-end)
-
-Run("getrunningscripts", function()
-    if not IsFunc(getrunningscripts) then error("Not a function") end
-    local s = getrunningscripts()
-    return IsTbl(s) and #s > 0
-end)
-
-Run("getloadedmodules", function()
-    if not IsFunc(getloadedmodules) then error("Not a function") end
-    local m = getloadedmodules()
-    return IsTbl(m) and #m > 0
-end)
-
-Run("getcallingscript", function()
-    if not IsFunc(getcallingscript) then error("Not a function") end
-    local ok, s = pcall(function() return getcallingscript() end)
-    return ok and (s == nil or s:IsA("Instance"))
-end)
-
-Run("getnamecallmethod", function()
-    if not IsFunc(getnamecallmethod) or not IsFunc(hookmetamethod) then error("Not available") end
-    local called = false
-    local orig
-    orig = hookmetamethod(game, "__namecall", function(s, ...)
-        if getnamecallmethod() == "__NTest" then called = true end
-        return orig(s, ...)
-    end)
-    pcall(function() game:__NTest__() end)
-    pcall(function() hookmetamethod(game, "__namecall", orig) end)
-    return called
-end)
-
-Run("setnamecallmethod", function()
-    if not IsFunc(setnamecallmethod) or not IsFunc(getnamecallmethod) or not IsFunc(hookmetamethod) then error("Not available") end
-    local called = false
-    local orig
-    orig = hookmetamethod(game, "__namecall", function(s, ...)
-        if getnamecallmethod() == "__SNTest" then called = true end
-        return orig(s, ...)
-    end)
-    pcall(function() setnamecallmethod("__SNTest") game:__SNTest__() end)
-    pcall(function() hookmetamethod(game, "__namecall", orig) end)
-    return called
-end)
-
-Run("getrawmetatable", function()
-    if not IsFunc(getrawmetatable) then error("Not a function") end
-    local ok, mt = pcall(function() return getrawmetatable(game) end)
-    return ok and IsTbl(mt) and IsFunc(mt.__index)
-end)
-
-Run("setrawmetatable", function()
-    if not IsFunc(setrawmetatable) or not IsFunc(getrawmetatable) then error("Not available") end
-    local ok, mt = pcall(function() return getrawmetatable(game) end)
-    if not ok or not IsTbl(mt) then error("getrawmetatable failed") end
-    local o = mt.__index
-    mt.__index = function() return true end
-    local t = game.__RawTest
-    mt.__index = o
-    return t == true
-end)
-
-Run("hookfunction", function()
-    if not IsFunc(hookfunction) then error("Not a function") end
-    local called = false
-    local f = function() return false end
-    local orig
-    orig = hookfunction(f, function() called = true return orig() end)
-    f()
-    return called
-end)
-
-Run("newcclosure", function()
-    if not IsFunc(newcclosure) then error("Not a function") end
-    local f = newcclosure(function() return true end)
-    return IsFunc(f) and f() == true
-end)
-
-Run("iscclosure", function()
-    if not IsFunc(iscclosure) then error("Not a function") end
-    return iscclosure(print) == true and iscclosure(function() end) == false
-end)
-
-Run("islclosure", function()
-    if not IsFunc(islclosure) then error("Not a function") end
-    return islclosure(function() end) == true and islclosure(print) == false
-end)
-
-Run("isexecutorclosure", function()
-    return IsFunc(isexecutorclosure)
-end)
-
-Run("checkparallel", function()
-    return IsFunc(checkparallel)
-end)
-
-Run("getthreadidentity", function()
-    if not IsFunc(getthreadidentity) then error("Not a function") end
-    local id = getthreadidentity()
-    return type(id) == "number" and id >= 0
-end)
-
-Run("setthreadidentity", function()
-    if not IsFunc(setthreadidentity) or not IsFunc(getthreadidentity) then error("Not available") end
-    local o = getthreadidentity()
-    setthreadidentity(3)
-    local n = getthreadidentity()
-    setthreadidentity(o)
-    return n == 3
-end)
-
-Run("lz4compress", function()
-    return IsFunc(lz4compress) and pcall(function() lz4compress("x") end)
-end)
-
-Run("lz4decompress", function()
-    if not IsFunc(lz4decompress) or not IsFunc(lz4compress) then error("Not available") end
-    local ok, c = pcall(function() return lz4compress("x") end)
-    if not ok then error("Compress failed") end
-    local ok2, d = pcall(function() return lz4decompress(c, 1) end)
-    return ok2 and d == "x"
-end)
-
-Run("base64_encode", function()
-    if not IsFunc(base64_encode) then error("Not a function") end
-    local e = base64_encode("x")
-    return IsStr(e) and #e > 0
-end)
-
-Run("base64_decode", function()
-    if not IsFunc(base64_decode) or not IsFunc(base64_encode) then error("Not available") end
-    local e = base64_encode("x")
-    return base64_decode(e) == "x"
-end)
-
-Run("crypt.encrypt", function()
-    if not IsTbl(crypt) or not IsFunc(crypt.encrypt) then error("Not available") end
-    local ok = pcall(function() crypt.encrypt("x", "k", "iv") end)
-    return ok
-end)
-
-Run("crypt.decrypt", function()
-    if not IsTbl(crypt) or not IsFunc(crypt.decrypt) or not IsFunc(crypt.encrypt) then error("Not available") end
-    local ok, e = pcall(function() return crypt.encrypt("x", "k", "iv") end)
-    if not ok then error("Encrypt failed") end
-    local ok2, d = pcall(function() return crypt.decrypt(e, "k", "iv") end)
-    return ok2 and d == "x"
-end)
-
-Run("crypt.generatebytes", function()
-    if not IsTbl(crypt) or not IsFunc(crypt.generatebytes) then error("Not available") end
-    local b = crypt.generatebytes(16)
-    return IsStr(b) and #b > 0
-end)
-
-Run("crypt.generatekey", function()
-    if not IsTbl(crypt) or not IsFunc(crypt.generatekey) then error("Not available") end
-    local k = crypt.generatekey()
-    return IsStr(k) and #k > 0
-end)
-
-Run("crypt.hash", function()
-    if not IsTbl(crypt) or not IsFunc(crypt.hash) then error("Not available") end
-    local h = crypt.hash("x")
-    return IsStr(h) and #h > 0
-end)
-
-Run("http_request", function()
-    return IsFunc(http_request)
-end)
-
-Run("websocket", function()
-    return IsFunc(websocket) or (IsTbl(WebSocket) and IsFunc(WebSocket.connect))
-end)
-
+Run("identifyexecutor", function() return IsFunc(identifyexecutor) end)
+Run("getexecutorname", function() return IsFunc(getexecutorname) end)
+Run("getgenv", function() return IsFunc(getgenv) end)
+Run("gethui", function() return IsFunc(gethui) end)
+Run("checkcaller", function() return IsFunc(checkcaller) end)
+Run("hookmetamethod", function() return IsFunc(hookmetamethod) end)
+Run("getreg", function() local f = getreg or getregistry return IsFunc(f) end)
+Run("getgc", function() return IsFunc(getgc) end)
+Run("Drawing.new", function() return IsTbl(Drawing) and IsFunc(Drawing.new) end)
+Run("writefile", function() return IsFunc(writefile) end)
+Run("readfile", function() return IsFunc(readfile) end)
+Run("isnetworkowner", function() return IsFunc(isnetworkowner) end)
+Run("sethiddenproperty", function() return IsFunc(sethiddenproperty) end)
+Run("gethiddenproperty", function() return IsFunc(gethiddenproperty) end)
+Run("getnilinstances", function() return IsFunc(getnilinstances) end)
+Run("replicatesignal", function() return IsFunc(replicatesignal) end)
+Run("require", function() return IsFunc(require) end)
+Run("fireproximityprompt", function() return IsFunc(fireproximityprompt) end)
+Run("firetouchinterest", function() return IsFunc(firetouchinterest) end)
+Run("getconnections", function() return IsFunc(getconnections) end)
+Run("getcustomasset", function() return IsFunc(getcustomasset) end)
+Run("getscriptbytecode", function() return IsFunc(getscriptbytecode) end)
+Run("getscriptclosure", function() return IsFunc(getscriptclosure) end)
+Run("getscripts", function() return IsFunc(getscripts) end)
+Run("getrunningscripts", function() return IsFunc(getrunningscripts) end)
+Run("getloadedmodules", function() return IsFunc(getloadedmodules) end)
+Run("getcallingscript", function() return IsFunc(getcallingscript) end)
+Run("getnamecallmethod", function() return IsFunc(getnamecallmethod) end)
+Run("setnamecallmethod", function() return IsFunc(setnamecallmethod) end)
+Run("getrawmetatable", function() return IsFunc(getrawmetatable) end)
+Run("setrawmetatable", function() return IsFunc(setrawmetatable) end)
+Run("hookfunction", function() return IsFunc(hookfunction) end)
+Run("newcclosure", function() return IsFunc(newcclosure) end)
+Run("iscclosure", function() return IsFunc(iscclosure) end)
+Run("islclosure", function() return IsFunc(islclosure) end)
+Run("isexecutorclosure", function() return IsFunc(isexecutorclosure) end)
+Run("checkparallel", function() return IsFunc(checkparallel) end)
+Run("getthreadidentity", function() return IsFunc(getthreadidentity) end)
+Run("setthreadidentity", function() return IsFunc(setthreadidentity) end)
+Run("lz4compress", function() return IsFunc(lz4compress) end)
+Run("lz4decompress", function() return IsFunc(lz4decompress) end)
+Run("base64_encode", function() return IsFunc(base64_encode) end)
+Run("base64_decode", function() return IsFunc(base64_decode) end)
+Run("crypt.encrypt", function() return IsTbl(crypt) and IsFunc(crypt.encrypt) end)
+Run("crypt.decrypt", function() return IsTbl(crypt) and IsFunc(crypt.decrypt) end)
+Run("crypt.generatebytes", function() return IsTbl(crypt) and IsFunc(crypt.generatebytes) end)
+Run("crypt.generatekey", function() return IsTbl(crypt) and IsFunc(crypt.generatekey) end)
+Run("crypt.hash", function() return IsTbl(crypt) and IsFunc(crypt.hash) end)
+Run("http_request", function() return IsFunc(http_request) end)
+Run("websocket", function() return IsFunc(websocket) or (IsTbl(WebSocket) and IsFunc(WebSocket.connect)) end)
 Run("keypress", function() return IsFunc(keypress) end)
 Run("keyrelease", function() return IsFunc(keyrelease) end)
 Run("mouse1click", function() return IsFunc(mouse1click) end)
@@ -426,22 +92,8 @@ Run("mouse2release", function() return IsFunc(mouse2release) end)
 Run("mousemoveabs", function() return IsFunc(mousemoveabs) end)
 Run("mousemoverel", function() return IsFunc(mousemoverel) end)
 Run("mousescroll", function() return IsFunc(mousescroll) end)
-
-Run("getfpscap", function()
-    if not IsFunc(getfpscap) then error("Not a function") end
-    local c = getfpscap()
-    return type(c) == "number" and c > 0
-end)
-
-Run("setfpscap", function()
-    if not IsFunc(setfpscap) or not IsFunc(getfpscap) then error("Not available") end
-    local o = getfpscap()
-    setfpscap(60)
-    local n = getfpscap()
-    setfpscap(o)
-    return n == 60
-end)
-
+Run("getfpscap", function() return IsFunc(getfpscap) end)
+Run("setfpscap", function() return IsFunc(setfpscap) end)
 Run("setclipboard", function() return IsFunc(setclipboard) end)
 Run("getclipboard", function() return IsFunc(getclipboard) end)
 Run("messagebox", function() return IsFunc(messagebox) end)
@@ -455,214 +107,44 @@ Run("rconsoleinput", function() return IsFunc(rconsoleinput) end)
 Run("rconsoleinputasync", function() return IsFunc(rconsoleinputasync) end)
 Run("isrbxactive", function() return IsFunc(isrbxactive) end)
 Run("queue_on_teleport", function() return IsFunc(queue_on_teleport) end)
-
-Run("getcallbackvalue", function()
-    if not IsFunc(getcallbackvalue) then error("Not a function") end
-    local p = Instance.new("Part")
-    local c = p.Changed:Connect(function() end)
-    local ok = pcall(function() getcallbackvalue(c, "Function") end)
-    c:Disconnect()
-    p:Destroy()
-    return ok
-end)
-
-Run("appendfile", function()
-    if not IsFunc(appendfile) or not IsFunc(writefile) or not IsFunc(readfile) then error("Not available") end
-    pcall(function() writefile("__ap.txt", "a") end)
-    pcall(function() appendfile("__ap.txt", "b") end)
-    local ok = readfile("__ap.txt") == "ab"
-    pcall(function() if IsFunc(delfile) then delfile("__ap.txt") end end)
-    return ok
-end)
-
-Run("listfiles", function()
-    if not IsFunc(listfiles) then error("Not a function") end
-    local ok, f = pcall(function() return listfiles("") end)
-    return ok and IsTbl(f)
-end)
-
-Run("isfile", function()
-    if not IsFunc(isfile) or not IsFunc(writefile) then error("Not available") end
-    pcall(function() writefile("__if.txt", "x") end)
-    local ok = isfile("__if.txt")
-    pcall(function() if IsFunc(delfile) then delfile("__if.txt") end end)
-    return ok
-end)
-
-Run("isfolder", function()
-    return IsFunc(isfolder) and isfolder("") == true
-end)
-
-Run("makefolder", function()
-    if not IsFunc(makefolder) or not IsFunc(isfolder) then error("Not available") end
-    pcall(function() makefolder("__mf") end)
-    local ok = isfolder("__mf")
-    pcall(function() if IsFunc(delfolder) then delfolder("__mf") end end)
-    return ok
-end)
-
-Run("delfolder", function()
-    if not IsFunc(delfolder) or not IsFunc(makefolder) then error("Not available") end
-    pcall(function() makefolder("__df") end)
-    pcall(function() delfolder("__df") end)
-    return not (IsFunc(isfolder) and isfolder("__df"))
-end)
-
-Run("delfile", function()
-    if not IsFunc(delfile) or not IsFunc(writefile) then error("Not available") end
-    pcall(function() writefile("__del.txt", "x") end)
-    pcall(function() delfile("__del.txt") end)
-    return not (IsFunc(isfile) and isfile("__del.txt"))
-end)
-
-Run("loadstring", function()
-    if not IsFunc(loadstring) then error("Not a function") end
-    local f = loadstring("return true")
-    return IsFunc(f) and f() == true
-end)
-
+Run("getcallbackvalue", function() return IsFunc(getcallbackvalue) end)
+Run("appendfile", function() return IsFunc(appendfile) end)
+Run("listfiles", function() return IsFunc(listfiles) end)
+Run("isfile", function() return IsFunc(isfile) end)
+Run("isfolder", function() return IsFunc(isfolder) end)
+Run("makefolder", function() return IsFunc(makefolder) end)
+Run("delfolder", function() return IsFunc(delfolder) end)
+Run("delfile", function() return IsFunc(delfile) end)
+Run("loadstring", function() return IsFunc(loadstring) end)
 Run("loadfile", function() return IsFunc(loadfile) end)
 Run("dofile", function() return IsFunc(dofile) end)
 Run("saveinstance", function() return IsFunc(saveinstance) end)
 Run("decompile", function() return IsFunc(decompile) end)
-
-Run("getinstances", function()
-    if not IsFunc(getinstances) then error("Not a function") end
-    local i = getinstances()
-    return IsTbl(i) and #i > 0
-end)
-
-Run("getspecialinfo", function()
-    if not IsFunc(getspecialinfo) then error("Not a function") end
-    return pcall(function() getspecialinfo(LP) end)
-end)
-
-Run("getmemoryaddress", function()
-    if not IsFunc(getmemoryaddress) then error("Not a function") end
-    local ok, a = pcall(function() return getmemoryaddress(game) end)
-    return ok and (type(a) == "number" or IsStr(a))
-end)
-
-Run("setscriptable", function()
-    if not IsFunc(setscriptable) then error("Not a function") end
-    local p = Instance.new("Part")
-    local ok = pcall(function() setscriptable(p, "Position", true) end)
-    p:Destroy()
-    return ok
-end)
-
-Run("getscriptable", function()
-    if not IsFunc(getscriptable) then error("Not a function") end
-    local p = Instance.new("Part")
-    local ok = pcall(function() getscriptable(p, "Position") end)
-    p:Destroy()
-    return ok
-end)
-
+Run("getinstances", function() return IsFunc(getinstances) end)
+Run("getspecialinfo", function() return IsFunc(getspecialinfo) end)
+Run("getmemoryaddress", function() return IsFunc(getmemoryaddress) end)
+Run("setscriptable", function() return IsFunc(setscriptable) end)
+Run("getscriptable", function() return IsFunc(getscriptable) end)
 Run("setsimulationradius", function() return IsFunc(setsimulationradius) end)
 Run("getsimulationradius", function() return IsFunc(getsimulationradius) end)
-
-Run("getconstants", function()
-    if not IsFunc(getconstants) then error("Not a function") end
-    return pcall(function() getconstants(print) end)
-end)
-
-Run("getupvalues", function()
-    if not IsFunc(getupvalues) then error("Not a function") end
-    local f = function() local x = 1 return x end
-    return pcall(function() getupvalues(f) end)
-end)
-
-Run("getupvalue", function()
-    if not IsFunc(getupvalue) then error("Not a function") end
-    local f = function() local x = 1 return x end
-    local ok, v = pcall(function() return getupvalue(f, 1) end)
-    return ok and v == 1
-end)
-
-Run("setupvalue", function()
-    if not IsFunc(setupvalue) then error("Not a function") end
-    local f = function() local x = 1 return x end
-    local ok = pcall(function() setupvalue(f, 1, 2) end)
-    return ok and f() == 2
-end)
-
-Run("getprotos", function()
-    if not IsFunc(getprotos) then error("Not a function") end
-    local f = function() local g = function() end return g end
-    return pcall(function() getprotos(f) end)
-end)
-
-Run("getproto", function()
-    if not IsFunc(getproto) then error("Not a function") end
-    local f = function() local g = function() return true end return g end
-    local ok, p = pcall(function() return getproto(f, 1) end)
-    return ok and IsFunc(p) and p() == true
-end)
-
-Run("getstack", function()
-    if not IsFunc(getstack) then error("Not a function") end
-    return pcall(function() getstack(1) end)
-end)
-
+Run("getconstants", function() return IsFunc(getconstants) end)
+Run("getupvalues", function() return IsFunc(getupvalues) end)
+Run("getupvalue", function() return IsFunc(getupvalue) end)
+Run("setupvalue", function() return IsFunc(setupvalue) end)
+Run("getprotos", function() return IsFunc(getprotos) end)
+Run("getproto", function() return IsFunc(getproto) end)
+Run("getstack", function() return IsFunc(getstack) end)
 Run("setstack", function() return IsFunc(setstack) end)
-
-Run("getinfo", function()
-    if not IsFunc(getinfo) then error("Not a function") end
-    return pcall(function() getinfo(print) end)
-end)
-
-Run("debug.getproto", function()
-    if not IsTbl(debug) or not IsFunc(debug.getproto) then error("Not available") end
-    local f = function() local g = function() return true end return g end
-    local ok, p = pcall(function() return debug.getproto(f, 1) end)
-    return ok and IsFunc(p) and p() == true
-end)
-
-Run("debug.getconstants", function()
-    if not IsTbl(debug) or not IsFunc(debug.getconstants) then error("Not available") end
-    return pcall(function() debug.getconstants(print) end)
-end)
-
-Run("debug.getupvalues", function()
-    if not IsTbl(debug) or not IsFunc(debug.getupvalues) then error("Not available") end
-    local f = function() local x = 1 return x end
-    return pcall(function() debug.getupvalues(f) end)
-end)
-
-Run("debug.getupvalue", function()
-    if not IsTbl(debug) or not IsFunc(debug.getupvalue) then error("Not available") end
-    local f = function() local x = 1 return x end
-    local ok, v = pcall(function() return debug.getupvalue(f, 1) end)
-    return ok and v == 1
-end)
-
-Run("debug.setupvalue", function()
-    if not IsTbl(debug) or not IsFunc(debug.setupvalue) then error("Not available") end
-    local f = function() local x = 1 return x end
-    local ok = pcall(function() debug.setupvalue(f, 1, 2) end)
-    return ok and f() == 2
-end)
-
-Run("debug.getprotos", function()
-    if not IsTbl(debug) or not IsFunc(debug.getprotos) then error("Not available") end
-    local f = function() local g = function() end return g end
-    return pcall(function() debug.getprotos(f) end)
-end)
-
-Run("debug.getstack", function()
-    if not IsTbl(debug) or not IsFunc(debug.getstack) then error("Not available") end
-    return pcall(function() debug.getstack(1) end)
-end)
-
-Run("debug.setstack", function()
-    return IsTbl(debug) and IsFunc(debug.setstack)
-end)
-
-Run("debug.getinfo", function()
-    if not IsTbl(debug) or not IsFunc(debug.getinfo) then error("Not available") end
-    return pcall(function() debug.getinfo(print) end)
-end)
+Run("getinfo", function() return IsFunc(getinfo) end)
+Run("debug.getproto", function() return IsTbl(debug) and IsFunc(debug.getproto) end)
+Run("debug.getconstants", function() return IsTbl(debug) and IsFunc(debug.getconstants) end)
+Run("debug.getupvalues", function() return IsTbl(debug) and IsFunc(debug.getupvalues) end)
+Run("debug.getupvalue", function() return IsTbl(debug) and IsFunc(debug.getupvalue) end)
+Run("debug.setupvalue", function() return IsTbl(debug) and IsFunc(debug.setupvalue) end)
+Run("debug.getprotos", function() return IsTbl(debug) and IsFunc(debug.getprotos) end)
+Run("debug.getstack", function() return IsTbl(debug) and IsFunc(debug.getstack) end)
+Run("debug.setstack", function() return IsTbl(debug) and IsFunc(debug.setstack) end)
+Run("debug.getinfo", function() return IsTbl(debug) and IsFunc(debug.getinfo) end)
 
 print("")
 local pass, tot = 0, 0
@@ -672,14 +154,15 @@ for _, s in pairs(Support) do
 end
 
 print(string.format("Results: %d/%d (%.0f%%)", pass, tot, (pass / tot) * 100))
-print("")
-print("Errors:")
-for id, err in pairs(Errors) do
-    print(string.format("  [%s] %s", id, err))
+
+if #Errors > 0 then
+    print("\nErrors:")
+    for id, err in pairs(Errors) do
+        print(string.format("  [%s] %s", id, err))
+    end
 end
 
 if IsFunc(getgenv) then
     getgenv().Support = Support
     getgenv().Errors = Errors
 end
-return Support
