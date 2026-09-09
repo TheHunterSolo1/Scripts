@@ -17,28 +17,62 @@ local function Run(id, fn)
     local ok, res = pcall(fn)
     if not ok then
         Support[id] = "red"
-        Errors[id] = tostring(res):sub(1, 80)
-        print("🔴 " .. id)
+        Errors[id] = tostring(res):sub(1, 70)
+        print("🔴 " .. id .. " (" .. Errors[id] .. ")")
     elseif res == true then
         Support[id] = "green"
         print("🟢 " .. id)
     else
         Support[id] = "yellow"
-        Errors[id] = "Exists but non-functional"
-        print("🟡 " .. id)
+        Errors[id] = tostring(res):sub(1, 70)
+        print("🟡 " .. id .. " (" .. Errors[id] .. ")")
     end
 end
 
 print("[" .. GetExec() .. "] Compatibility Check\n")
 
-Run("identifyexecutor", function() return IsFunc(identifyexecutor) end)
-Run("getexecutorname", function() return IsFunc(getexecutorname) end)
-Run("getgenv", function() return IsFunc(getgenv) end)
-Run("gethui", function() return IsFunc(gethui) end)
-Run("checkcaller", function() return IsFunc(checkcaller) end)
-Run("hookmetamethod", function() return IsFunc(hookmetamethod) end)
-Run("getreg", function() local f = getreg or getregistry return IsFunc(f) end)
-Run("getgc", function() return IsFunc(getgc) end)
+Run("identifyexecutor", function() return IsFunc(identifyexecutor) and IsStr(identifyexecutor()) end)
+Run("getexecutorname", function() return IsFunc(getexecutorname) and IsStr(getexecutorname()) end)
+
+Run("getgenv", function()
+    if not IsFunc(getgenv) then return false end
+    getgenv().__test = true
+    local ok = getgenv().__test == true
+    getgenv().__test = nil
+    return ok
+end)
+
+Run("gethui", function()
+    if not IsFunc(gethui) then return false end
+    local h = gethui()
+    return h and h:IsA("Instance")
+end)
+
+Run("checkcaller", function() return IsFunc(checkcaller) and checkcaller() == true end)
+
+Run("hookmetamethod", function()
+    if not IsFunc(hookmetamethod) then return false end
+    local called = false
+    local orig
+    orig = hookmetamethod(game, "__index", function(s, k) if k == "__t" then called = true end return orig(s, k) end)
+    local _ = game.__t
+    pcall(function() hookmetamethod(game, "__index", orig) end)
+    return called
+end)
+
+Run("getreg", function()
+    local f = getreg or getregistry
+    if not IsFunc(f) then return false end
+    local r = f()
+    return IsTbl(r) and #r > 0
+end)
+
+Run("getgc", function()
+    if not IsFunc(getgc) then return false end
+    local g = getgc()
+    return IsTbl(g) and #g > 0
+end)
+
 Run("Drawing.new", function() return IsTbl(Drawing) and IsFunc(Drawing.new) end)
 Run("writefile", function() return IsFunc(writefile) end)
 Run("readfile", function() return IsFunc(readfile) end)
@@ -60,20 +94,75 @@ Run("getloadedmodules", function() return IsFunc(getloadedmodules) end)
 Run("getcallingscript", function() return IsFunc(getcallingscript) end)
 Run("getnamecallmethod", function() return IsFunc(getnamecallmethod) end)
 Run("setnamecallmethod", function() return IsFunc(setnamecallmethod) end)
-Run("getrawmetatable", function() return IsFunc(getrawmetatable) end)
+
+Run("getrawmetatable", function()
+    if not IsFunc(getrawmetatable) then return false end
+    local ok, mt = pcall(function() return getrawmetatable(game) end)
+    return ok and IsTbl(mt)
+end)
+
 Run("setrawmetatable", function() return IsFunc(setrawmetatable) end)
 Run("hookfunction", function() return IsFunc(hookfunction) end)
-Run("newcclosure", function() return IsFunc(newcclosure) end)
-Run("iscclosure", function() return IsFunc(iscclosure) end)
-Run("islclosure", function() return IsFunc(islclosure) end)
+
+Run("newcclosure", function()
+    if not IsFunc(newcclosure) then return false end
+    local f = newcclosure(function() return true end)
+    return IsFunc(f) and f() == true
+end)
+
+Run("iscclosure", function()
+    if not IsFunc(iscclosure) then return false end
+    return iscclosure(print) == true and iscclosure(function() end) == false
+end)
+
+Run("islclosure", function()
+    if not IsFunc(islclosure) then return false end
+    return islclosure(function() end) == true and islclosure(print) == false
+end)
+
 Run("isexecutorclosure", function() return IsFunc(isexecutorclosure) end)
 Run("checkparallel", function() return IsFunc(checkparallel) end)
-Run("getthreadidentity", function() return IsFunc(getthreadidentity) end)
-Run("setthreadidentity", function() return IsFunc(setthreadidentity) end)
-Run("lz4compress", function() return IsFunc(lz4compress) end)
-Run("lz4decompress", function() return IsFunc(lz4decompress) end)
-Run("base64_encode", function() return IsFunc(base64_encode) end)
-Run("base64_decode", function() return IsFunc(base64_decode) end)
+
+Run("getthreadidentity", function()
+    if not IsFunc(getthreadidentity) then return false end
+    local id = getthreadidentity()
+    return type(id) == "number" and id >= 0
+end)
+
+Run("setthreadidentity", function()
+    if not IsFunc(setthreadidentity) or not IsFunc(getthreadidentity) then return false end
+    local o = getthreadidentity()
+    setthreadidentity(3)
+    local n = getthreadidentity()
+    setthreadidentity(o)
+    return n == 3
+end)
+
+Run("lz4compress", function()
+    if not IsFunc(lz4compress) then return false end
+    return pcall(function() lz4compress("x") end)
+end)
+
+Run("lz4decompress", function()
+    if not IsFunc(lz4decompress) or not IsFunc(lz4compress) then return false end
+    local ok, c = pcall(function() return lz4compress("x") end)
+    if not ok then return false end
+    local ok2, d = pcall(function() return lz4decompress(c, 1) end)
+    return ok2 and d == "x"
+end)
+
+Run("base64_encode", function()
+    if not IsFunc(base64_encode) then return false end
+    local e = base64_encode("x")
+    return IsStr(e) and #e > 0
+end)
+
+Run("base64_decode", function()
+    if not IsFunc(base64_decode) or not IsFunc(base64_encode) then return false end
+    local e = base64_encode("x")
+    return base64_decode(e) == "x"
+end)
+
 Run("crypt.encrypt", function() return IsTbl(crypt) and IsFunc(crypt.encrypt) end)
 Run("crypt.decrypt", function() return IsTbl(crypt) and IsFunc(crypt.decrypt) end)
 Run("crypt.generatebytes", function() return IsTbl(crypt) and IsFunc(crypt.generatebytes) end)
@@ -92,8 +181,22 @@ Run("mouse2release", function() return IsFunc(mouse2release) end)
 Run("mousemoveabs", function() return IsFunc(mousemoveabs) end)
 Run("mousemoverel", function() return IsFunc(mousemoverel) end)
 Run("mousescroll", function() return IsFunc(mousescroll) end)
-Run("getfpscap", function() return IsFunc(getfpscap) end)
-Run("setfpscap", function() return IsFunc(setfpscap) end)
+
+Run("getfpscap", function()
+    if not IsFunc(getfpscap) then return false end
+    local c = getfpscap()
+    return type(c) == "number" and c > 0
+end)
+
+Run("setfpscap", function()
+    if not IsFunc(setfpscap) or not IsFunc(getfpscap) then return false end
+    local o = getfpscap()
+    setfpscap(60)
+    local n = getfpscap()
+    setfpscap(o)
+    return n == 60
+end)
+
 Run("setclipboard", function() return IsFunc(setclipboard) end)
 Run("getclipboard", function() return IsFunc(getclipboard) end)
 Run("messagebox", function() return IsFunc(messagebox) end)
@@ -115,36 +218,136 @@ Run("isfolder", function() return IsFunc(isfolder) end)
 Run("makefolder", function() return IsFunc(makefolder) end)
 Run("delfolder", function() return IsFunc(delfolder) end)
 Run("delfile", function() return IsFunc(delfile) end)
-Run("loadstring", function() return IsFunc(loadstring) end)
+
+Run("loadstring", function()
+    if not IsFunc(loadstring) then return false end
+    local f = loadstring("return true")
+    return IsFunc(f) and f() == true
+end)
+
 Run("loadfile", function() return IsFunc(loadfile) end)
 Run("dofile", function() return IsFunc(dofile) end)
 Run("saveinstance", function() return IsFunc(saveinstance) end)
 Run("decompile", function() return IsFunc(decompile) end)
-Run("getinstances", function() return IsFunc(getinstances) end)
+
+Run("getinstances", function()
+    if not IsFunc(getinstances) then return false end
+    local i = getinstances()
+    return IsTbl(i) and #i > 0
+end)
+
 Run("getspecialinfo", function() return IsFunc(getspecialinfo) end)
-Run("getmemoryaddress", function() return IsFunc(getmemoryaddress) end)
+
+Run("getmemoryaddress", function()
+    if not IsFunc(getmemoryaddress) then return false end
+    local ok, a = pcall(function() return getmemoryaddress(game) end)
+    return ok and (type(a) == "number" or IsStr(a))
+end)
+
 Run("setscriptable", function() return IsFunc(setscriptable) end)
 Run("getscriptable", function() return IsFunc(getscriptable) end)
 Run("setsimulationradius", function() return IsFunc(setsimulationradius) end)
 Run("getsimulationradius", function() return IsFunc(getsimulationradius) end)
-Run("getconstants", function() return IsFunc(getconstants) end)
-Run("getupvalues", function() return IsFunc(getupvalues) end)
-Run("getupvalue", function() return IsFunc(getupvalue) end)
-Run("setupvalue", function() return IsFunc(setupvalue) end)
-Run("getprotos", function() return IsFunc(getprotos) end)
-Run("getproto", function() return IsFunc(getproto) end)
-Run("getstack", function() return IsFunc(getstack) end)
+
+Run("getconstants", function()
+    if not IsFunc(getconstants) then return false end
+    return pcall(function() getconstants(print) end)
+end)
+
+Run("getupvalues", function()
+    if not IsFunc(getupvalues) then return false end
+    local f = function() local x = 1 return x end
+    return pcall(function() getupvalues(f) end)
+end)
+
+Run("getupvalue", function()
+    if not IsFunc(getupvalue) then return false end
+    local f = function() local x = 1 return x end
+    local ok, v = pcall(function() return getupvalue(f, 1) end)
+    return ok and v == 1
+end)
+
+Run("setupvalue", function()
+    if not IsFunc(setupvalue) then return false end
+    local f = function() local x = 1 return x end
+    local ok = pcall(function() setupvalue(f, 1, 2) end)
+    return ok and f() == 2
+end)
+
+Run("getprotos", function()
+    if not IsFunc(getprotos) then return false end
+    local f = function() local g = function() end return g end
+    return pcall(function() getprotos(f) end)
+end)
+
+Run("getproto", function()
+    if not IsFunc(getproto) then return false end
+    local f = function() local g = function() return true end return g end
+    local ok, p = pcall(function() return getproto(f, 1) end)
+    return ok and IsFunc(p) and p() == true
+end)
+
+Run("getstack", function()
+    if not IsFunc(getstack) then return false end
+    return pcall(function() getstack(1) end)
+end)
+
 Run("setstack", function() return IsFunc(setstack) end)
-Run("getinfo", function() return IsFunc(getinfo) end)
-Run("debug.getproto", function() return IsTbl(debug) and IsFunc(debug.getproto) end)
-Run("debug.getconstants", function() return IsTbl(debug) and IsFunc(debug.getconstants) end)
-Run("debug.getupvalues", function() return IsTbl(debug) and IsFunc(debug.getupvalues) end)
-Run("debug.getupvalue", function() return IsTbl(debug) and IsFunc(debug.getupvalue) end)
-Run("debug.setupvalue", function() return IsTbl(debug) and IsFunc(debug.setupvalue) end)
-Run("debug.getprotos", function() return IsTbl(debug) and IsFunc(debug.getprotos) end)
-Run("debug.getstack", function() return IsTbl(debug) and IsFunc(debug.getstack) end)
+
+Run("getinfo", function()
+    if not IsFunc(getinfo) then return false end
+    return pcall(function() getinfo(print) end)
+end)
+
+Run("debug.getproto", function()
+    if not IsTbl(debug) or not IsFunc(debug.getproto) then return false end
+    local f = function() local g = function() return true end return g end
+    local ok, p = pcall(function() return debug.getproto(f, 1) end)
+    return ok and IsFunc(p) and p() == true
+end)
+
+Run("debug.getconstants", function()
+    if not IsTbl(debug) or not IsFunc(debug.getconstants) then return false end
+    return pcall(function() debug.getconstants(print) end)
+end)
+
+Run("debug.getupvalues", function()
+    if not IsTbl(debug) or not IsFunc(debug.getupvalues) then return false end
+    local f = function() local x = 1 return x end
+    return pcall(function() debug.getupvalues(f) end)
+end)
+
+Run("debug.getupvalue", function()
+    if not IsTbl(debug) or not IsFunc(debug.getupvalue) then return false end
+    local f = function() local x = 1 return x end
+    local ok, v = pcall(function() return debug.getupvalue(f, 1) end)
+    return ok and v == 1
+end)
+
+Run("debug.setupvalue", function()
+    if not IsTbl(debug) or not IsFunc(debug.setupvalue) then return false end
+    local f = function() local x = 1 return x end
+    local ok = pcall(function() debug.setupvalue(f, 1, 2) end)
+    return ok and f() == 2
+end)
+
+Run("debug.getprotos", function()
+    if not IsTbl(debug) or not IsFunc(debug.getprotos) then return false end
+    local f = function() local g = function() end return g end
+    return pcall(function() debug.getprotos(f) end)
+end)
+
+Run("debug.getstack", function()
+    if not IsTbl(debug) or not IsFunc(debug.getstack) then return false end
+    return pcall(function() debug.getstack(1) end)
+end)
+
 Run("debug.setstack", function() return IsTbl(debug) and IsFunc(debug.setstack) end)
-Run("debug.getinfo", function() return IsTbl(debug) and IsFunc(debug.getinfo) end)
+
+Run("debug.getinfo", function()
+    if not IsTbl(debug) or not IsFunc(debug.getinfo) then return false end
+    return pcall(function() debug.getinfo(print) end)
+end)
 
 print("")
 local pass, tot = 0, 0
@@ -155,14 +358,7 @@ end
 
 print(string.format("Results: %d/%d (%.0f%%)", pass, tot, (pass / tot) * 100))
 
-if #Errors > 0 then
-    print("\nErrors:")
-    for id, err in pairs(Errors) do
-        print(string.format("  [%s] %s", id, err))
-    end
-end
-
 if IsFunc(getgenv) then
-    getgenv().Support = Support
-    getgenv().Errors = Errors
+    getgenv().ExecutorSupport = Support
+    getgenv().ExecutorErrors = Errors
 end
