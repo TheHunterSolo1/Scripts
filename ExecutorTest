@@ -16,16 +16,16 @@ end
 local function Run(id, fn)
     local ok, res = pcall(fn)
     if not ok then
-        Support[id] = "red"
-        Errors[id] = tostring(res):sub(1, 70)
+        Support[id] = false
+        Errors[id] = tostring(res):sub(1, 60)
         print("🔴 " .. id .. " (" .. Errors[id] .. ")")
     elseif res == true then
-        Support[id] = "green"
+        Support[id] = true
         print("🟢 " .. id)
     else
-        Support[id] = "yellow"
-        Errors[id] = tostring(res):sub(1, 70)
-        print("🟡 " .. id .. " (" .. Errors[id] .. ")")
+        Support[id] = false
+        Errors[id] = tostring(res):sub(1, 60)
+        print("🟡 " .. id .. " (" .. tostring(res):sub(1, 60) .. ")")
     end
 end
 
@@ -54,10 +54,16 @@ Run("hookmetamethod", function()
     if not IsFunc(hookmetamethod) then return false end
     local called = false
     local orig
-    orig = hookmetamethod(game, "__index", function(s, k) if k == "__t" then called = true end return orig(s, k) end)
-    local _ = game.__t
+    local ok = pcall(function()
+        orig = hookmetamethod(game, "__index", function(s, k)
+            if k == "__hook_test" then called = true return true end
+            return orig(s, k)
+        end)
+    end)
+    if not ok or not orig then return false end
+    pcall(function() local _ = game.__hook_test end)
     pcall(function() hookmetamethod(game, "__index", orig) end)
-    return called
+    return called == true
 end)
 
 Run("getreg", function()
@@ -81,7 +87,11 @@ Run("sethiddenproperty", function() return IsFunc(sethiddenproperty) end)
 Run("gethiddenproperty", function() return IsFunc(gethiddenproperty) end)
 Run("getnilinstances", function() return IsFunc(getnilinstances) end)
 Run("replicatesignal", function() return IsFunc(replicatesignal) end)
-Run("require", function() return IsFunc(require) end)
+
+Run("require", function()
+    return IsFunc(require)
+end)
+
 Run("fireproximityprompt", function() return IsFunc(fireproximityprompt) end)
 Run("firetouchinterest", function() return IsFunc(firetouchinterest) end)
 Run("getconnections", function() return IsFunc(getconnections) end)
@@ -353,7 +363,7 @@ print("")
 local pass, tot = 0, 0
 for _, s in pairs(Support) do
     tot = tot + 1
-    if s == "green" then pass = pass + 1 end
+    if s == true then pass = pass + 1 end
 end
 
 print(string.format("Results: %d/%d (%.0f%%)", pass, tot, (pass / tot) * 100))
