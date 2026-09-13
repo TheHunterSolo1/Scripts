@@ -6,7 +6,6 @@ local Players = game:GetService("Players")
 
 local Device = UserInputService.TouchEnabled and "Mobile" or UserInputService.KeyboardEnabled and "PC"
 local CoreGui = gethui and gethui() or game:GetService("CoreGui")
-local LP = Players.LocalPlayer
 
 local Library = {
     Settings = {
@@ -20,11 +19,41 @@ local Library = {
         FadeTime = 0.7,
         ESPMode = "Highlight/Text",
         RenderTime = (Device == "PC" and 240 or Device == "Mobile" and 30) or 60,
+
+        LOD100 = 1,
+        LOD250 = 0.75,
+        LOD500 = 0.5,
+        LOD1000 = 0.25,
+        LODFar = 0.1,
+
+        AdaptiveLOD = true,
+        MovementPriority = true,
+        FrameBudget = 100,
+        MetadataInterval = 0.12,
+        RainbowRate = 30,
+        CleanupInterval = 2,
     },
+
     Cache = {},
     ActiveDelays = {},
     TweenInfoFadeIn = nil,
     TweenInfoFadeOut = nil,
+
+    ESPCount = 0,
+    Scheduler = {},
+    SchedulerSize = 0,
+    SchedulerEpoch = 0,
+
+    LastCleanup = 0,
+    LastRainbow = 0,
+    RainbowColor = Color3.fromHSV(0, 1, 1),
+
+    LastCamera = nil,
+    LastViewportX = 0,
+    LastViewportY = 0,
+    LastFOV = 0,
+
+    Connection = nil,
 }
 
 local Screen = Instance.new("ScreenGui")
@@ -32,59 +61,270 @@ Screen.Name = HttpService:GenerateGUID(false)
 Screen.IgnoreGuiInset = true
 Screen.Parent = CoreGui
 
+local Camera = workspace.CurrentCamera
+
+local function GetRoot(Obj)
+    if not Obj then
+        return nil
+    end
+
+    if Obj:IsA("Model") then
+        return Obj.PrimaryPart
+            or Obj:FindFirstChild("HumanoidRootPart")
+            or Obj:FindFirstChildWhichIsA("BasePart")
+    end
+
+    if Obj:IsA("BasePart") then
+        return Obj
+    end
+
+    return nil
+end
+
+local function HeapPush(Heap, Size, Node)
+    Size += 1
+    local Index = Size
+
+    while Index > 1 do
+        local Parent = math.floor(Index / 2)
+
+        if Heap[Parent].Time <= Node.Time then
+            break
+        end
+
+        Heap[Index] = Heap[Parent]
+        Index = Parent
+    end
+
+    Heap[Index] = Node
+
+    return Size
+end
+
+local function HeapPop(Heap, Size)
+    if Size == 0 then
+        return nil, 0
+    end
+
+    local Root = Heap[1]
+    local Last = Heap[Size]
+    Heap[Size] = nil
+    Size -= 1
+
+    if Size == 0 then
+        return Root, 0
+    end
+
+    local Index = 1
+
+    while true do
+        local Left = Index * 2
+        if Left > Size then
+            break
+        end
+
+        local Right = Left + 1
+        local Child = Left
+
+        if Right <= Size and Heap[Right].Time < Heap[Left].Time then
+            Child = Right
+        end
+
+        if Heap[Child].Time >= Last.Time then
+            break
+        end
+
+        Heap[Index] = Heap[Child]
+        Index = Child
+    end
+
+    Heap[Index] = Last
+
+    return Root, Size
+end
+
+local function GetLODInterval(DistanceSquared, RenderTime, Settings, ESPCount)
+    local SpeedMultiplier
+
+    if DistanceSquared <= 10000 then
+        SpeedMultiplier = Settings.LOD100
+    elseif DistanceSquared <= 62500 then
+        SpeedMultiplier = Settings.LOD250
+    elseif DistanceSquared <= 250000 then
+        SpeedMultiplier = Settings.LOD500
+    elseif DistanceSquared <= 1000000 then
+        SpeedMultiplier = Settings.LOD1000
+    else
+        SpeedMultiplier = Settings.LODFar
+    end
+
+    if SpeedMultiplier <= 0 then
+        SpeedMultiplier = 0.01
+    end
+
+    if Settings.AdaptiveLOD then
+        if ESPCount > 150 then
+            SpeedMultiplier *= 0.45
+        elseif ESPCount > 100 then
+            SpeedMultiplier *= 0.6
+        elseif ESPCount > 60 then
+            SpeedMultiplier *= 0.8
+        end
+    end
+
+    local BaseInterval = 1 / math.max(RenderTime, 1)
+    return math.max(BaseInterval / SpeedMultiplier, 1 / 60)
+end
+
+local function SetVisible(Data, Tag, Text, Box, Line, Arrow)
+    if Data.LastTagEnabled ~= Tag then
+        Data.Tag.Enabled = Tag
+        Data.LastTagEnabled = Tag
+    end
+
+    if Data.LastTextVisible ~= Text then
+        Data.Text.Visible = Text
+        Data.LastTextVisible = Text
+    end
+
+    if Data.LastBoxEnabled ~= Box then
+        Data.Box.Enabled = Box
+        Data.LastBoxEnabled = Box
+    end
+
+    if Data.LastLineVisible ~= Line then
+        Data.Line.Visible = Line
+        Data.LastLineVisible = Line
+    end
+
+    if Data.LastArrowVisible ~= Arrow then
+        Data.Arrow.Visible = Arrow
+        Data.LastArrowVisible = Arrow
+    end
+end
+
+local function SetTextColor(Data, Color)
+    if Data.LastTextColor ~= Color then
+        Data.Text.TextColor3 = Color
+        Data.LastTextColor = Color
+    end
+end
+
+local function SetBoxColor(Data, Color)
+    if Data.LastBoxColor ~= Color then
+        Data.Box.FillColor = Color
+        Data.LastBoxColor = Color
+    end
+end
+
+local function SetLineColor(Data, Color)
+    if Data.LastLineColor ~= Color then
+        Data.Line.BackgroundColor3 = Color
+        Data.LastLineColor = Color
+    end
+end
+
+local function SetArrowColor(Data, Color)
+    if Data.LastArrowColor ~= Color then
+        Data.Arrow.ImageColor3 = Color
+        Data.LastArrowColor = Color
+    end
+end
+
+local function ScheduleData(Data, Time)
+    Library.SchedulerSize = HeapPush(
+        Library.Scheduler,
+        Library.SchedulerSize,
+        {
+            Time = Time,
+            Object = Data.Object,
+            Version = Data.ScheduleVersion,
+            Epoch = Library.SchedulerEpoch,
+        }
+    )
+end
+
+local function ScheduleObject(Data, Time)
+    Data.NextUpdate = Time
+    Data.ScheduleVersion += 1
+    ScheduleData(Data, Time)
+end
+
+local function InvalidateScheduler()
+    Library.SchedulerEpoch += 1
+    Library.Scheduler = {}
+    Library.SchedulerSize = 0
+
+    local Now = os.clock()
+
+    for _, Data in pairs(Library.Cache) do
+        Data.ScheduleVersion += 1
+        Data.NextUpdate = Now
+        ScheduleData(Data, Now)
+    end
+end
+
 function Library:RebuildTweenInfo()
-    local FT = self.Settings.FadeTime
-    self.TweenInfoFadeIn = TweenInfo.new(FT, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-    self.TweenInfoFadeOut = TweenInfo.new(FT, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local FT = math.max(self.Settings.FadeTime, 0)
+
+    self.TweenInfoFadeIn = TweenInfo.new(
+        FT,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.Out
+    )
+
+    self.TweenInfoFadeOut = TweenInfo.new(
+        FT,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.Out
+    )
 end
 
 Library:RebuildTweenInfo()
 
-local function GetRoot(Obj)
-    if not Obj then return nil end
-    if Obj:IsA("Model") then
-        return Obj.PrimaryPart or Obj:FindFirstChild("HumanoidRootPart") or Obj:FindFirstChildWhichIsA("BasePart")
-    end
-    if Obj:IsA("BasePart") then
-        return Obj
-    end
-    return nil
-end
-
 function Library:SetFont(Font)
     self.Settings.Font = Font
+
     for _, Data in pairs(self.Cache) do
-        Data.Text.Font = Font
+        if Data.Text.Font ~= Font then
+            Data.Text.Font = Font
+        end
     end
 end
 
 function Library:SetRainbow(Bool)
     self.Settings.Rainbow = Bool
+    InvalidateScheduler()
 end
 
 function Library:SetFadeTime(Value)
-    self.Settings.FadeTime = Value
+    self.Settings.FadeTime = math.max(Value, 0)
     self:RebuildTweenInfo()
 end
 
 function Library:SetArrows(Bool)
     self.Settings.Arrows = Bool
+    InvalidateScheduler()
 end
 
 function Library:SetTracers(Bool)
     self.Settings.Tracers = Bool
+    InvalidateScheduler()
 end
 
 function Library:SetShowDistance(Bool)
     self.Settings.Distance = Bool
+    InvalidateScheduler()
 end
 
 function Library:SetESPMode(Value)
     self.Settings.ESPMode = Value
+    InvalidateScheduler()
 end
 
 function Library:SetRenderingSpeed(Value)
-    self.Settings.RenderTime = Value
+    self.Settings.RenderTime = math.max(Value, 1)
+    InvalidateScheduler()
 end
 
 function Library:HasESP(Obj)
@@ -97,6 +337,7 @@ end
 
 function Library:GetAllESP()
     local Result = {}
+
     for Obj, Data in pairs(self.Cache) do
         Result[Obj] = {
             Name = Data.Name,
@@ -104,37 +345,48 @@ function Library:GetAllESP()
             Root = Data.Root,
         }
     end
+
     return Result
 end
 
 function Library:CountESP()
-    local Count = 0
-    for _ in pairs(self.Cache) do
-        Count = Count + 1
-    end
-    return Count
+    return self.ESPCount
 end
 
 function Library:AddESP(Cfg)
     local Obj = Cfg.Object
-    if not Obj then return end
-    if self.Cache[Obj] then return end
+
+    if not Obj or self.Cache[Obj] then
+        return
+    end
 
     local Root = GetRoot(Obj)
+
     if not Root then
         task.spawn(function()
             local Attempts = 0
-            while not Root and Attempts < 60 do
+
+            while Obj.Parent and Attempts < 60 do
                 Root = GetRoot(Obj)
-                Attempts = Attempts + 1
+
+                if Root then
+                    break
+                end
+
+                Attempts += 1
                 task.wait(0.5)
             end
-            if Root and Obj.Parent then
+
+            if Root and Obj.Parent and not self.Cache[Obj] then
                 self:AddESP(Cfg)
             end
         end)
+
         return
     end
+
+    local InitialColor = Cfg.Color
+    local InitialText = Cfg.Text
 
     local Billboard = Instance.new("BillboardGui")
     Billboard.Name = HttpService:GenerateGUID(false)
@@ -147,17 +399,17 @@ function Library:AddESP(Cfg)
     local Label = Instance.new("TextLabel")
     Label.BackgroundTransparency = 1
     Label.Size = UDim2.new(1, 0, 1, 0)
-    Label.TextColor3 = Cfg.Color
+    Label.TextColor3 = InitialColor
     Label.Font = self.Settings.Font
     Label.TextSize = self.Settings.TextSize
     Label.TextStrokeTransparency = 0
     Label.TextTransparency = 1
-    Label.Text = Cfg.Text
+    Label.Text = InitialText
     Label.Parent = Billboard
 
     local Highlight = Instance.new("Highlight")
     Highlight.Adornee = Obj
-    Highlight.FillColor = Cfg.Color
+    Highlight.FillColor = InitialColor
     Highlight.FillTransparency = 1
     Highlight.OutlineTransparency = 1
     Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -166,7 +418,7 @@ function Library:AddESP(Cfg)
     local Line = Instance.new("Frame")
     Line.AnchorPoint = Vector2.new(0.5, 0.5)
     Line.BorderSizePixel = 0
-    Line.BackgroundColor3 = Cfg.Color
+    Line.BackgroundColor3 = InitialColor
     Line.Visible = true
     Line.BackgroundTransparency = 1
     Line.Parent = Screen
@@ -176,116 +428,250 @@ function Library:AddESP(Cfg)
     Arrow.AnchorPoint = Vector2.new(0.5, 0.5)
     Arrow.Size = UDim2.new(0, 32, 0, 32)
     Arrow.Image = "rbxassetid://10526559647"
-    Arrow.ImageColor3 = Cfg.Color
+    Arrow.ImageColor3 = InitialColor
     Arrow.Visible = false
     Arrow.Parent = Screen
 
     local FT = self.Settings.FadeTime
+
     if FT > 0 then
-        TweenService:Create(Label, self.TweenInfoFadeIn, {TextTransparency = 0}):Play()
-        TweenService:Create(Highlight, self.TweenInfoFadeIn, {FillTransparency = 0.6}):Play()
-        TweenService:Create(Line, self.TweenInfoFadeIn, {BackgroundTransparency = 0}):Play()
+        TweenService:Create(
+            Label,
+            self.TweenInfoFadeIn,
+            {TextTransparency = 0}
+        ):Play()
+
+        TweenService:Create(
+            Highlight,
+            self.TweenInfoFadeIn,
+            {FillTransparency = 0.6}
+        ):Play()
+
+        TweenService:Create(
+            Line,
+            self.TweenInfoFadeIn,
+            {BackgroundTransparency = 0}
+        ):Play()
     else
         Label.TextTransparency = 0
         Highlight.FillTransparency = 0.6
         Line.BackgroundTransparency = 0
     end
 
-    self.Cache[Obj] = {
+    local Data = {
+        Object = Obj,
         Tag = Billboard,
         Text = Label,
         Line = Line,
         Box = Highlight,
         Arrow = Arrow,
-        Name = Cfg.Text,
-        Color = Cfg.Color,
+
+        Name = InitialText,
+        Color = InitialColor,
         Root = Root,
+
+        NextUpdate = 0,
+        NextMetadataUpdate = 0,
+
+        LastPosition = Root.Position,
+        LastDistance = -1,
+        LastDisplayedDistance = -1,
+
+        LastTextColor = InitialColor,
+        LastBoxColor = InitialColor,
+        LastLineColor = InitialColor,
+        LastArrowColor = InitialColor,
+
+        LastTextSize = self.Settings.TextSize,
+        LastTagEnabled = true,
+        LastTextVisible = false,
+        LastBoxEnabled = false,
+        LastLineVisible = true,
+        LastArrowVisible = false,
+
+        LastTracerX = -1,
+        LastTracerY = -1,
+        LastTracerLength = -1,
+        LastTracerRotation = -999,
+
+        LastArrowX = -1,
+        LastArrowY = -1,
+        LastArrowRotation = -999,
+
+        LastOnScreen = nil,
+        LastMode = nil,
+
+        LODLevel = -1,
+        ScheduleVersion = 0,
     }
+
+    self.Cache[Obj] = Data
+    self.ESPCount += 1
+
+    local Now = os.clock()
+    Data.NextMetadataUpdate = Now
+    ScheduleObject(Data, Now)
 end
 
 function Library:RemoveESP(Obj)
     local Data = self.Cache[Obj]
-    if not Data then return end
+
+    if not Data then
+        return
+    end
+
     self.Cache[Obj] = nil
+    self.ESPCount = math.max(self.ESPCount - 1, 0)
+    Data.ScheduleVersion += 1
 
     local FT = self.Settings.FadeTime
-    if FT > 0 then
-        local DelayId = HttpService:GenerateGUID(false)
-        self.ActiveDelays[DelayId] = true
 
-        TweenService:Create(Data.Text, self.TweenInfoFadeOut, {TextTransparency = 1}):Play()
-        TweenService:Create(Data.Box, self.TweenInfoFadeOut, {FillTransparency = 1}):Play()
-        TweenService:Create(Data.Line, self.TweenInfoFadeOut, {BackgroundTransparency = 1}):Play()
+    if FT > 0 then
+        local Token = (Data.FadeToken or 0) + 1
+        Data.FadeToken = Token
+
+        TweenService:Create(
+            Data.Text,
+            self.TweenInfoFadeOut,
+            {TextTransparency = 1}
+        ):Play()
+
+        TweenService:Create(
+            Data.Box,
+            self.TweenInfoFadeOut,
+            {FillTransparency = 1}
+        ):Play()
+
+        TweenService:Create(
+            Data.Line,
+            self.TweenInfoFadeOut,
+            {BackgroundTransparency = 1}
+        ):Play()
 
         task.delay(FT, function()
-            if self.ActiveDelays[DelayId] then
-                self.ActiveDelays[DelayId] = nil
-                if Data.Tag then Data.Tag:Destroy() end
-                if Data.Line then Data.Line:Destroy() end
-                if Data.Box then Data.Box:Destroy() end
-                if Data.Arrow then Data.Arrow:Destroy() end
+            if Data.FadeToken ~= Token then
+                return
+            end
+
+            if Data.Tag then
+                Data.Tag:Destroy()
+            end
+
+            if Data.Line then
+                Data.Line:Destroy()
+            end
+
+            if Data.Box then
+                Data.Box:Destroy()
+            end
+
+            if Data.Arrow then
+                Data.Arrow:Destroy()
             end
         end)
     else
-        if Data.Tag then Data.Tag:Destroy() end
-        if Data.Line then Data.Line:Destroy() end
-        if Data.Box then Data.Box:Destroy() end
-        if Data.Arrow then Data.Arrow:Destroy() end
+        if Data.Tag then
+            Data.Tag:Destroy()
+        end
+
+        if Data.Line then
+            Data.Line:Destroy()
+        end
+
+        if Data.Box then
+            Data.Box:Destroy()
+        end
+
+        if Data.Arrow then
+            Data.Arrow:Destroy()
+        end
     end
 end
 
 function Library:UpdateESP(Obj, NewText, NewColor)
     local Data = self.Cache[Obj]
+
     if Data then
         if NewText and Data.Name ~= NewText then
             Data.Name = NewText
             Data.Text.Text = NewText
+            Data.LastDisplayedDistance = -1
+            Data.NextMetadataUpdate = 0
         end
+
         if NewColor and Data.Color ~= NewColor then
             Data.Color = NewColor
+
             Data.Text.TextColor3 = NewColor
             Data.Box.FillColor = NewColor
             Data.Line.BackgroundColor3 = NewColor
             Data.Arrow.ImageColor3 = NewColor
+
+            Data.LastTextColor = NewColor
+            Data.LastBoxColor = NewColor
+            Data.LastLineColor = NewColor
+            Data.LastArrowColor = NewColor
         end
+
+        Data.NextUpdate = 0
+        ScheduleObject(Data, os.clock())
     else
-        self:AddESP({Object = Obj, Text = NewText or "ESP", Color = NewColor or Color3.new(1, 1, 1)})
+        self:AddESP({
+            Object = Obj,
+            Text = NewText or "ESP",
+            Color = NewColor or Color3.new(1, 1, 1),
+        })
     end
 end
 
 function Library:BulkUpdateESP(UpdateTable)
+    local Now = os.clock()
+
     for Obj, Info in pairs(UpdateTable) do
         local Data = self.Cache[Obj]
+
         if Data then
-            local NeedsColorUpdate = false
             if Info.Text and Data.Name ~= Info.Text then
                 Data.Name = Info.Text
                 Data.Text.Text = Info.Text
+                Data.LastDisplayedDistance = -1
+                Data.NextMetadataUpdate = 0
             end
+
             if Info.Color and Data.Color ~= Info.Color then
-                Data.Color = Info.Color
-                NeedsColorUpdate = true
-            end
-            if NeedsColorUpdate then
                 local Color = Info.Color
+
+                Data.Color = Color
+
                 Data.Text.TextColor3 = Color
                 Data.Box.FillColor = Color
                 Data.Line.BackgroundColor3 = Color
                 Data.Arrow.ImageColor3 = Color
+
+                Data.LastTextColor = Color
+                Data.LastBoxColor = Color
+                Data.LastLineColor = Color
+                Data.LastArrowColor = Color
             end
-        else
-            if Info.Text and Info.Color then
-                self:AddESP({Object = Obj, Text = Info.Text, Color = Info.Color})
-            end
+
+            ScheduleObject(Data, Now)
+        elseif Info.Text and Info.Color then
+            self:AddESP({
+                Object = Obj,
+                Text = Info.Text,
+                Color = Info.Color,
+            })
         end
     end
 end
 
 function Library:ClearAllESP()
     local Objects = {}
+
     for Obj in pairs(self.Cache) do
-        table.insert(Objects, Obj)
+        Objects[#Objects + 1] = Obj
     end
+
     for i = 1, #Objects do
         self:RemoveESP(Objects[i])
     end
@@ -297,130 +683,411 @@ function Library:Unload()
         self.Connection = nil
     end
 
+    self.Scheduler = {}
+    self.SchedulerSize = 0
+    self.SchedulerEpoch += 1
+
     for DelayId in pairs(self.ActiveDelays) do
         self.ActiveDelays[DelayId] = nil
     end
 
-    for Obj in pairs(self.Cache) do
-        local Data = self.Cache[Obj]
+    for Obj, Data in pairs(self.Cache) do
         self.Cache[Obj] = nil
-        if Data then
-            if Data.Tag then Data.Tag:Destroy() end
-            if Data.Line then Data.Line:Destroy() end
-            if Data.Box then Data.Box:Destroy() end
-            if Data.Arrow then Data.Arrow:Destroy() end
+
+        if Data.Tag then
+            Data.Tag:Destroy()
+        end
+
+        if Data.Line then
+            Data.Line:Destroy()
+        end
+
+        if Data.Box then
+            Data.Box:Destroy()
+        end
+
+        if Data.Arrow then
+            Data.Arrow:Destroy()
         end
     end
+
+    self.ESPCount = 0
 
     if Screen then
         Screen:Destroy()
     end
 end
 
-local Camera = workspace.CurrentCamera
+Camera = workspace.CurrentCamera
+
 local ScreenCenter = Camera.ViewportSize / 2
+local ViewportSize = Camera.ViewportSize
 local FOVScale = Camera.FieldOfView / 70
-local RainbowColor = Color3.fromHSV(0, 1, 1)
-local LastUpdateTick = tick()
+
+Library.LastCamera = Camera
+Library.LastViewportX = ViewportSize.X
+Library.LastViewportY = ViewportSize.Y
+Library.LastFOV = Camera.FieldOfView
+
+local LastHeartbeat = os.clock()
 
 Library.Connection = RS.Heartbeat:Connect(function()
-    local RenderInterval = 1 / Library.Settings.RenderTime
-    if tick() - LastUpdateTick < RenderInterval then return end
-    LastUpdateTick = tick()
+    local Now = os.clock()
+    local Settings = Library.Settings
 
     Camera = workspace.CurrentCamera
-    local ViewportSize = Camera.ViewportSize
-    ScreenCenter = ViewportSize / 2
-    FOVScale = Camera.FieldOfView / 70
-    RainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-    local CameraCFrame = Camera.CFrame
 
-    for Object, Data in pairs(Library.Cache) do
-        if not Object or not Object.Parent then
+    if not Camera then
+        return
+    end
+
+    local CurrentViewport = Camera.ViewportSize
+    local CurrentFOV = Camera.FieldOfView
+
+    local CameraChanged = Camera ~= Library.LastCamera
+    local ViewportChanged =
+        CurrentViewport.X ~= Library.LastViewportX
+        or CurrentViewport.Y ~= Library.LastViewportY
+
+    local FOVChanged = CurrentFOV ~= Library.LastFOV
+
+    if CameraChanged or ViewportChanged or FOVChanged then
+        Library.LastCamera = Camera
+        Library.LastViewportX = CurrentViewport.X
+        Library.LastViewportY = CurrentViewport.Y
+        Library.LastFOV = CurrentFOV
+
+        ViewportSize = CurrentViewport
+        ScreenCenter = CurrentViewport / 2
+        FOVScale = CurrentFOV / 70
+
+        InvalidateScheduler()
+    end
+
+    if Now - Library.LastRainbow >= 1 / math.max(Settings.RainbowRate, 1) then
+        Library.LastRainbow = Now
+        Library.RainbowColor = Color3.fromHSV((Now % 5) / 5, 1, 1)
+    end
+
+    if Now - Library.LastCleanup >= Settings.CleanupInterval then
+        Library.LastCleanup = Now
+
+        for Object, Data in pairs(Library.Cache) do
+            if not Object.Parent then
+                Library:RemoveESP(Object)
+            elseif not Data.Root or not Data.Root.Parent then
+                Data.Root = GetRoot(Object)
+            end
+        end
+    end
+
+    local RenderInterval = 1 / math.max(Settings.RenderTime, 1)
+
+    if Now - LastHeartbeat < RenderInterval then
+        return
+    end
+
+    LastHeartbeat = Now
+
+    local Processed = 0
+    local Budget = math.max(Settings.FrameBudget, 1)
+
+    while Library.SchedulerSize > 0 and Processed < Budget do
+        local Node
+
+        Node, Library.SchedulerSize = HeapPop(
+            Library.Scheduler,
+            Library.SchedulerSize
+        )
+
+        if not Node then
+            break
+        end
+
+        if Node.Epoch ~= Library.SchedulerEpoch then
+            continue
+        end
+
+        local Object = Node.Object
+        local Data = Library.Cache[Object]
+
+        if not Data then
+            continue
+        end
+
+        if Data.ScheduleVersion ~= Node.Version then
+            continue
+        end
+
+        if Node.Time > Now then
+            Library.SchedulerSize = HeapPush(
+                Library.Scheduler,
+                Library.SchedulerSize,
+                Node
+            )
+            break
+        end
+
+        Processed += 1
+
+        if not Object.Parent then
             Library:RemoveESP(Object)
             continue
         end
 
         local RootPart = Data.Root
+
         if not RootPart or not RootPart.Parent then
-            Data.Root = GetRoot(Object)
-            RootPart = Data.Root
-            if not RootPart then continue end
+            RootPart = GetRoot(Object)
+            Data.Root = RootPart
+
+            if not RootPart then
+                ScheduleObject(Data, Now + 0.5)
+                continue
+            end
         end
 
-        local ScreenPosition, IsOnScreen = Camera:WorldToViewportPoint(RootPart.Position)
-        local DisplayColor = Library.Settings.Rainbow and RainbowColor or Data.Color
-        local CalculatedDistance = Data.Tag.CurrentDistance
+        local Position = RootPart.Position
+        local CameraPosition = Camera.CFrame.Position
 
-        if CalculatedDistance > Library.Settings.MaxDistance then
-            Data.Tag.Enabled = false
-            Data.Text.Visible = false
-            Data.Box.Enabled = false
-            Data.Line.Visible = false
-            Data.Arrow.Visible = false
+        local DX = Position.X - CameraPosition.X
+        local DY = Position.Y - CameraPosition.Y
+        local DZ = Position.Z - CameraPosition.Z
+
+        local DistanceSquared = DX * DX + DY * DY + DZ * DZ
+        local MaxDistance = Settings.MaxDistance
+        local MaxDistanceSquared = MaxDistance * MaxDistance
+
+        if DistanceSquared > MaxDistanceSquared then
+            SetVisible(Data, false, false, false, false, false)
+
+            ScheduleObject(Data, Now + GetLODInterval(
+                DistanceSquared,
+                Settings.RenderTime,
+                Settings,
+                Library.ESPCount
+            ))
+
             continue
         end
 
-        if IsOnScreen then
-            local ESPMode = Library.Settings.ESPMode
-            local ShowHighlight = ESPMode == "Highlight" or ESPMode == "Highlight/Text"
-            local ShowText = ESPMode == "Text" or ESPMode == "Highlight/Text"
+        local Distance = math.sqrt(DistanceSquared)
+        local LastPosition = Data.LastPosition
 
-            Data.Tag.Enabled = true
-            Data.Arrow.Visible = false
+        local MovementDX = Position.X - LastPosition.X
+        local MovementDY = Position.Y - LastPosition.Y
+        local MovementDZ = Position.Z - LastPosition.Z
+
+        local MovementSquared =
+            MovementDX * MovementDX
+            + MovementDY * MovementDY
+            + MovementDZ * MovementDZ
+
+        Data.LastPosition = Position
+        Data.LastDistance = Distance
+
+        local Moving = MovementSquared > 0.0004
+
+        local LODLevel
+
+        if DistanceSquared <= 10000 then
+            LODLevel = 1
+        elseif DistanceSquared <= 62500 then
+            LODLevel = 2
+        elseif DistanceSquared <= 250000 then
+            LODLevel = 3
+        elseif DistanceSquared <= 1000000 then
+            LODLevel = 4
+        else
+            LODLevel = 5
+        end
+
+        if Data.LODLevel ~= LODLevel then
+            Data.LODLevel = LODLevel
+            Data.NextMetadataUpdate = 0
+        end
+
+        local ScreenPosition, IsOnScreen =
+            Camera:WorldToViewportPoint(Position)
+
+        local DisplayColor =
+            Settings.Rainbow
+            and Library.RainbowColor
+            or Data.Color
+
+        if IsOnScreen then
+            local ESPMode = Settings.ESPMode
+            local ShowHighlight =
+                ESPMode == "Highlight"
+                or ESPMode == "Highlight/Text"
+
+            local ShowText =
+                ESPMode == "Text"
+                or ESPMode == "Highlight/Text"
+
+            SetVisible(
+                Data,
+                true,
+                ShowText,
+                ShowHighlight,
+                Settings.Tracers and Distance < 1500,
+                false
+            )
 
             if ShowText then
-                Data.Text.Visible = true
-                Data.Text.TextColor3 = DisplayColor
-                Data.Text.TextSize = Library.Settings.TextSize * FOVScale
-                local DistanceStr = ""
-                if Library.Settings.Distance then
-                    DistanceStr = "\n[" .. math.floor(CalculatedDistance) .. "m]"
+                SetTextColor(Data, DisplayColor)
+
+                local TextSize = Settings.TextSize * FOVScale
+
+                if Data.LastTextSize ~= TextSize then
+                    Data.Text.TextSize = TextSize
+                    Data.LastTextSize = TextSize
                 end
-                Data.Text.Text = Data.Name .. DistanceStr
-            else
-                Data.Text.Visible = false
+
+                if Now >= Data.NextMetadataUpdate then
+                    local DistanceFloor = math.floor(Distance)
+
+                    if Settings.Distance then
+                        if Data.LastDisplayedDistance ~= DistanceFloor then
+                            Data.Text.Text =
+                                Data.Name
+                                .. "\n["
+                                .. DistanceFloor
+                                .. "m]"
+
+                            Data.LastDisplayedDistance = DistanceFloor
+                        end
+                    elseif Data.LastDisplayedDistance ~= -2 then
+                        Data.Text.Text = Data.Name
+                        Data.LastDisplayedDistance = -2
+                    end
+
+                    Data.NextMetadataUpdate =
+                        Now + Settings.MetadataInterval
+                end
             end
 
             if ShowHighlight then
-                Data.Box.Enabled = true
-                Data.Box.FillColor = DisplayColor
-            else
-                Data.Box.Enabled = false
+                SetBoxColor(Data, DisplayColor)
             end
 
-            if Library.Settings.Tracers and CalculatedDistance < 1500 then
-                local ScreenPoint = Vector2.new(ScreenPosition.X, ScreenPosition.Y)
-                local OriginPoint = Vector2.new(ScreenCenter.X, ViewportSize.Y)
-                local VectorDifference = ScreenPoint - OriginPoint
+            if Settings.Tracers and Distance < 1500 then
+                SetLineColor(Data, DisplayColor)
 
-                Data.Line.Visible = true
-                Data.Line.BackgroundColor3 = DisplayColor
-                Data.Line.Size = UDim2.new(0, VectorDifference.Magnitude, 0, 1)
-                Data.Line.Position = UDim2.new(0, OriginPoint.X + VectorDifference.X / 2, 0, OriginPoint.Y + VectorDifference.Y / 2)
-                Data.Line.Rotation = math.deg(math.atan2(VectorDifference.Y, VectorDifference.X))
-            else
-                Data.Line.Visible = false
+                local SX = ScreenPosition.X
+                local SY = ScreenPosition.Y
+
+                local OriginX = ScreenCenter.X
+                local OriginY = ViewportSize.Y
+
+                local DifferenceX = SX - OriginX
+                local DifferenceY = SY - OriginY
+
+                local LengthSquared =
+                    DifferenceX * DifferenceX
+                    + DifferenceY * DifferenceY
+
+                local Length = math.sqrt(LengthSquared)
+                local Rotation = math.deg(
+                    math.atan2(DifferenceY, DifferenceX)
+                )
+
+                if
+                    Data.LastTracerX ~= SX
+                    or Data.LastTracerY ~= SY
+                    or Data.LastTracerLength ~= Length
+                    or Data.LastTracerRotation ~= Rotation
+                then
+                    Data.Line.Size =
+                        UDim2.new(0, Length, 0, 1)
+
+                    Data.Line.Position =
+                        UDim2.new(
+                            0,
+                            OriginX + DifferenceX * 0.5,
+                            0,
+                            OriginY + DifferenceY * 0.5
+                        )
+
+                    Data.Line.Rotation = Rotation
+
+                    Data.LastTracerX = SX
+                    Data.LastTracerY = SY
+                    Data.LastTracerLength = Length
+                    Data.LastTracerRotation = Rotation
+                end
             end
         else
-            Data.Tag.Enabled = false
-            Data.Text.Visible = false
-            Data.Box.Enabled = false
-            Data.Line.Visible = false
+            SetVisible(
+                Data,
+                false,
+                false,
+                false,
+                false,
+                Settings.Arrows
+            )
 
-            if Library.Settings.Arrows then
-                local ObjectRelativeSpace = CameraCFrame:PointToObjectSpace(RootPart.Position)
-                local DirectionAngle = math.atan2(-ObjectRelativeSpace.X, -ObjectRelativeSpace.Z)
+            if Settings.Arrows then
+                SetArrowColor(Data, DisplayColor)
+
+                local Relative =
+                    Camera.CFrame:PointToObjectSpace(Position)
+
+                local DirectionAngle =
+                    math.atan2(-Relative.X, -Relative.Z)
+
                 local Radius = ViewportSize.Y * 0.4
 
-                Data.Arrow.Visible = true
-                Data.Arrow.ImageColor3 = DisplayColor
-                Data.Arrow.Position = UDim2.new(0, ScreenCenter.X + math.sin(DirectionAngle) * Radius, 0, ScreenCenter.Y + math.cos(DirectionAngle) * Radius)
-                Data.Arrow.Rotation = math.deg(DirectionAngle)
-            else
-                Data.Arrow.Visible = false
+                local ArrowX =
+                    ScreenCenter.X
+                    + math.sin(DirectionAngle) * Radius
+
+                local ArrowY =
+                    ScreenCenter.Y
+                    + math.cos(DirectionAngle) * Radius
+
+                local ArrowRotation =
+                    math.deg(DirectionAngle)
+
+                if
+                    Data.LastArrowX ~= ArrowX
+                    or Data.LastArrowY ~= ArrowY
+                    or Data.LastArrowRotation ~= ArrowRotation
+                then
+                    Data.Arrow.Position =
+                        UDim2.new(
+                            0,
+                            ArrowX,
+                            0,
+                            ArrowY
+                        )
+
+                    Data.Arrow.Rotation = ArrowRotation
+
+                    Data.LastArrowX = ArrowX
+                    Data.LastArrowY = ArrowY
+                    Data.LastArrowRotation = ArrowRotation
+                end
             end
         end
+
+        local Interval = GetLODInterval(
+            DistanceSquared,
+            Settings.RenderTime,
+            Settings,
+            Library.ESPCount
+        )
+
+        if Settings.MovementPriority and Moving then
+            Interval *= 0.55
+        elseif Settings.MovementPriority then
+            Interval *= 1.15
+        end
+
+        ScheduleObject(
+            Data,
+            Now + math.max(Interval, 1 / 60)
+        )
     end
 end)
 
