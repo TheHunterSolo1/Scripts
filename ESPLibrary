@@ -35,11 +35,11 @@ local Library = {
     },
 
     Cache = {},
-    ActiveDelays = {},
     TweenInfoFadeIn = nil,
     TweenInfoFadeOut = nil,
 
     ESPCount = 0,
+
     Scheduler = {},
     SchedulerSize = 0,
     SchedulerEpoch = 0,
@@ -69,8 +69,8 @@ local function GetRoot(Obj)
     end
 
     if Obj:IsA("Model") then
-        return Obj.PrimaryPart
-            or Obj:FindFirstChild("HumanoidRootPart")
+        return Obj:FindFirstChild("HumanoidRootPart")
+            or Obj.PrimaryPart
             or Obj:FindFirstChildWhichIsA("BasePart")
     end
 
@@ -81,8 +81,17 @@ local function GetRoot(Obj)
     return nil
 end
 
+local function GetExistingHighlight(Obj)
+    if not Obj then
+        return nil
+    end
+
+    return Obj:FindFirstChildWhichIsA("Highlight", true)
+end
+
 local function HeapPush(Heap, Size, Node)
     Size += 1
+
     local Index = Size
 
     while Index > 1 do
@@ -108,6 +117,7 @@ local function HeapPop(Heap, Size)
 
     local Root = Heap[1]
     local Last = Heap[Size]
+
     Heap[Size] = nil
     Size -= 1
 
@@ -119,6 +129,7 @@ local function HeapPop(Heap, Size)
 
     while true do
         local Left = Index * 2
+
         if Left > Size then
             break
         end
@@ -158,9 +169,7 @@ local function GetLODInterval(DistanceSquared, RenderTime, Settings, ESPCount)
         SpeedMultiplier = Settings.LODFar
     end
 
-    if SpeedMultiplier <= 0 then
-        SpeedMultiplier = 0.01
-    end
+    SpeedMultiplier = math.max(SpeedMultiplier, 0.01)
 
     if Settings.AdaptiveLOD then
         if ESPCount > 150 then
@@ -172,8 +181,10 @@ local function GetLODInterval(DistanceSquared, RenderTime, Settings, ESPCount)
         end
     end
 
-    local BaseInterval = 1 / math.max(RenderTime, 1)
-    return math.max(BaseInterval / SpeedMultiplier, 1 / 60)
+    return math.max(
+        1 / math.max(RenderTime, 1) / SpeedMultiplier,
+        1 / 60
+    )
 end
 
 local function SetVisible(Data, Tag, Text, Box, Line, Arrow)
@@ -210,10 +221,10 @@ local function SetTextColor(Data, Color)
     end
 end
 
-local function SetBoxColor(Data, Color)
-    if Data.LastBoxColor ~= Color then
+local function SetHighlightColor(Data, Color)
+    if Data.LastHighlightColor ~= Color then
         Data.Box.FillColor = Color
-        Data.LastBoxColor = Color
+        Data.LastHighlightColor = Color
     end
 end
 
@@ -260,6 +271,7 @@ local function InvalidateScheduler()
     for _, Data in pairs(Library.Cache) do
         Data.ScheduleVersion += 1
         Data.NextUpdate = Now
+
         ScheduleData(Data, Now)
     end
 end
@@ -407,13 +419,31 @@ function Library:AddESP(Cfg)
     Label.Text = InitialText
     Label.Parent = Billboard
 
-    local Highlight = Instance.new("Highlight")
+    local Highlight = GetExistingHighlight(Obj)
+    local OwnsHighlight = false
+
+    if not Highlight then
+        Highlight = Instance.new("Highlight")
+        Highlight.Adornee = Obj
+        Highlight.Parent = Obj
+        OwnsHighlight = true
+    end
+
+    local OriginalHighlight = {
+        Enabled = Highlight.Enabled,
+        Adornee = Highlight.Adornee,
+        FillColor = Highlight.FillColor,
+        FillTransparency = Highlight.FillTransparency,
+        OutlineColor = Highlight.OutlineColor,
+        OutlineTransparency = Highlight.OutlineTransparency,
+        DepthMode = Highlight.DepthMode,
+    }
+
     Highlight.Adornee = Obj
     Highlight.FillColor = InitialColor
     Highlight.FillTransparency = 1
     Highlight.OutlineTransparency = 1
     Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    Highlight.Parent = Obj
 
     local Line = Instance.new("Frame")
     Line.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -460,6 +490,7 @@ function Library:AddESP(Cfg)
 
     local Data = {
         Object = Obj,
+
         Tag = Billboard,
         Text = Label,
         Line = Line,
@@ -470,6 +501,9 @@ function Library:AddESP(Cfg)
         Color = InitialColor,
         Root = Root,
 
+        OwnsHighlight = OwnsHighlight,
+        OriginalHighlight = OriginalHighlight,
+
         NextUpdate = 0,
         NextMetadataUpdate = 0,
 
@@ -478,11 +512,12 @@ function Library:AddESP(Cfg)
         LastDisplayedDistance = -1,
 
         LastTextColor = InitialColor,
-        LastBoxColor = InitialColor,
+        LastHighlightColor = InitialColor,
         LastLineColor = InitialColor,
         LastArrowColor = InitialColor,
 
         LastTextSize = self.Settings.TextSize,
+
         LastTagEnabled = true,
         LastTextVisible = false,
         LastBoxEnabled = false,
@@ -498,17 +533,16 @@ function Library:AddESP(Cfg)
         LastArrowY = -1,
         LastArrowRotation = -999,
 
-        LastOnScreen = nil,
-        LastMode = nil,
-
         LODLevel = -1,
         ScheduleVersion = 0,
+        FadeToken = 0,
     }
 
     self.Cache[Obj] = Data
     self.ESPCount += 1
 
     local Now = os.clock()
+
     Data.NextMetadataUpdate = Now
     ScheduleObject(Data, Now)
 end
@@ -522,13 +556,15 @@ function Library:RemoveESP(Obj)
 
     self.Cache[Obj] = nil
     self.ESPCount = math.max(self.ESPCount - 1, 0)
+
     Data.ScheduleVersion += 1
 
     local FT = self.Settings.FadeTime
 
     if FT > 0 then
-        local Token = (Data.FadeToken or 0) + 1
-        Data.FadeToken = Token
+        Data.FadeToken += 1
+
+        local Token = Data.FadeToken
 
         TweenService:Create(
             Data.Text,
@@ -553,6 +589,22 @@ function Library:RemoveESP(Obj)
                 return
             end
 
+            if Data.OwnsHighlight then
+                if Data.Box then
+                    Data.Box:Destroy()
+                end
+            elseif Data.Box and Data.Box.Parent then
+                local Original = Data.OriginalHighlight
+
+                Data.Box.Enabled = Original.Enabled
+                Data.Box.Adornee = Original.Adornee
+                Data.Box.FillColor = Original.FillColor
+                Data.Box.FillTransparency = Original.FillTransparency
+                Data.Box.OutlineColor = Original.OutlineColor
+                Data.Box.OutlineTransparency = Original.OutlineTransparency
+                Data.Box.DepthMode = Original.DepthMode
+            end
+
             if Data.Tag then
                 Data.Tag:Destroy()
             end
@@ -561,25 +613,33 @@ function Library:RemoveESP(Obj)
                 Data.Line:Destroy()
             end
 
-            if Data.Box then
-                Data.Box:Destroy()
-            end
-
             if Data.Arrow then
                 Data.Arrow:Destroy()
             end
         end)
     else
+        if Data.OwnsHighlight then
+            if Data.Box then
+                Data.Box:Destroy()
+            end
+        elseif Data.Box and Data.Box.Parent then
+            local Original = Data.OriginalHighlight
+
+            Data.Box.Enabled = Original.Enabled
+            Data.Box.Adornee = Original.Adornee
+            Data.Box.FillColor = Original.FillColor
+            Data.Box.FillTransparency = Original.FillTransparency
+            Data.Box.OutlineColor = Original.OutlineColor
+            Data.Box.OutlineTransparency = Original.OutlineTransparency
+            Data.Box.DepthMode = Original.DepthMode
+        end
+
         if Data.Tag then
             Data.Tag:Destroy()
         end
 
         if Data.Line then
             Data.Line:Destroy()
-        end
-
-        if Data.Box then
-            Data.Box:Destroy()
         end
 
         if Data.Arrow then
@@ -608,12 +668,11 @@ function Library:UpdateESP(Obj, NewText, NewColor)
             Data.Arrow.ImageColor3 = NewColor
 
             Data.LastTextColor = NewColor
-            Data.LastBoxColor = NewColor
+            Data.LastHighlightColor = NewColor
             Data.LastLineColor = NewColor
             Data.LastArrowColor = NewColor
         end
 
-        Data.NextUpdate = 0
         ScheduleObject(Data, os.clock())
     else
         self:AddESP({
@@ -649,7 +708,7 @@ function Library:BulkUpdateESP(UpdateTable)
                 Data.Arrow.ImageColor3 = Color
 
                 Data.LastTextColor = Color
-                Data.LastBoxColor = Color
+                Data.LastHighlightColor = Color
                 Data.LastLineColor = Color
                 Data.LastArrowColor = Color
             end
@@ -687,12 +746,24 @@ function Library:Unload()
     self.SchedulerSize = 0
     self.SchedulerEpoch += 1
 
-    for DelayId in pairs(self.ActiveDelays) do
-        self.ActiveDelays[DelayId] = nil
-    end
-
     for Obj, Data in pairs(self.Cache) do
         self.Cache[Obj] = nil
+
+        if Data.OwnsHighlight then
+            if Data.Box then
+                Data.Box:Destroy()
+            end
+        elseif Data.Box and Data.Box.Parent then
+            local Original = Data.OriginalHighlight
+
+            Data.Box.Enabled = Original.Enabled
+            Data.Box.Adornee = Original.Adornee
+            Data.Box.FillColor = Original.FillColor
+            Data.Box.FillTransparency = Original.FillTransparency
+            Data.Box.OutlineColor = Original.OutlineColor
+            Data.Box.OutlineTransparency = Original.OutlineTransparency
+            Data.Box.DepthMode = Original.DepthMode
+        end
 
         if Data.Tag then
             Data.Tag:Destroy()
@@ -700,10 +771,6 @@ function Library:Unload()
 
         if Data.Line then
             Data.Line:Destroy()
-        end
-
-        if Data.Box then
-            Data.Box:Destroy()
         end
 
         if Data.Arrow then
@@ -745,6 +812,7 @@ Library.Connection = RS.Heartbeat:Connect(function()
     local CurrentFOV = Camera.FieldOfView
 
     local CameraChanged = Camera ~= Library.LastCamera
+
     local ViewportChanged =
         CurrentViewport.X ~= Library.LastViewportX
         or CurrentViewport.Y ~= Library.LastViewportY
@@ -778,10 +846,27 @@ Library.Connection = RS.Heartbeat:Connect(function()
             elseif not Data.Root or not Data.Root.Parent then
                 Data.Root = GetRoot(Object)
             end
+
+            if not Data.Box or not Data.Box.Parent then
+                if Data.OwnsHighlight then
+                    Data.Box = Instance.new("Highlight")
+                    Data.Box.Adornee = Object
+                    Data.Box.FillColor = Data.Color
+                    Data.Box.FillTransparency = 1
+                    Data.Box.OutlineTransparency = 1
+                    Data.Box.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    Data.Box.Parent = Object
+
+                    Data.LastHighlightColor = Data.Color
+                else
+                    Data.Box = GetExistingHighlight(Object)
+                end
+            end
         end
     end
 
-    local RenderInterval = 1 / math.max(Settings.RenderTime, 1)
+    local RenderInterval =
+        1 / math.max(Settings.RenderTime, 1)
 
     if Now - LastHeartbeat < RenderInterval then
         return
@@ -795,10 +880,11 @@ Library.Connection = RS.Heartbeat:Connect(function()
     while Library.SchedulerSize > 0 and Processed < Budget do
         local Node
 
-        Node, Library.SchedulerSize = HeapPop(
-            Library.Scheduler,
-            Library.SchedulerSize
-        )
+        Node, Library.SchedulerSize =
+            HeapPop(
+                Library.Scheduler,
+                Library.SchedulerSize
+            )
 
         if not Node then
             break
@@ -820,11 +906,13 @@ Library.Connection = RS.Heartbeat:Connect(function()
         end
 
         if Node.Time > Now then
-            Library.SchedulerSize = HeapPush(
-                Library.Scheduler,
-                Library.SchedulerSize,
-                Node
-            )
+            Library.SchedulerSize =
+                HeapPush(
+                    Library.Scheduler,
+                    Library.SchedulerSize,
+                    Node
+                )
+
             break
         end
 
@@ -848,30 +936,46 @@ Library.Connection = RS.Heartbeat:Connect(function()
         end
 
         local Position = RootPart.Position
-        local CameraPosition = Camera.CFrame.Position
+        local CameraCFrame = Camera.CFrame
+        local CameraPosition = CameraCFrame.Position
 
         local DX = Position.X - CameraPosition.X
         local DY = Position.Y - CameraPosition.Y
         local DZ = Position.Z - CameraPosition.Z
 
-        local DistanceSquared = DX * DX + DY * DY + DZ * DZ
+        local DistanceSquared =
+            DX * DX
+            + DY * DY
+            + DZ * DZ
+
         local MaxDistance = Settings.MaxDistance
         local MaxDistanceSquared = MaxDistance * MaxDistance
 
         if DistanceSquared > MaxDistanceSquared then
-            SetVisible(Data, false, false, false, false, false)
+            SetVisible(
+                Data,
+                false,
+                false,
+                false,
+                false,
+                false
+            )
 
-            ScheduleObject(Data, Now + GetLODInterval(
-                DistanceSquared,
-                Settings.RenderTime,
-                Settings,
-                Library.ESPCount
-            ))
+            ScheduleObject(
+                Data,
+                Now + GetLODInterval(
+                    DistanceSquared,
+                    Settings.RenderTime,
+                    Settings,
+                    Library.ESPCount
+                )
+            )
 
             continue
         end
 
         local Distance = math.sqrt(DistanceSquared)
+
         local LastPosition = Data.LastPosition
 
         local MovementDX = Position.X - LastPosition.X
@@ -884,27 +988,19 @@ Library.Connection = RS.Heartbeat:Connect(function()
             + MovementDZ * MovementDZ
 
         Data.LastPosition = Position
-        Data.LastDistance = Distance
 
         local Moving = MovementSquared > 0.0004
 
-        local LODLevel
-
         if DistanceSquared <= 10000 then
-            LODLevel = 1
+            Data.LODLevel = 1
         elseif DistanceSquared <= 62500 then
-            LODLevel = 2
+            Data.LODLevel = 2
         elseif DistanceSquared <= 250000 then
-            LODLevel = 3
+            Data.LODLevel = 3
         elseif DistanceSquared <= 1000000 then
-            LODLevel = 4
+            Data.LODLevel = 4
         else
-            LODLevel = 5
-        end
-
-        if Data.LODLevel ~= LODLevel then
-            Data.LODLevel = LODLevel
-            Data.NextMetadataUpdate = 0
+            Data.LODLevel = 5
         end
 
         local ScreenPosition, IsOnScreen =
@@ -917,6 +1013,7 @@ Library.Connection = RS.Heartbeat:Connect(function()
 
         if IsOnScreen then
             local ESPMode = Settings.ESPMode
+
             local ShowHighlight =
                 ESPMode == "Highlight"
                 or ESPMode == "Highlight/Text"
@@ -937,7 +1034,8 @@ Library.Connection = RS.Heartbeat:Connect(function()
             if ShowText then
                 SetTextColor(Data, DisplayColor)
 
-                local TextSize = Settings.TextSize * FOVScale
+                local TextSize =
+                    Settings.TextSize * FOVScale
 
                 if Data.LastTextSize ~= TextSize then
                     Data.Text.TextSize = TextSize
@@ -955,7 +1053,8 @@ Library.Connection = RS.Heartbeat:Connect(function()
                                 .. DistanceFloor
                                 .. "m]"
 
-                            Data.LastDisplayedDistance = DistanceFloor
+                            Data.LastDisplayedDistance =
+                                DistanceFloor
                         end
                     elseif Data.LastDisplayedDistance ~= -2 then
                         Data.Text.Text = Data.Name
@@ -967,8 +1066,8 @@ Library.Connection = RS.Heartbeat:Connect(function()
                 end
             end
 
-            if ShowHighlight then
-                SetBoxColor(Data, DisplayColor)
+            if ShowHighlight and Data.Box and Data.Box.Parent then
+                SetHighlightColor(Data, DisplayColor)
             end
 
             if Settings.Tracers and Distance < 1500 then
@@ -983,13 +1082,16 @@ Library.Connection = RS.Heartbeat:Connect(function()
                 local DifferenceX = SX - OriginX
                 local DifferenceY = SY - OriginY
 
-                local LengthSquared =
+                local Length = math.sqrt(
                     DifferenceX * DifferenceX
                     + DifferenceY * DifferenceY
+                )
 
-                local Length = math.sqrt(LengthSquared)
                 local Rotation = math.deg(
-                    math.atan2(DifferenceY, DifferenceX)
+                    math.atan2(
+                        DifferenceY,
+                        DifferenceX
+                    )
                 )
 
                 if
@@ -1031,12 +1133,16 @@ Library.Connection = RS.Heartbeat:Connect(function()
                 SetArrowColor(Data, DisplayColor)
 
                 local Relative =
-                    Camera.CFrame:PointToObjectSpace(Position)
+                    CameraCFrame:PointToObjectSpace(Position)
 
                 local DirectionAngle =
-                    math.atan2(-Relative.X, -Relative.Z)
+                    math.atan2(
+                        -Relative.X,
+                        -Relative.Z
+                    )
 
-                local Radius = ViewportSize.Y * 0.4
+                local Radius =
+                    ViewportSize.Y * 0.4
 
                 local ArrowX =
                     ScreenCenter.X
@@ -1062,31 +1168,39 @@ Library.Connection = RS.Heartbeat:Connect(function()
                             ArrowY
                         )
 
-                    Data.Arrow.Rotation = ArrowRotation
+                    Data.Arrow.Rotation =
+                        ArrowRotation
 
                     Data.LastArrowX = ArrowX
                     Data.LastArrowY = ArrowY
-                    Data.LastArrowRotation = ArrowRotation
+                    Data.LastArrowRotation =
+                        ArrowRotation
                 end
             end
         end
 
-        local Interval = GetLODInterval(
-            DistanceSquared,
-            Settings.RenderTime,
-            Settings,
-            Library.ESPCount
-        )
+        local Interval =
+            GetLODInterval(
+                DistanceSquared,
+                Settings.RenderTime,
+                Settings,
+                Library.ESPCount
+            )
 
-        if Settings.MovementPriority and Moving then
-            Interval *= 0.55
-        elseif Settings.MovementPriority then
-            Interval *= 1.15
+        if Settings.MovementPriority then
+            if Moving then
+                Interval *= 0.55
+            else
+                Interval *= 1.15
+            end
         end
 
         ScheduleObject(
             Data,
-            Now + math.max(Interval, 1 / 60)
+            Now + math.max(
+                Interval,
+                1 / 60
+            )
         )
     end
 end)
