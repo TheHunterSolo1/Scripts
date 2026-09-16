@@ -1,63 +1,56 @@
 local ScriptContext = game:GetService("ScriptContext")
 
 local genv = (getgenv and getgenv()) or _G or shared
-local listening = false
+local hooked = false
 local seen = {}
 
-local function safeTraceback(level)
-	if not debug or not debug.traceback then return "" end
-	local ok, trace = pcall(debug.traceback, "", level or 2)
-	return ok and type(trace) == "string" and trace or ""
-end
-
-local function logError(msg, trace, inst)
-	local scriptPath = inst and inst:GetFullName() or "Loadstring"
+local function report(msg, trace, inst)
+	local source = inst and inst:GetFullName() or "Loadstring"
 	local line = msg:match(":(%d+):") or (trace and type(trace) == "string" and trace:match(":(%d+):")) or "?"
-	
-	local key = scriptPath .. ":" .. line .. ":" .. tostring(msg)
+
+	local key = source .. ":" .. line .. ":" .. tostring(msg)
 	if seen[key] then return end
 	seen[key] = true
 
-	warn("\n--------------------------------------------------\n[ERROR FOUND] Line: " .. line .. " | Script: " .. scriptPath .. "\n-> Details: " .. tostring(msg) .. "\n--------------------------------------------------\n")
+	warn("\n--------------------------------------------------\n[ERROR FOUND] Line: " .. line .. " | Script: " .. source .. "\n-> Details: " .. tostring(msg) .. "\n--------------------------------------------------\n")
 end
 
-genv.ShowError = function(input, ...)
-	if not listening then
-		listening = true
+genv.ShowError = function(src, ...)
+	if not hooked then
+		hooked = true
 		pcall(function()
-			ScriptContext.Error:Connect(logError)
+			ScriptContext.Error:Connect(report)
 		end)
 	end
 
-	if not input then return false, "no input" end
+	if not src then return false, "no input" end
 
-	local fn = input
-	if type(input) == "string" then
-		local compiled, parseErr = loadstring(input)
+	local func = src
+	if type(src) == "string" then
+		local compiled, err = loadstring(src)
 		if not compiled then
-			logError(parseErr or "Compile failed", "", nil)
-			return false, parseErr
+			report(err or "Compile failed", "", nil)
+			return false, err
 		end
-		fn = compiled
+		func = compiled
 	end
 
-	if type(fn) ~= "function" then
-		logError("Invalid input type: " .. type(input), "", nil)
+	if type(func) ~= "function" then
+		report("Invalid input type: " .. type(src), "", nil)
 		return false, "invalid input"
 	end
 
-	local args = {...}
-	local errTrace = ""
-	
-	local ok, res = xpcall(function()
-		return fn(unpack(args))
-	end, function(e)
-		errTrace = safeTraceback(2)
+	local trace = ""
+	local ok, res = xpcall(func, function(e)
+		if debug and debug.traceback then
+			local tOk, tRes = pcall(debug.traceback, "", 2)
+			trace = tOk and tRes or ""
+		end
 		return e
-	end)
+	end, ...)
 
 	if not ok then
-		logError(res, errTrace, nil)
+		report(res, trace, nil)
 		return false, res
 	end
 
