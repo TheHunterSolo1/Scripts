@@ -1,60 +1,41 @@
-local ScriptContext = game:GetService("ScriptContext")
-
 local genv = (getgenv and getgenv()) or _G or shared
-local hooked = false
-local seen = {}
 
-local function report(msg, trace, inst)
-	local source = inst and inst:GetFullName() or "Loadstring"
-	local line = msg:match(":(%d+):") or (trace and type(trace) == "string" and trace:match(":(%d+):")) or "?"
+genv.ShowError = function(SRC, ...)
+	if not SRC then return end
 
-	local key = source .. ":" .. line .. ":" .. tostring(msg)
-	if seen[key] then return end
-	seen[key] = true
+	local sourceCode = type(SRC) == "string" and SRC or nil
+	local Compiled, CompileError
 
-	warn("\n--------------------------------------------------\n[ERROR FOUND] Line: " .. line .. " | Script: " .. source .. "\n-> Details: " .. tostring(msg) .. "\n--------------------------------------------------\n")
-end
-
-genv.ShowError = function(src, ...)
-	if not hooked then
-		hooked = true
-		pcall(function()
-			ScriptContext.Error:Connect(report)
-		end)
+	if sourceCode then
+		Compiled, CompileError = loadstring(sourceCode)
+	else
+		Compiled = SRC
 	end
 
-	if not src then return false, "no input" end
-
-	local func = src
-	if type(src) == "string" then
-		local compiled, err = loadstring(src)
-		if not compiled then
-			report(err or "Compile failed", "", nil)
-			return false, err
-		end
-		func = compiled
+	if not Compiled then
+		warn("--------------------------------------------------\n[Compile Error]: " .. tostring(CompileError) .. "\n--------------------------------------------------")
+		return nil
 	end
 
-	if type(func) ~= "function" then
-		report("Invalid input type: " .. type(src), "", nil)
-		return false, "invalid input"
-	end
-
-	local trace = ""
-	local ok, res = xpcall(func, function(e)
+	local args = {...}
+	local result
+	local Success, RuntimeError = xpcall(function()
+		result = Compiled(unpack(args))
+		return result
+	end, function(Error)
 		if debug and debug.traceback then
-			local tOk, tRes = pcall(debug.traceback, "", 2)
-			trace = tOk and tRes or ""
+			local ok, trace = pcall(debug.traceback, tostring(Error), 2)
+			if ok then return trace end
 		end
-		return e
-	end, ...)
+		return tostring(Error)
+	end)
 
-	if not ok then
-		report(res, trace, nil)
-		return false, res
+	if not Success then
+		warn("--------------------------------------------------\n[Runtime Error]:\n" .. tostring(RuntimeError) .. "\n--------------------------------------------------")
+		return nil
 	end
 
-	return true, res
+	return result
 end
 
-return true
+return genv.ShowError
