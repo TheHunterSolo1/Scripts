@@ -1,4 +1,10 @@
 local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+
+local CONFIG_PATH = "autofarm_config.json"
+local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
 
 local function notify(title, text, duration)
     pcall(function()
@@ -23,6 +29,40 @@ local function copyToClipboard(text)
     return false
 end
 
+local function readConfigFile()
+    if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" then
+        return nil
+    end
+    local ok, exists = pcall(isfile, CONFIG_PATH)
+    if not ok or not exists then
+        return nil
+    end
+    local readOk, content = pcall(readfile, CONFIG_PATH)
+    if not readOk or not content or content == "" then
+        return nil
+    end
+    local decodeOk, data = pcall(function()
+        return HttpService:JSONDecode(content)
+    end)
+    if not decodeOk or typeof(data) ~= "table" then
+        return nil
+    end
+    return data
+end
+
+local function writeConfigFile(data)
+    if typeof(writefile) ~= "function" then
+        return
+    end
+    local encodeOk, encoded = pcall(function()
+        return HttpService:JSONEncode(data)
+    end)
+    if not encodeOk or not encoded then
+        return
+    end
+    pcall(writefile, CONFIG_PATH, encoded)
+end
+
 notify("Auto Farm", "Wrapper started. Compiling...", 4)
 
 local SCRIPT_SOURCE = [==[
@@ -32,8 +72,13 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
+
+local CONFIG_PATH = "autofarm_config.json"
+local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
 
 local BOUND_POSITION = Vector3.new(0, -499, 0)
 local HEAD_SAFE_POSITION = Vector3.new(0, -400, 0)
@@ -90,6 +135,8 @@ local HEAD_SAFE_COOLDOWN = 2.5
 
 local THROWN_CLEAR_DELAY = 0.06
 
+local HOP_CHECK_INTERVAL = 0.5
+
 local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME, GRAND_FISSURE_NAME }
 
 local G = _G
@@ -114,6 +161,40 @@ local function randomString(length)
         parts[i] = chars:sub(idx, idx)
     end
     return table.concat(parts)
+end
+
+local function readConfig()
+    if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" then
+        return nil
+    end
+    local ok, exists = pcall(isfile, CONFIG_PATH)
+    if not ok or not exists then
+        return nil
+    end
+    local readOk, content = pcall(readfile, CONFIG_PATH)
+    if not readOk or not content or content == "" then
+        return nil
+    end
+    local decodeOk, data = pcall(function()
+        return HttpService:JSONDecode(content)
+    end)
+    if not decodeOk or typeof(data) ~= "table" then
+        return nil
+    end
+    return data
+end
+
+local function writeConfig(data)
+    if typeof(writefile) ~= "function" then
+        return
+    end
+    local encodeOk, encoded = pcall(function()
+        return HttpService:JSONEncode(data)
+    end)
+    if not encodeOk or not encoded then
+        return
+    end
+    pcall(writefile, CONFIG_PATH, encoded)
 end
 
 local function RUN()
@@ -153,6 +234,39 @@ local function RUN()
     HeadSafeZone.Transparency = 0.7
     HeadSafeZone.Parent = Workspace
 
+    local saved = readConfig()
+
+    local farmEnabled = false
+    local performanceMode = true
+    local stealthMode = false
+    local serverHopEnabled = false
+    local targetKills = 20
+    local showsKills = 0
+
+    if saved then
+        if typeof(saved.farmEnabled) == "boolean" then
+            farmEnabled = saved.farmEnabled
+        end
+        if typeof(saved.performanceMode) == "boolean" then
+            performanceMode = saved.performanceMode
+        end
+        if typeof(saved.stealthMode) == "boolean" then
+            stealthMode = saved.stealthMode
+        end
+        if typeof(saved.serverHopEnabled) == "boolean" then
+            serverHopEnabled = saved.serverHopEnabled
+        end
+        if typeof(saved.targetKills) == "number" then
+            targetKills = saved.targetKills
+        end
+        if typeof(saved.showsKills) == "number" then
+            showsKills = saved.showsKills
+        end
+    end
+
+    local configExisted = saved ~= nil
+    local configInitialized = false
+
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "AutoFarmPanel"
     ScreenGui.ResetOnSpawn = false
@@ -161,8 +275,8 @@ local function RUN()
 
     local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.Size = UDim2.fromOffset(250, 255)
-    Main.Position = UDim2.new(0.5, -125, 0.5, -127)
+    Main.Size = UDim2.fromOffset(250, 420)
+    Main.Position = UDim2.new(0.5, -125, 0.5, -210)
     Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
     Main.BackgroundTransparency = 0.05
     Main.BorderSizePixel = 0
@@ -256,11 +370,73 @@ local function RUN()
     local FarmButton, FarmState = makeToggle("AutoFarmToggle", "Auto Farm", UDim2.fromOffset(0, 55))
     local PerfButton, PerfState = makeToggle("PerformanceToggle", "Performance Mode", UDim2.fromOffset(0, 101))
     local StealthButton, StealthState = makeToggle("StealthToggle", "Stealth Mode", UDim2.fromOffset(0, 147))
+    local HopButton, HopState = makeToggle("ServerHopToggle", "Server Hop", UDim2.fromOffset(0, 193))
+
+    local KillsRow = Instance.new("Frame")
+    KillsRow.Name = "KillsRow"
+    KillsRow.Size = UDim2.new(1, 0, 0, 30)
+    KillsRow.Position = UDim2.fromOffset(0, 240)
+    KillsRow.BackgroundTransparency = 1
+    KillsRow.Parent = Main
+
+    local KillsLabel = Instance.new("TextLabel")
+    KillsLabel.Size = UDim2.new(0.55, 0, 1, 0)
+    KillsLabel.Position = UDim2.fromOffset(0, 0)
+    KillsLabel.BackgroundTransparency = 1
+    KillsLabel.Text = "Target Kills:"
+    KillsLabel.TextColor3 = Color3.fromRGB(210, 210, 220)
+    KillsLabel.TextSize = 13
+    KillsLabel.Font = Enum.Font.GothamMedium
+    KillsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    KillsLabel.Parent = KillsRow
+
+    local KillsBox = Instance.new("TextBox")
+    KillsBox.Name = "KillsBox"
+    KillsBox.Size = UDim2.new(0.45, 0, 1, 0)
+    KillsBox.Position = UDim2.new(0.55, 0, 0, 0)
+    KillsBox.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+    KillsBox.BorderSizePixel = 0
+    KillsBox.Text = tostring(targetKills)
+    KillsBox.TextColor3 = Color3.new(1, 1, 1)
+    KillsBox.TextSize = 13
+    KillsBox.Font = Enum.Font.GothamMedium
+    KillsBox.PlaceholderText = "20"
+    KillsBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    KillsBox.ClearTextOnFocus = false
+    KillsBox.Parent = KillsRow
+
+    local KillsBoxCorner = Instance.new("UICorner")
+    KillsBoxCorner.CornerRadius = UDim.new(0, 6)
+    KillsBoxCorner.Parent = KillsBox
+
+    local ShowsLabel = Instance.new("TextLabel")
+    ShowsLabel.Name = "ShowsLabel"
+    ShowsLabel.Size = UDim2.new(1, 0, 0, 18)
+    ShowsLabel.Position = UDim2.fromOffset(0, 274)
+    ShowsLabel.BackgroundTransparency = 1
+    ShowsLabel.Text = "Shows Kills: 0"
+    ShowsLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
+    ShowsLabel.TextSize = 11
+    ShowsLabel.Font = Enum.Font.Gotham
+    ShowsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ShowsLabel.Parent = Main
+
+    local CurrentLabel = Instance.new("TextLabel")
+    CurrentLabel.Name = "CurrentLabel"
+    CurrentLabel.Size = UDim2.new(1, 0, 0, 18)
+    CurrentLabel.Position = UDim2.fromOffset(0, 292)
+    CurrentLabel.BackgroundTransparency = 1
+    CurrentLabel.Text = "Current Kills: 0"
+    CurrentLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
+    CurrentLabel.TextSize = 11
+    CurrentLabel.Font = Enum.Font.Gotham
+    CurrentLabel.TextXAlignment = Enum.TextXAlignment.Left
+    CurrentLabel.Parent = Main
 
     local WarningLabel = Instance.new("TextLabel")
     WarningLabel.Name = "Warning"
     WarningLabel.Size = UDim2.new(1, 0, 0, 40)
-    WarningLabel.Position = UDim2.fromOffset(0, 195)
+    WarningLabel.Position = UDim2.fromOffset(0, 320)
     WarningLabel.BackgroundColor3 = Color3.fromRGB(60, 25, 25)
     WarningLabel.BackgroundTransparency = 0.15
     WarningLabel.BorderSizePixel = 0
@@ -275,10 +451,6 @@ local function RUN()
     local WarnCorner = Instance.new("UICorner")
     WarnCorner.CornerRadius = UDim.new(0, 8)
     WarnCorner.Parent = WarningLabel
-
-    local farmEnabled = false
-    local performanceMode = true
-    local stealthMode = false
 
     local protectionActive = false
     local rotationRunning = false
@@ -326,6 +498,21 @@ local function RUN()
     local cachedBackpack = nil
     local thrownConnection = nil
 
+    local killsValue = nil
+    local lastHopCheck = 0
+    local hopInProgress = false
+
+    local function persistConfig()
+        writeConfig({
+            farmEnabled = farmEnabled,
+            performanceMode = performanceMode,
+            stealthMode = stealthMode,
+            serverHopEnabled = serverHopEnabled,
+            targetKills = targetKills,
+            showsKills = showsKills,
+        })
+    end
+
     local function setToggle(label, on)
         if on then
             label.Text = "ON"
@@ -345,6 +532,8 @@ local function RUN()
     local function refreshStatus()
         if protectionActive then
             Status.Text = "Mode: Boundary Zone"
+        elseif hopInProgress then
+            Status.Text = "Mode: Server Hopping"
         elseif isHeadSafeLocked() then
             Status.Text = "Mode: Head Safe Lock"
         elseif rotationRunning then
@@ -356,26 +545,56 @@ local function RUN()
         end
     end
 
+    local function refreshKillsDisplay()
+        ShowsLabel.Text = "Shows Kills: " .. tostring(showsKills)
+        if killsValue then
+            CurrentLabel.Text = "Current Kills: " .. tostring(killsValue.Value)
+        else
+            CurrentLabel.Text = "Current Kills: 0"
+        end
+    end
+
     FarmButton.Activated:Connect(function()
         farmEnabled = not farmEnabled
         setToggle(FarmState, farmEnabled)
+        persistConfig()
         refreshStatus()
     end)
 
     PerfButton.Activated:Connect(function()
         performanceMode = not performanceMode
         setToggle(PerfState, performanceMode)
+        persistConfig()
     end)
 
     StealthButton.Activated:Connect(function()
         stealthMode = not stealthMode
         setToggle(StealthState, stealthMode)
         WarningLabel.Visible = stealthMode
+        persistConfig()
     end)
 
-    setToggle(FarmState, false)
-    setToggle(PerfState, true)
-    setToggle(StealthState, false)
+    HopButton.Activated:Connect(function()
+        serverHopEnabled = not serverHopEnabled
+        setToggle(HopState, serverHopEnabled)
+        persistConfig()
+    end)
+
+    KillsBox.FocusLost:Connect(function()
+        local n = tonumber(KillsBox.Text)
+        if n and n > 0 then
+            targetKills = math.floor(n)
+        end
+        KillsBox.Text = tostring(targetKills)
+        persistConfig()
+    end)
+
+    setToggle(FarmState, farmEnabled)
+    setToggle(PerfState, performanceMode)
+    setToggle(StealthState, stealthMode)
+    setToggle(HopState, serverHopEnabled)
+    WarningLabel.Visible = stealthMode
+    refreshKillsDisplay()
 
     Title.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1017,6 +1236,105 @@ local function RUN()
         end)
     end
 
+    local function fetchServerList()
+        local ok, response = pcall(function()
+            return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")
+        end)
+        if not ok or not response or response == "" then
+            return nil
+        end
+
+        local decodeOk, data = pcall(function()
+            return HttpService:JSONDecode(response)
+        end)
+        if not decodeOk or typeof(data) ~= "table" or typeof(data.data) ~= "table" then
+            return nil
+        end
+
+        return data.data
+    end
+
+    local function buildCandidates(servers)
+        local candidates = {}
+        for i = 1, #servers do
+            local s = servers[i]
+            if s.id and s.id ~= game.JobId then
+                local playing = s.playing or 0
+                local maxP = s.maxPlayers or 0
+                if maxP > 0 and playing > 0 and playing <= (maxP - 2) then
+                    table.insert(candidates, {
+                        id = s.id,
+                        playing = playing,
+                        maxPlayers = maxP,
+                    })
+                end
+            end
+        end
+        table.sort(candidates, function(a, b)
+            local aTarget = a.maxPlayers * 0.75
+            local bTarget = b.maxPlayers * 0.75
+            local aDiff = math.abs(a.playing - aTarget)
+            local bDiff = math.abs(b.playing - bTarget)
+            return aDiff < bDiff
+        end)
+        return candidates
+    end
+
+
+    local function doServerHop()
+        hopInProgress = true
+        refreshStatus()
+
+        persistConfig()
+
+        local code = "loadstring(game:HttpGet(\"" .. REEXEC_URL .. "\"))()"
+
+        if typeof(queue_on_teleport) == "function" then
+            pcall(queue_on_teleport, code)
+        end
+
+        local attempt = 0
+
+        while serverHopEnabled and hopInProgress do
+            attempt = attempt + 1
+
+            local servers = fetchServerList()
+
+            if servers then
+                local candidates = buildCandidates(servers)
+
+                for i = 1, #candidates do
+                    if not serverHopEnabled or not hopInProgress then
+                        break
+                    end
+
+                    local c = candidates[i]
+                    local tpOk = pcall(function()
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, c.id, LocalPlayer)
+                    end)
+
+                    if tpOk then
+                        return
+                    end
+
+                    task.wait(0.4)
+                end
+            end
+
+            if typeof(serverhop) == "function" then
+                local spOk = pcall(serverhop)
+                if spOk then
+                    return
+                end
+            end
+
+            task.wait(math.max(1, 2 - (attempt * 0.1)))
+        end
+
+        hopInProgress = false
+        refreshStatus()
+    end
+
     local function runRotationLoop()
         if rotationRunning or protectionActive then return end
         rotationRunning = true
@@ -1281,11 +1599,45 @@ local function RUN()
         lastCloneRebuild = os.clock()
     end
 
+    local function updateKillsFromLeaderstats()
+        if killsValue and killsValue.Parent then
+            return
+        end
+
+        killsValue = nil
+
+        local ls = LocalPlayer:FindFirstChild("leaderstats")
+        if not ls then
+            return
+        end
+
+        local k = ls:FindFirstChild("Kills")
+        if not k or not k:IsA("IntValue") then
+            return
+        end
+
+        killsValue = k
+
+        if not configInitialized then
+            configInitialized = true
+            local live = k.Value
+            if not configExisted then
+                showsKills = live
+            elseif live < showsKills then
+                showsKills = live
+            end
+            persistConfig()
+            refreshKillsDisplay()
+        end
+    end
+
     table.insert(permanentConnections, RunService.Heartbeat:Connect(function()
         local character = LocalPlayer.Character
         if not character then return end
         local root = getRoot()
         if not root then return end
+
+        updateKillsFromLeaderstats()
 
         local protected = character:FindFirstChild("AbsoluteImmortal") ~= nil
         if protected and not protectionActive then
@@ -1332,6 +1684,28 @@ local function RUN()
             end
         end
 
+        local hopNow = os.clock()
+        if serverHopEnabled and killsValue and not hopInProgress then
+            if hopNow - lastHopCheck >= HOP_CHECK_INTERVAL then
+                lastHopCheck = hopNow
+                local live = killsValue.Value
+
+                if live < showsKills then
+                    showsKills = live
+                    persistConfig()
+                    refreshKillsDisplay()
+                end
+
+                if (live - showsKills) >= targetKills then
+                    showsKills = live
+                    persistConfig()
+                    refreshKillsDisplay()
+                    task.spawn(doServerHop)
+                    return
+                end
+            end
+        end
+
         if farmEnabled then
             pressG()
             genericSpam()
@@ -1348,6 +1722,10 @@ local function RUN()
 
     table.insert(permanentConnections, RunService.RenderStepped:Connect(function()
         tickSpaceRelease()
+
+        if killsValue and killsValue.Parent then
+            CurrentLabel.Text = "Current Kills: " .. tostring(killsValue.Value)
+        end
 
         if performanceMode then
             if not thrownConnection then
@@ -1442,12 +1820,15 @@ local function RUN()
         lastRagdollFire = 0
         headSafeLockUntil = 0
         headSafeCooldownUntil = 0
+        killsValue = nil
 
         targetStates = {}
         lastWatchedCharacter = character
         watchCharacter(character)
         refreshStatus()
     end)
+
+    refreshKillsDisplay()
 end
 
 RUN()
@@ -1490,4 +1871,4 @@ if not ok then
     return
 end
 
-notify("Auto Farm", "Loaded successfully. Turn ON Auto Farm to activate.", 5)
+notify("Auto Farm", "Loaded successfully. Config applied.", 5)
