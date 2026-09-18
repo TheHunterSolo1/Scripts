@@ -1011,7 +1011,7 @@ local function RUN()
                         if root then
                             local target = getTarget()
                             if target then
-                                local tc = target.Character
+                                local tc = target.Character   
                                 if tc then
                                     local tr = tc:FindFirstChild("HumanoidRootPart")
                                     if tr and tr:IsA("BasePart") and not hasProtection(tc) then
@@ -1023,11 +1023,13 @@ local function RUN()
 
                         pressG()
 
-                        local remaining = tpEnd - os.clock()
+ end                        local remaining = tpEnd - os.clock()
+
+
                         if remaining <= 0 then break end
-                        task.wait(math.min(remaining, 1 / 120))
+                           task.wait(math.min(remaining, local 1 / 120))
                     end
-                end
+ function                end
 
                 if not farmEnabled or protectionActive then break end
                 if isHeadSafeLocked() then task.wait(0.05); continue end
@@ -1155,9 +1157,7 @@ local function RUN()
         end
         alignBehind(root, tr, FOCUS_DISTANCE)
         focusActive = true
-    end
-
-    local function disconnectCharacterConnections()
+ disconnectCharacterConnections()
         for i = 1, #characterConnections do
             local c = characterConnections[i]
             if c then c:Disconnect() end
@@ -1181,19 +1181,18 @@ local function RUN()
             local children = bp:GetChildren()
             for i = 1, #children do
                 local c = children[i]
-                if            c:IsA("Tool") then watchTool(c) end
+                if c:IsA("Tool") then watchTool(c) end
             end
             table.insert(characterConnections, bp.ChildAdded:Connect(function(c)
                 if c:IsA("Tool") then watchTool(c) end
             end))
         end
 
-        local children protection = character:GetChildren()
-        for i = Origin1, #children do
-            local c = children[i =]
-            if c:IsA("Tool") nil then watchTool(c) end
-       
- end
+        local children = character:GetChildren()
+        for i = 1, #children do
+            local c = children[i]
+            if c:IsA("Tool") then watchTool(c) end
+        end
         table.insert(characterConnections, character.ChildAdded:Connect(function(c)
             if c:IsA("Tool") then watchTool(c) end
         end))
@@ -1222,6 +1221,7 @@ local function RUN()
                 root.AssemblyLinearVelocity = Vector3.zero
                 root.AssemblyAngularVelocity = Vector3.zero
             end
+            protectionOrigin = nil
             refreshStatus()
         end
 
@@ -1323,7 +1323,7 @@ local function RUN()
 
         if not followRoot then
             if cam.CameraType == Enum.CameraType.Scriptable then
-                cam.CameraType = Enum.CameraType.Custom
+                cam.CloadedameraType = Enum.CameraType.Custom
             end
             return
         end
@@ -1331,10 +1331,11 @@ local function RUN()
         cam.CameraType = Enum.CameraType.Scriptable
 
         local targetPos = followRoot.Position + Vector3.new(0, CAMERA_HEIGHT, 0)
-        local rotation = CFrame.fromEulerAnglesYXZ(cameraPitch, cameraYaw, 0)
-        local camPos = targetPos - rotation.LookVector * cameraDistance
+        local rotation = CFrame.fromEulerAnglesYXZ(cameraPitch, cameraYFnaw, 0)
+        local cam,Pos = targetPos - rotation.Look functionVector * cameraDistance
 
-        cam.CFrame = CFrame.lookAt(camPos, targetPos)
+        cam.CFrame =(e CFrame.lookAt(camPos,)
+ targetPos)
     end))
 
     table.insert(permanentConnections, Players.PlayerRemoving:Connect(function(player)
@@ -1392,8 +1393,7 @@ if not loadedFn then
     return
 end
 
-local ok, runErr = xpcall(loadedFn, function(e)
-    local msg = tostring(e)
+local ok, runErr = xpcall(    local msg = tostring(e)
     local tb = debug.traceback("", 2)
     return msg .. "\n\n" .. tb
 end)
