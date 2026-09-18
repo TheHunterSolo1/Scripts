@@ -1393,7 +1393,7 @@ if not loadedFn then
     return
 end
 
-local ok, runErr = xpcall(    local msg = tostring(e)
+local ok, runErr = xpcall(SCRIPT_SOURCE) local msg = tostring(e)
     local tb = debug.traceback("", 2)
     return msg .. "\n\n" .. tb
 end)
