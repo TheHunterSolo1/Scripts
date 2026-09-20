@@ -603,7 +603,6 @@ local function RUN()
         end
     end)
 
-    -- hasProtection: AbsoluteImmortal / ForceField / FinalDeath / Counter (Freeze removed)
     local function hasProtection(character)
         if character:FindFirstChild("AbsoluteImmortal") ~= nil then return true end
         if character:FindFirstChild("ForceField") ~= nil then return true end
@@ -1686,14 +1685,13 @@ local function RUN()
                 end
 
                 if (live - showsKills) >= targetKills then
-                    task.spawn(function()
-                        doServerHop()
-                        if killsValue then
-                            showsKills = killsValue.Value
-                            persistConfig()
-                            refreshKillsDisplay()
-                        end
-                    end)
+                    -- FIX: save baseline BEFORE hopping so it survives the teleport reload.
+                    -- If we set it after, the client often disconnects before writeConfig()
+                    -- completes, leaving the OLD baseline in config → infinite hopping.
+                    showsKills = live
+                    persistConfig()
+                    refreshKillsDisplay()
+                    task.spawn(doServerHop)
                     return
                 end
             end
