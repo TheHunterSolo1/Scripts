@@ -50,24 +50,36 @@ local BOUND_POSITION = Vector3.new(0, -499, 0)
 local HEAD_SAFE_POSITION = Vector3.new(0, -400, 0)
 local SAFE_OFFSET = Vector3.new(0, 1, 0)
 
-local FOCUS_DISTANCE = 5
-local TWIN_FANGS_DISTANCE = 5
+local FOCUS_DISTANCE = 6.3
+local TWIN_FANGS_DISTANCE = 6.3
 
-local TWIN_FANGS_TP_DURATION = 2
+local TWIN_FANGS_TP_DURATION = 2.5
 local SAFE_ZONE_DURATION = 2
 local TWIN_FANGS_TO_GRAND_GAP = 1.5
 local GRAND_FISSURE_WAIT = 10
-local FALLBACK_TOOL_DURATION = 2.5
+local FALLBACK_TOOL_DURATION = 1
 local ROTATION_LOOP_DELAY = 0.15
 local GRAND_FISSURE_ACTIVATION_TIMEOUT = 5
 local TWIN_FANGS_ACTIVATION_TIMEOUT = 3
+local TABLE_FLIP_ACTIVATION_TIMEOUT = 3
 local ACTIVATION_RETRY_INTERVAL = 0.05
 
 local TWIN_FANGS_NAME = "Twin Fangs"
 local GRAND_FISSURE_NAME = "Grand Fissure"
+local TABLE_FLIP_NAME = "Table Flip"
+
+local TABLE_FLIP_CLUSTER_RADIUS = 50
+local TABLE_FLIP_FAR_DISTANCE = 200
+local TABLE_FLIP_KEEP_DISTANCE = 200
+local TABLE_FLIP_WAIT = 5
+local TABLE_FLIP_MIN_CLUSTER = 2
+local TABLE_FLIP_REFIRE_COOLDOWN = 15
+
+local HIGHLIGHT_NAME = "TableFlipHL"
 
 local TWIN_FANGS_SLOT = 2
 local GRAND_FISSURE_SLOT = 1
+local TABLE_FLIP_SLOT = 3
 
 local SPAM_ANIMATION_ID = "119169968232874"
 local SPAM_NUMERIC = SPAM_ANIMATION_ID:match("%d+") or SPAM_ANIMATION_ID
@@ -98,7 +110,7 @@ local THROWN_CLEAR_DELAY = 0.06
 local HOP_CHECK_INTERVAL = 0.5
 local HOP_TELEPORT_VERIFY_WAIT = 5
 
-local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME, GRAND_FISSURE_NAME }
+local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME, GRAND_FISSURE_NAME, TABLE_FLIP_NAME }
 
 local G = _G
 
@@ -162,10 +174,10 @@ local function RUN()
     local IS_MOBILE = UserInputService.TouchEnabled
 
     pcall(function()
-        math.randomseed(os.time() + math.random(1, 1e6))
+        math.randomseed(os.time() + math.random(1, 1000000))
     end)
     pcall(function()
-        math.randomseed(tick() * 1e6)
+        math.randomseed(tick() * 1000000)
     end)
 
     local guiParent = getGuiParent()
@@ -205,24 +217,12 @@ local function RUN()
     local showsKills = 0
 
     if saved then
-        if typeof(saved.farmEnabled) == "boolean" then
-            farmEnabled = saved.farmEnabled
-        end
-        if typeof(saved.performanceMode) == "boolean" then
-            performanceMode = saved.performanceMode
-        end
-        if typeof(saved.stealthMode) == "boolean" then
-            stealthMode = saved.stealthMode
-        end
-        if typeof(saved.serverHopEnabled) == "boolean" then
-            serverHopEnabled = saved.serverHopEnabled
-        end
-        if typeof(saved.targetKills) == "number" then
-            targetKills = saved.targetKills
-        end
-        if typeof(saved.showsKills) == "number" then
-            showsKills = saved.showsKills
-        end
+        if typeof(saved.farmEnabled) == "boolean" then farmEnabled = saved.farmEnabled end
+        if typeof(saved.performanceMode) == "boolean" then performanceMode = saved.performanceMode end
+        if typeof(saved.stealthMode) == "boolean" then stealthMode = saved.stealthMode end
+        if typeof(saved.serverHopEnabled) == "boolean" then serverHopEnabled = saved.serverHopEnabled end
+        if typeof(saved.targetKills) == "number" then targetKills = saved.targetKills end
+        if typeof(saved.showsKills) == "number" then showsKills = saved.showsKills end
     end
 
     local configExisted = saved ~= nil
@@ -416,6 +416,8 @@ local function RUN()
     local protectionActive = false
     local rotationRunning = false
     local focusActive = false
+    local tableFlipRunning = false
+    local tableFlipLastActivation = 0
 
     local protectionOrigin = nil
     local lastRemoteFire = 0
@@ -465,6 +467,28 @@ local function RUN()
 
     local suppressHeartbeatTp = false
 
+    local lastTFNotifyAt = 0
+    local lastTFNotifyText = ""
+
+    local function tfNotify(text)
+        local now = os.clock()
+        if text == lastTFNotifyText and now - lastTFNotifyAt < 6 then
+            return
+        end
+        if now - lastTFNotifyAt < 2.5 then
+            return
+        end
+        lastTFNotifyAt = now
+        lastTFNotifyText = text
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = "Table Flip AI",
+                Text = text,
+                Duration = 2,
+            })
+        end)
+    end
+
     local function persistConfig()
         writeConfig({
             farmEnabled = farmEnabled,
@@ -493,7 +517,9 @@ local function RUN()
     end
 
     local function refreshStatus()
-        if protectionActive then
+        if tableFlipRunning then
+            Status.Text = "Mode: Table Flip AI"
+        elseif protectionActive then
             Status.Text = "Mode: Boundary Zone"
         elseif hopInProgress then
             Status.Text = "Mode: Server Hopping"
@@ -902,14 +928,14 @@ local function RUN()
     local function activateToolAndVerify(tool, slot, timeout)
         local start = os.clock()
         while os.clock() - start < timeout do
-            if not farmEnabled or protectionActive then return false end
+            if not farmEnabled then return false end
             if isHeadSafeLocked() then return false end
 
             activateToolViaRemote(tool)
 
             local waited = 0
             while waited < ACTIVATION_RETRY_INTERVAL do
-                if not farmEnabled or protectionActive then return false end
+                if not farmEnabled then return false end
                 if isHeadSafeLocked() then return false end
                 if hotbarHasCooldown(slot) then return true end
                 local step = math.min(0.01, ACTIVATION_RETRY_INTERVAL - waited)
@@ -1312,13 +1338,247 @@ local function RUN()
         refreshStatus()
     end
 
+    local function findPlayerClusters()
+        local positions = {}
+        local players = Players:GetPlayers()
+        for i = 1, #players do
+            local p = players[i]
+            if p ~= LocalPlayer then
+                local ch = p.Character
+                if ch and not hasProtection(ch) then
+                    local hum = ch:FindFirstChildOfClass("Humanoid")
+                    local root = ch:FindFirstChild("HumanoidRootPart")
+                    if hum and hum.Health > 0 and root and root:IsA("BasePart") then
+                        positions[#positions + 1] = { pos = root.Position, player = p }
+                    end
+                end
+            end
+        end
+
+        local clusters = {}
+        local used = {}
+        local radiusSq = TABLE_FLIP_CLUSTER_RADIUS * TABLE_FLIP_CLUSTER_RADIUS
+
+        for i = 1, #positions do
+            if used[i] then
+                continue
+            end
+            local cluster = { positions[i] }
+            used[i] = true
+            local changed = true
+            while changed do
+                changed = false
+                for j = 1, #positions do
+                    if not used[j] then
+                        for k = 1, #cluster do
+                            local diff = cluster[k].pos - positions[j].pos
+                            if diff:Dot(diff) <= radiusSq then
+                                cluster[#cluster + 1] = positions[j]
+                                used[j] = true
+                                changed = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            clusters[#clusters + 1] = cluster
+        end
+
+        table.sort(clusters, function(a, b) return #a > #b end)
+        return clusters, #positions
+    end
+
+    local function getClusterCenter(cluster)
+        local sum = Vector3.zero
+        for i = 1, #cluster do
+            sum = sum + cluster[i].pos
+        end
+        return sum / #cluster
+    end
+
+    local function aimAtCluster(root, center)
+        if not root or not root.Parent then return end
+        local flat = Vector3.new(center.X, root.Position.Y, center.Z)
+        local diff = flat - root.Position
+        if diff:Dot(diff) < 0.0001 then return end
+        root.CFrame = CFrame.lookAt(root.Position, flat)
+    end
+
+    -- Exact 200 studs from cluster center, on the horizontal plane.
+    -- Snaps even if off by 1 stud, too close, or too far.
+    local function keepDistanceFromCluster(root, center)
+        if not root or not root.Parent then return end
+
+        local currentPos = root.Position
+
+        local dx = currentPos.X - center.X
+        local dz = currentPos.Z - center.Z
+        local horizDist = math.sqrt(dx * dx + dz * dz)
+
+        local targetY = currentPos.Y
+
+        local finalPos
+        if horizDist < 0.001 then
+            finalPos = Vector3.new(
+                center.X + TABLE_FLIP_KEEP_DISTANCE,
+                targetY,
+                center.Z
+            )
+        else
+            local ux = dx / horizDist
+            local uz = dz / horizDist
+            finalPos = Vector3.new(
+                center.X + ux * TABLE_FLIP_KEEP_DISTANCE,
+                targetY,
+                center.Z + uz * TABLE_FLIP_KEEP_DISTANCE
+            )
+        end
+
+        root.CFrame = CFrame.lookAt(finalPos, Vector3.new(center.X, targetY, center.Z))
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    local function syncTableFlipHighlights(active)
+        local players = Players:GetPlayers()
+        for i = 1, #players do
+            local p = players[i]
+            if p ~= LocalPlayer then
+                local ch = p.Character
+                if ch then
+                    if active then
+                        local hum = ch:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 then
+                            local hl = ch:FindFirstChild(HIGHLIGHT_NAME)
+                            if not hl then
+                                hl = Instance.new("Highlight")
+                                hl.Name = HIGHLIGHT_NAME
+                                hl.FillColor = Color3.fromRGB(255, 30, 30)
+                                hl.OutlineColor = Color3.fromRGB(255, 0, 0)
+                                hl.FillTransparency = 0.45
+                                hl.OutlineTransparency = 0
+                                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                                hl.Parent = ch
+                            end
+                        end
+                    else
+                        local hl = ch:FindFirstChild(HIGHLIGHT_NAME)
+                        if hl then hl:Destroy() end
+                    end
+                end
+            end
+        end
+    end
+
+    local function runTableFlipMode()
+        if tableFlipRunning then return end
+        tableFlipRunning = true
+        refreshStatus()
+        tfNotify("Started. Scanning clusters...")
+
+        while farmEnabled do
+            if findTool(TWIN_FANGS_NAME) then
+                tfNotify("Twin Fangs detected - yielding to rotation")
+                break
+            end
+            if not findTool(TABLE_FLIP_NAME) then
+                break
+            end
+
+            local root = getRoot()
+            if not root then
+                task.wait(0.2)
+                continue
+            end
+
+            local clusters = findPlayerClusters()
+            if #clusters == 0 then
+                task.wait(0.5)
+                continue
+            end
+
+            local best = clusters[1]
+            if #best < TABLE_FLIP_MIN_CLUSTER then
+                task.wait(0.5)
+                continue
+            end
+
+            local center = getClusterCenter(best)
+
+            local dx = root.Position.X - center.X
+            local dz = root.Position.Z - center.Z
+            local dist = math.sqrt(dx * dx + dz * dz)
+
+            if not isHeadSafeLocked() then
+                aimAtCluster(root, center)
+            end
+
+            if dist > TABLE_FLIP_FAR_DISTANCE then
+                if not isHeadSafeLocked() then
+                    keepDistanceFromCluster(root, center)
+                    root = getRoot()
+                end
+
+                if os.clock() - tableFlipLastActivation < TABLE_FLIP_REFIRE_COOLDOWN then
+                    task.wait(0.5)
+                    continue
+                end
+
+                local tf = findTool(TABLE_FLIP_NAME)
+                if tf then
+                    tableFlipLastActivation = os.clock()
+                    tfNotify("Activating Table Flip at exactly " .. TABLE_FLIP_KEEP_DISTANCE .. " studs")
+
+                    local ok = activateToolAndVerify(tf, TABLE_FLIP_SLOT, TABLE_FLIP_ACTIVATION_TIMEOUT)
+                    if not ok then
+                        tfNotify("Activation retry failed - waiting anyway")
+                    end
+
+                    tfNotify("Active. Locked at exactly " .. TABLE_FLIP_KEEP_DISTANCE .. " studs for " .. TABLE_FLIP_WAIT .. "s")
+
+                    local waitEnd = os.clock() + TABLE_FLIP_WAIT
+                    while os.clock() < waitEnd and farmEnabled do
+                        local r = getRoot()
+                        if r and not isHeadSafeLocked() then
+                            keepDistanceFromCluster(r, center)
+                        end
+                        local remaining = waitEnd - os.clock()
+                        if remaining <= 0 then break end
+                        task.wait(math.min(remaining, 0.03))
+                    end
+
+                    if not farmEnabled then break end
+
+                    tfNotify("Wait complete. Returning to rotation.")
+                    break
+                end
+            else
+                if not isHeadSafeLocked() then
+                    keepDistanceFromCluster(root, center)
+                end
+                task.wait(0.2)
+            end
+        end
+
+        tableFlipRunning = false
+        syncTableFlipHighlights(false)
+        refreshStatus()
+    end
+
     local function runRotationLoop()
         if rotationRunning or protectionActive then return end
         rotationRunning = true
         refreshStatus()
 
         while farmEnabled and not protectionActive do
+            if tableFlipRunning then break end
+
             suppressHeartbeatTp = false
+
+            if findTool(TABLE_FLIP_NAME) and not findTool(TWIN_FANGS_NAME) then
+                break
+            end
 
             if isHeadSafeLocked() then
                 refreshStatus()
@@ -1345,11 +1605,13 @@ local function RUN()
                     end
 
                     if not farmEnabled or protectionActive then break end
+                    if tableFlipRunning then break end
                     if isHeadSafeLocked() then continue end
 
                     local tpEnd = os.clock() + TWIN_FANGS_TP_DURATION
                     while os.clock() < tpEnd do
                         if not farmEnabled or protectionActive then break end
+                        if tableFlipRunning then break end
                         if isHeadSafeLocked() then break end
 
                         local root = getRoot()
@@ -1375,6 +1637,7 @@ local function RUN()
                 end
 
                 if not farmEnabled or protectionActive then break end
+                if tableFlipRunning then break end
                 if isHeadSafeLocked() then
                     task.wait(0.05)
                     continue
@@ -1391,6 +1654,7 @@ local function RUN()
                 local safeEnd = os.clock() + SAFE_ZONE_DURATION
                 while os.clock() < safeEnd do
                     if not farmEnabled or protectionActive then break end
+                    if tableFlipRunning then break end
                     if isHeadSafeLocked() then break end
                     teleportToSafeZone(root)
                     pressG()
@@ -1400,6 +1664,7 @@ local function RUN()
                 end
 
                 if not farmEnabled or protectionActive then break end
+                if tableFlipRunning then break end
                 if isHeadSafeLocked() then
                     task.wait(0.05)
                     continue
@@ -1414,6 +1679,7 @@ local function RUN()
                 local gapEnd = os.clock() + TWIN_FANGS_TO_GRAND_GAP
                 while os.clock() < gapEnd do
                     if not farmEnabled or protectionActive then break end
+                    if tableFlipRunning then break end
                     if isHeadSafeLocked() then break end
                     pressG()
                     local remaining = gapEnd - os.clock()
@@ -1422,6 +1688,7 @@ local function RUN()
                 end
 
                 if not farmEnabled or protectionActive then break end
+                if tableFlipRunning then break end
                 if isHeadSafeLocked() then
                     task.wait(0.05)
                     continue
@@ -1437,6 +1704,7 @@ local function RUN()
                 end
 
                 if not farmEnabled or protectionActive then break end
+                if tableFlipRunning then break end
                 if isHeadSafeLocked() then
                     task.wait(0.05)
                     continue
@@ -1445,6 +1713,7 @@ local function RUN()
                 local gfWaitEnd = os.clock() + GRAND_FISSURE_WAIT
                 while os.clock() < gfWaitEnd do
                     if not farmEnabled or protectionActive then break end
+                    if tableFlipRunning then break end
                     if isHeadSafeLocked() then break end
                     pressG()
                     local remaining = gfWaitEnd - os.clock()
@@ -1459,12 +1728,14 @@ local function RUN()
 
                 for ti = 1, #tools do
                     if not farmEnabled or protectionActive then break end
+                    if tableFlipRunning then break end
                     if isHeadSafeLocked() then break end
                     local tool = tools[ti]
                     activateToolViaRemote(tool)
                     local fbEnd = os.clock() + FALLBACK_TOOL_DURATION
                     while os.clock() < fbEnd do
                         if not farmEnabled or protectionActive then break end
+                        if tableFlipRunning then break end
                         if isHeadSafeLocked() then break end
                         local root = getRoot()
                         if root then
@@ -1497,6 +1768,10 @@ local function RUN()
 
     local function processFocusAssist()
         if not farmEnabled or rotationRunning or protectionActive then
+            focusActive = false
+            return
+        end
+        if tableFlipRunning then
             focusActive = false
             return
         end
@@ -1627,28 +1902,6 @@ local function RUN()
 
         updateKillsFromLeaderstats()
 
-        local protected = character:FindFirstChild("AbsoluteImmortal") ~= nil
-        if protected and not protectionActive then
-            protectionOrigin = root.CFrame
-            protectionActive = true
-            refreshStatus()
-        elseif not protected and protectionActive then
-            protectionActive = false
-            local po = protectionOrigin
-            if po and root.Parent then
-                root.CFrame = po
-                root.AssemblyLinearVelocity = Vector3.zero
-                root.AssemblyAngularVelocity = Vector3.zero
-            end
-            protectionOrigin = nil
-            refreshStatus()
-        end
-
-        if protectionActive then
-            teleportToSafeZone(root)
-            return
-        end
-
         if farmEnabled then
             local now = os.clock()
 
@@ -1657,14 +1910,14 @@ local function RUN()
                 headSafeCooldownUntil = now + HEAD_SAFE_COOLDOWN
             end
 
-            if now < headSafeLockUntil then
+            if now < headSafeLockUntil and not tableFlipRunning then
                 teleportToHeadSafe(root)
                 refreshStatus()
                 return
             end
         end
 
-        if stealthMode and farmEnabled then
+        if stealthMode and farmEnabled and not tableFlipRunning then
             if getStreak() >= STEALTH_STREAK_THRESHOLD then
                 teleportToBoundaryUnconditional(root)
                 killSelf()
@@ -1685,27 +1938,44 @@ local function RUN()
                 end
 
                 if (live - showsKills) >= targetKills then
-                    -- FIX: save baseline BEFORE hopping so it survives the teleport reload.
-                    -- If we set it after, the client often disconnects before writeConfig()
-                    -- completes, leaving the OLD baseline in config → infinite hopping.
-                    showsKills = live
-                    persistConfig()
-                    refreshKillsDisplay()
-                    task.spawn(doServerHop)
+                    task.spawn(function()
+                        doServerHop()
+                        if killsValue then
+                            showsKills = killsValue.Value
+                            persistConfig()
+                            refreshKillsDisplay()
+                        end
+                    end)
                     return
                 end
             end
         end
 
         if farmEnabled then
-            pressG()
-            genericSpam()
-
-            if not rotationRunning then
-                task.spawn(runRotationLoop)
+            if tableFlipRunning then
+                return
             end
 
-            processFocusAssist()
+            local hasTwinFangs = findTool(TWIN_FANGS_NAME) ~= nil
+            local hasTableFlip = findTool(TABLE_FLIP_NAME) ~= nil
+
+            if hasTwinFangs then
+                pressG()
+                genericSpam()
+                if not rotationRunning then
+                    task.spawn(runRotationLoop)
+                end
+                processFocusAssist()
+            elseif hasTableFlip then
+                task.spawn(runTableFlipMode)
+            else
+                pressG()
+                genericSpam()
+                if not rotationRunning then
+                    task.spawn(runRotationLoop)
+                end
+                processFocusAssist()
+            end
         else
             focusActive = false
         end
@@ -1713,10 +1983,10 @@ local function RUN()
 
     table.insert(permanentConnections, RunService.Heartbeat:Connect(function()
         if not farmEnabled then return end
-        if protectionActive then return end
         if isHeadSafeLocked() then return end
         if suppressHeartbeatTp then return end
         if rotationRunning then return end
+        if tableFlipRunning then return end
 
         local character = LocalPlayer.Character
         if not character then return end
@@ -1736,6 +2006,8 @@ local function RUN()
 
         alignBehind(root, tr, FOCUS_DISTANCE)
     end))
+
+    local lastHighlightSync = 0
 
     table.insert(permanentConnections, RunService.RenderStepped:Connect(function()
         tickSpaceRelease()
@@ -1774,6 +2046,13 @@ local function RUN()
         end
 
         ensureInvisible()
+
+        if now - lastHighlightSync >= 0.35 then
+            lastHighlightSync = now
+            if tableFlipRunning then
+                syncTableFlipHighlights(true)
+            end
+        end
 
         local realRoot = getRoot()
         local cc = cloneCharacter
@@ -1830,6 +2109,7 @@ local function RUN()
         protectionActive = false
         protectionOrigin = nil
         focusActive = false
+        tableFlipRunning = false
         spamTrack = nil
         spamTrackCharacter = nil
         cachedBackpack = nil
@@ -1839,6 +2119,7 @@ local function RUN()
         headSafeCooldownUntil = 0
         killsValue = nil
         suppressHeartbeatTp = false
+        tableFlipLastActivation = 0
 
         targetStates = {}
         lastWatchedCharacter = character
