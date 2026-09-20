@@ -29,40 +29,6 @@ local function copyToClipboard(text)
     return false
 end
 
-local function readConfigFile()
-    if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" then
-        return nil
-    end
-    local ok, exists = pcall(isfile, CONFIG_PATH)
-    if not ok or not exists then
-        return nil
-    end
-    local readOk, content = pcall(readfile, CONFIG_PATH)
-    if not readOk or not content or content == "" then
-        return nil
-    end
-    local decodeOk, data = pcall(function()
-        return HttpService:JSONDecode(content)
-    end)
-    if not decodeOk or typeof(data) ~= "table" then
-        return nil
-    end
-    return data
-end
-
-local function writeConfigFile(data)
-    if typeof(writefile) ~= "function" then
-        return
-    end
-    local encodeOk, encoded = pcall(function()
-        return HttpService:JSONEncode(data)
-    end)
-    if not encodeOk or not encoded then
-        return
-    end
-    pcall(writefile, CONFIG_PATH, encoded)
-end
-
 notify("Auto Farm", "Wrapper started. Compiling...", 4)
 
 local SCRIPT_SOURCE = [==[
@@ -117,12 +83,6 @@ local CAMERA_MIN_DIST = 5
 local CAMERA_MAX_DIST = 60
 local CAMERA_HEIGHT = 3
 
-local MIN_PREDICTION_TIME = 0.1
-local MAX_PREDICTION_TIME = 0.3
-local MIN_HISTORY_INTERVAL = 1 / 240
-local MAX_HISTORY_INTERVAL = 0.25
-local ACCELERATION_LIMIT = 150
-
 local CLONE_CHECK_INTERVAL = 0.5
 local CLONE_REBUILD_COOLDOWN = 1.5
 
@@ -136,6 +96,7 @@ local HEAD_SAFE_COOLDOWN = 2.5
 local THROWN_CLEAR_DELAY = 0.06
 
 local HOP_CHECK_INTERVAL = 0.5
+local HOP_TELEPORT_VERIFY_WAIT = 5
 
 local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME, GRAND_FISSURE_NAME }
 
@@ -502,6 +463,8 @@ local function RUN()
     local lastHopCheck = 0
     local hopInProgress = false
 
+    local suppressHeartbeatTp = false
+
     local function persistConfig()
         writeConfig({
             farmEnabled = farmEnabled,
@@ -640,11 +603,12 @@ local function RUN()
         end
     end)
 
+    -- hasProtection: AbsoluteImmortal / ForceField / FinalDeath / Counter (Freeze removed)
     local function hasProtection(character)
         if character:FindFirstChild("AbsoluteImmortal") ~= nil then return true end
         if character:FindFirstChild("ForceField") ~= nil then return true end
-        if character:FindFirstChild("Freeze") ~= nil then return true end
         if character:FindFirstChild("FinalDeath") ~= nil then return true end
+        if character:FindFirstChild("Counter") ~= nil then return true end
         return false
     end
 
@@ -685,52 +649,33 @@ local function RUN()
         return chosen
     end
 
-    local function predictPosition(root)
-        local now = os.clock()
-        local curPos = root.Position
-        local curVel = root.AssemblyLinearVelocity
-        local state = targetStates[root]
-
-        if not state then
-            targetStates[root] = { position = curPos, velocity = curVel, time = now }
-            return curPos + Vector3.new(curVel.X, 0, curVel.Z) * MIN_PREDICTION_TIME
-        end
-
-        local dt = math.clamp(now - state.time, MIN_HISTORY_INTERVAL, MAX_HISTORY_INTERVAL)
-        local accel = (curVel - state.velocity) / dt
-        if accel.Magnitude > ACCELERATION_LIMIT then
-            accel = accel.Unit * ACCELERATION_LIMIT
-        end
-
-        local age = math.clamp(root.ReceiveAge, 0, MAX_PREDICTION_TIME)
-        local predTime = math.clamp(
-            MIN_PREDICTION_TIME + age + math.clamp(dt - (1 / 60), 0, 0.08),
-            MIN_PREDICTION_TIME,
-            MAX_PREDICTION_TIME
-        )
-
-        local vXZ = Vector3.new(curVel.X, 0, curVel.Z)
-        local aXZ = Vector3.new(accel.X, 0, accel.Z)
-        local predicted = curPos + vXZ * predTime + aXZ * (0.5 * predTime * predTime)
-
-        state.position = curPos
-        state.velocity = curVel
-        state.time = now
-
-        return Vector3.new(predicted.X, curPos.Y, predicted.Z)
+    local function clearPhysicsRepRootPart(root)
+        if not root then return end
+        if typeof(sethiddenproperty) ~= "function" then return end
+        pcall(sethiddenproperty, root, "PhysicsRepRootPart", nil)
     end
 
     local function alignBehind(root, targetRoot, distance)
         if isHeadSafeLocked() then return end
-        local predicted = predictPosition(targetRoot)
-        if predicted ~= predicted then return end
+        if not root or not targetRoot then return end
+
+        if typeof(sethiddenproperty) == "function" then
+            pcall(sethiddenproperty, root, "PhysicsRepRootPart", targetRoot)
+        end
+
+        local tpos = targetRoot.Position
+        if tpos ~= tpos then return end
         local behindDir = -targetRoot.CFrame.LookVector
-        local pos = predicted + behindDir * distance
+        local pos = tpos + behindDir * distance
         if pos ~= pos then return end
-        root.CFrame = CFrame.lookAt(pos, predicted)
+
+        root.CFrame = CFrame.lookAt(pos, tpos)
+        root.AssemblyLinearVelocity = targetRoot.AssemblyLinearVelocity
+        root.AssemblyAngularVelocity = targetRoot.AssemblyAngularVelocity
     end
 
     local function teleportTo(root, worldPos)
+        clearPhysicsRepRootPart(root)
         local pos = worldPos + SAFE_OFFSET
         root.CFrame = CFrame.lookAt(pos, pos + Vector3.new(0, -100, 0))
         root.AssemblyLinearVelocity = Vector3.zero
@@ -1261,7 +1206,7 @@ local function RUN()
             if s.id and s.id ~= game.JobId then
                 local playing = s.playing or 0
                 local maxP = s.maxPlayers or 0
-                if maxP > 0 and playing > 0 and playing <= (maxP - 2) then
+                if maxP > 0 and playing > 0 and playing <= (maxP - 1) then
                     table.insert(candidates, {
                         id = s.id,
                         playing = playing,
@@ -1280,55 +1225,88 @@ local function RUN()
         return candidates
     end
 
-
     local function doServerHop()
+        if hopInProgress then return end
         hopInProgress = true
         refreshStatus()
-
         persistConfig()
 
         local code = "loadstring(game:HttpGet(\"" .. REEXEC_URL .. "\"))()"
+        local queued = false
 
         if typeof(queue_on_teleport) == "function" then
-            pcall(queue_on_teleport, code)
+            local ok, res = pcall(queue_on_teleport, code)
+            if ok and res ~= false then queued = true end
+        end
+        if not queued and typeof(queueonteleport) == "function" then
+            local ok, res = pcall(queueonteleport, code)
+            if ok and res ~= false then queued = true end
+        end
+        if not queued and typeof(QueueOnTeleport) == "function" then
+            local ok, res = pcall(QueueOnTeleport, code)
+            if ok and res ~= false then queued = true end
         end
 
+        local originalJob = game.JobId
         local attempt = 0
 
-        while serverHopEnabled and hopInProgress do
+        while serverHopEnabled and hopInProgress and attempt < 10 do
             attempt = attempt + 1
 
-            local servers = fetchServerList()
+            local leftServer = false
 
+            local servers = fetchServerList()
             if servers then
                 local candidates = buildCandidates(servers)
-
-                for i = 1, #candidates do
-                    if not serverHopEnabled or not hopInProgress then
-                        break
-                    end
-
-                    local c = candidates[i]
-                    local tpOk = pcall(function()
+                if #candidates > 0 then
+                    local c = candidates[1]
+                    pcall(function()
                         TeleportService:TeleportToPlaceInstance(game.PlaceId, c.id, LocalPlayer)
                     end)
-
-                    if tpOk then
-                        return
-                    end
-
-                    task.wait(0.4)
                 end
+            end
+
+            local waited = 0
+            while waited < HOP_TELEPORT_VERIFY_WAIT do
+                task.wait(0.5)
+                waited = waited + 0.5
+                if game.JobId ~= originalJob then
+                    leftServer = true
+                    break
+                end
+            end
+
+            if leftServer then
+                return
             end
 
             if typeof(serverhop) == "function" then
-                local spOk = pcall(serverhop)
-                if spOk then
-                    return
+                pcall(serverhop)
+                local waited2 = 0
+                while waited2 < HOP_TELEPORT_VERIFY_WAIT do
+                    task.wait(0.5)
+                    waited2 = waited2 + 0.5
+                    if game.JobId ~= originalJob then
+                        return
+                    end
                 end
             end
 
-            task.wait(math.max(1, 2 - (attempt * 0.1)))
+            if typeof(TeleportService.Teleport) == "function" then
+                pcall(function()
+                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                end)
+                local waited3 = 0
+                while waited3 < HOP_TELEPORT_VERIFY_WAIT do
+                    task.wait(0.5)
+                    waited3 = waited3 + 0.5
+                    if game.JobId ~= originalJob then
+                        return
+                    end
+                end
+            end
+
+            task.wait(1)
         end
 
         hopInProgress = false
@@ -1341,6 +1319,8 @@ local function RUN()
         refreshStatus()
 
         while farmEnabled and not protectionActive do
+            suppressHeartbeatTp = false
+
             if isHeadSafeLocked() then
                 refreshStatus()
                 task.wait(0.05)
@@ -1401,9 +1381,12 @@ local function RUN()
                     continue
                 end
 
+                suppressHeartbeatTp = true
+
                 local root = getRoot()
                 if not root then break end
                 local originCFrame = root.CFrame
+
                 teleportToSafeZone(root)
 
                 local safeEnd = os.clock() + SAFE_ZONE_DURATION
@@ -1470,6 +1453,8 @@ local function RUN()
                     task.wait(math.min(remaining, 1 / 120))
                 end
             else
+                suppressHeartbeatTp = false
+
                 local tools = getAllTools(FALLBACK_EXCLUDE)
                 if #tools == 0 then break end
 
@@ -1517,6 +1502,10 @@ local function RUN()
             return
         end
         if isHeadSafeLocked() then
+            focusActive = false
+            return
+        end
+        if suppressHeartbeatTp then
             focusActive = false
             return
         end
@@ -1697,10 +1686,14 @@ local function RUN()
                 end
 
                 if (live - showsKills) >= targetKills then
-                    showsKills = live
-                    persistConfig()
-                    refreshKillsDisplay()
-                    task.spawn(doServerHop)
+                    task.spawn(function()
+                        doServerHop()
+                        if killsValue then
+                            showsKills = killsValue.Value
+                            persistConfig()
+                            refreshKillsDisplay()
+                        end
+                    end)
                     return
                 end
             end
@@ -1718,6 +1711,32 @@ local function RUN()
         else
             focusActive = false
         end
+    end))
+
+    table.insert(permanentConnections, RunService.Heartbeat:Connect(function()
+        if not farmEnabled then return end
+        if protectionActive then return end
+        if isHeadSafeLocked() then return end
+        if suppressHeartbeatTp then return end
+        if rotationRunning then return end
+
+        local character = LocalPlayer.Character
+        if not character then return end
+
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if not root or not root:IsA("BasePart") then return end
+
+        local target = getTarget()
+        if not target then return end
+
+        local tc = target.Character
+        if not tc then return end
+        if hasProtection(tc) then return end
+
+        local tr = tc:FindFirstChild("HumanoidRootPart")
+        if not tr or not tr:IsA("BasePart") then return end
+
+        alignBehind(root, tr, FOCUS_DISTANCE)
     end))
 
     table.insert(permanentConnections, RunService.RenderStepped:Connect(function()
@@ -1821,6 +1840,7 @@ local function RUN()
         headSafeLockUntil = 0
         headSafeCooldownUntil = 0
         killsValue = nil
+        suppressHeartbeatTp = false
 
         targetStates = {}
         lastWatchedCharacter = character
