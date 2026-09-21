@@ -6,6 +6,47 @@ local Players = game:GetService("Players")
 local CONFIG_PATH = "autofarm_config.json"
 local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
 
+local function getExecutorEnv()
+    if typeof(getgenv) == "function" then
+        local ok, e = pcall(getgenv)
+        if ok and typeof(e) == "table" then
+            return e
+        end
+    end
+    return _G
+end
+
+local function copyToClipboard(text)
+    local env = getExecutorEnv()
+    local names = { "setclipboard", "toclipboard", "setrbxclipboard", "writeclipboard" }
+    for i = 1, #names do
+        local n = names[i]
+        local fn = env[n]
+        if typeof(fn) == "function" then
+            if pcall(fn, text) then return true end
+        end
+        local f2 = _G[n]
+        if typeof(f2) == "function" and f2 ~= fn then
+            if pcall(f2, text) then return true end
+        end
+    end
+    if typeof(env.syn) == "table" then
+        if typeof(env.syn.setclipboard) == "function" then
+            if pcall(env.syn.setclipboard, text) then return true end
+        end
+        if typeof(env.syn.toclipboard) == "function" then
+            if pcall(env.syn.toclipboard, text) then return true end
+        end
+    end
+    if typeof(env.clipboard) == "table" and typeof(env.clipboard.set) == "function" then
+        if pcall(env.clipboard.set, text) then return true end
+    end
+    if typeof(writefile) == "function" then
+        if pcall(writefile, "autofarm_error.txt", text) then return true end
+    end
+    return false
+end
+
 local function notify(title, text, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
@@ -16,17 +57,69 @@ local function notify(title, text, duration)
     end)
 end
 
-local function copyToClipboard(text)
-    local G = _G
-    local sc = G.setclipboard
-    if typeof(sc) == "function" then
-        return pcall(sc, text)
-    end
-    local tc = G.toclipboard
-    if typeof(tc) == "function" then
-        return pcall(tc, text)
-    end
-    return false
+local function showErrorGui(title, text)
+    pcall(function()
+        local lp = Players.LocalPlayer
+        local pg = lp and lp:FindFirstChildOfClass("PlayerGui")
+        if not pg then return end
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "AutoFarmErr_" .. tostring(math.random(1, 999999))
+        sg.ResetOnSpawn = false
+        sg.Parent = pg
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 520, 0, 420)
+        frame.Position = UDim2.new(0.5, -260, 0.5, -210)
+        frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+        frame.BorderSizePixel = 0
+        frame.Parent = sg
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 10)
+        corner.Parent = frame
+        local titleLbl = Instance.new("TextLabel")
+        titleLbl.Size = UDim2.new(1, -100, 0, 28)
+        titleLbl.Position = UDim2.new(0, 12, 0, 8)
+        titleLbl.BackgroundTransparency = 1
+        titleLbl.Text = title
+        titleLbl.TextColor3 = Color3.new(1, 1, 1)
+        titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+        titleLbl.Font = Enum.Font.GothamBold
+        titleLbl.TextSize = 16
+        titleLbl.Parent = frame
+        local close = Instance.new("TextButton")
+        close.Size = UDim2.new(0, 80, 0, 26)
+        close.Position = UDim2.new(1, -92, 0, 8)
+        close.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+        close.BorderSizePixel = 0
+        close.Text = "Close"
+        close.TextColor3 = Color3.new(1, 1, 1)
+        close.Font = Enum.Font.GothamBold
+        close.TextSize = 12
+        close.Parent = frame
+        local cc = Instance.new("UICorner")
+        cc.CornerRadius = UDim.new(0, 6)
+        cc.Parent = close
+        close.Activated:Connect(function()
+            sg:Destroy()
+        end)
+        local tb = Instance.new("TextBox")
+        tb.Size = UDim2.new(1, -24, 1, -56)
+        tb.Position = UDim2.new(0, 12, 0, 42)
+        tb.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+        tb.BorderSizePixel = 0
+        tb.TextColor3 = Color3.fromRGB(230, 230, 230)
+        tb.Text = text
+        tb.TextWrapped = true
+        tb.TextXAlignment = Enum.TextXAlignment.Left
+        tb.TextYAlignment = Enum.TextYAlignment.Top
+        tb.ClearTextOnFocus = false
+        tb.MultiLine = true
+        tb.Font = Enum.Font.Code
+        tb.TextSize = 12
+        tb.Parent = frame
+        local tbc = Instance.new("UICorner")
+        tbc.CornerRadius = UDim.new(0, 6)
+        tbc.Parent = tb
+    end)
 end
 
 notify("Auto Farm", "Wrapper started. Compiling...", 4)
@@ -74,8 +167,7 @@ local TABLE_FLIP_KEEP_DISTANCE = 200
 local TABLE_FLIP_WAIT = 5
 local TABLE_FLIP_MIN_CLUSTER = 2
 local TABLE_FLIP_REFIRE_COOLDOWN = 15
-
-local HIGHLIGHT_NAME = "TableFlipHL"
+local TABLE_FLIP_SKY_LIFT = 10
 
 local TWIN_FANGS_SLOT = 2
 local GRAND_FISSURE_SLOT = 1
@@ -222,10 +314,8 @@ local function RUN()
         if typeof(saved.stealthMode) == "boolean" then stealthMode = saved.stealthMode end
         if typeof(saved.serverHopEnabled) == "boolean" then serverHopEnabled = saved.serverHopEnabled end
         if typeof(saved.targetKills) == "number" then targetKills = saved.targetKills end
-        if typeof(saved.showsKills) == "number" then showsKills = saved.showsKills end
     end
 
-    local configExisted = saved ~= nil
     local configInitialized = false
 
     local ScreenGui = Instance.new("ScreenGui")
@@ -467,28 +557,6 @@ local function RUN()
 
     local suppressHeartbeatTp = false
 
-    local lastTFNotifyAt = 0
-    local lastTFNotifyText = ""
-
-    local function tfNotify(text)
-        local now = os.clock()
-        if text == lastTFNotifyText and now - lastTFNotifyAt < 6 then
-            return
-        end
-        if now - lastTFNotifyAt < 2.5 then
-            return
-        end
-        lastTFNotifyAt = now
-        lastTFNotifyText = text
-        pcall(function()
-            StarterGui:SetCore("SendNotification", {
-                Title = "Table Flip AI",
-                Text = text,
-                Duration = 2,
-            })
-        end)
-    end
-
     local function persistConfig()
         writeConfig({
             farmEnabled = farmEnabled,
@@ -496,7 +564,6 @@ local function RUN()
             stealthMode = stealthMode,
             serverHopEnabled = serverHopEnabled,
             targetKills = targetKills,
-            showsKills = showsKills,
         })
     end
 
@@ -520,7 +587,7 @@ local function RUN()
         if tableFlipRunning then
             Status.Text = "Mode: Table Flip AI"
         elseif protectionActive then
-            Status.Text = "Mode: Boundary Zone"
+            Status.Text = "Mode: Protected Zone"
         elseif hopInProgress then
             Status.Text = "Mode: Server Hopping"
         elseif isHeadSafeLocked() then
@@ -634,6 +701,12 @@ local function RUN()
         if character:FindFirstChild("ForceField") ~= nil then return true end
         if character:FindFirstChild("FinalDeath") ~= nil then return true end
         if character:FindFirstChild("Counter") ~= nil then return true end
+        return false
+    end
+
+    local function hasSelfProtection(character)
+        if character:FindFirstChild("AbsoluteImmortal") ~= nil then return true end
+        if character:FindFirstChild("ForceField") ~= nil then return true end
         return false
     end
 
@@ -1386,7 +1459,7 @@ local function RUN()
         end
 
         table.sort(clusters, function(a, b) return #a > #b end)
-        return clusters, #positions
+        return clusters
     end
 
     local function getClusterCenter(cluster)
@@ -1405,8 +1478,6 @@ local function RUN()
         root.CFrame = CFrame.lookAt(root.Position, flat)
     end
 
-    -- Exact 200 studs from cluster center, on the horizontal plane.
-    -- Snaps even if off by 1 stud, too close, or too far.
     local function keepDistanceFromCluster(root, center)
         if not root or not root.Parent then return end
 
@@ -1440,46 +1511,22 @@ local function RUN()
         root.AssemblyAngularVelocity = Vector3.zero
     end
 
-    local function syncTableFlipHighlights(active)
-        local players = Players:GetPlayers()
-        for i = 1, #players do
-            local p = players[i]
-            if p ~= LocalPlayer then
-                local ch = p.Character
-                if ch then
-                    if active then
-                        local hum = ch:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then
-                            local hl = ch:FindFirstChild(HIGHLIGHT_NAME)
-                            if not hl then
-                                hl = Instance.new("Highlight")
-                                hl.Name = HIGHLIGHT_NAME
-                                hl.FillColor = Color3.fromRGB(255, 30, 30)
-                                hl.OutlineColor = Color3.fromRGB(255, 0, 0)
-                                hl.FillTransparency = 0.45
-                                hl.OutlineTransparency = 0
-                                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                                hl.Parent = ch
-                            end
-                        end
-                    else
-                        local hl = ch:FindFirstChild(HIGHLIGHT_NAME)
-                        if hl then hl:Destroy() end
-                    end
-                end
-            end
-        end
+    local function liftRootIntoAir(root, amount)
+        if not root or not root.Parent then return end
+        local pos = root.Position + Vector3.new(0, amount, 0)
+        local look = root.CFrame.LookVector
+        root.CFrame = CFrame.lookAt(pos, pos + look)
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
     end
 
     local function runTableFlipMode()
         if tableFlipRunning then return end
         tableFlipRunning = true
         refreshStatus()
-        tfNotify("Started. Scanning clusters...")
 
         while farmEnabled do
             if findTool(TWIN_FANGS_NAME) then
-                tfNotify("Twin Fangs detected - yielding to rotation")
                 break
             end
             if not findTool(TABLE_FLIP_NAME) then
@@ -1528,20 +1575,22 @@ local function RUN()
                 local tf = findTool(TABLE_FLIP_NAME)
                 if tf then
                     tableFlipLastActivation = os.clock()
-                    tfNotify("Activating Table Flip at exactly " .. TABLE_FLIP_KEEP_DISTANCE .. " studs")
+
+                    local r = getRoot()
+                    if r then
+                        liftRootIntoAir(r, TABLE_FLIP_SKY_LIFT)
+                    end
 
                     local ok = activateToolAndVerify(tf, TABLE_FLIP_SLOT, TABLE_FLIP_ACTIVATION_TIMEOUT)
                     if not ok then
-                        tfNotify("Activation retry failed - waiting anyway")
+                        task.wait(0.3)
                     end
-
-                    tfNotify("Active. Locked at exactly " .. TABLE_FLIP_KEEP_DISTANCE .. " studs for " .. TABLE_FLIP_WAIT .. "s")
 
                     local waitEnd = os.clock() + TABLE_FLIP_WAIT
                     while os.clock() < waitEnd and farmEnabled do
-                        local r = getRoot()
-                        if r and not isHeadSafeLocked() then
-                            keepDistanceFromCluster(r, center)
+                        local r2 = getRoot()
+                        if r2 and not isHeadSafeLocked() then
+                            keepDistanceFromCluster(r2, center)
                         end
                         local remaining = waitEnd - os.clock()
                         if remaining <= 0 then break end
@@ -1549,8 +1598,6 @@ local function RUN()
                     end
 
                     if not farmEnabled then break end
-
-                    tfNotify("Wait complete. Returning to rotation.")
                     break
                 end
             else
@@ -1562,7 +1609,6 @@ local function RUN()
         end
 
         tableFlipRunning = false
-        syncTableFlipHighlights(false)
         refreshStatus()
     end
 
@@ -1883,12 +1929,7 @@ local function RUN()
 
         if not configInitialized then
             configInitialized = true
-            local live = k.Value
-            if not configExisted then
-                showsKills = live
-            elseif live < showsKills then
-                showsKills = live
-            end
+            showsKills = k.Value
             persistConfig()
             refreshKillsDisplay()
         end
@@ -1901,6 +1942,29 @@ local function RUN()
         if not root then return end
 
         updateKillsFromLeaderstats()
+
+        if farmEnabled and not tableFlipRunning then
+            if hasSelfProtection(character) then
+                if not protectionActive then
+                    protectionActive = true
+                    suppressHeartbeatTp = true
+                    protectionOrigin = root.CFrame
+                end
+                teleportToBoundaryUnconditional(root)
+                refreshStatus()
+                return
+            elseif protectionActive then
+                protectionActive = false
+                suppressHeartbeatTp = false
+                if protectionOrigin then
+                    root.CFrame = protectionOrigin
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    root.AssemblyAngularVelocity = Vector3.zero
+                    protectionOrigin = nil
+                end
+                refreshStatus()
+            end
+        end
 
         if farmEnabled then
             local now = os.clock()
@@ -1987,6 +2051,7 @@ local function RUN()
         if suppressHeartbeatTp then return end
         if rotationRunning then return end
         if tableFlipRunning then return end
+        if protectionActive then return end
 
         local character = LocalPlayer.Character
         if not character then return end
@@ -2006,8 +2071,6 @@ local function RUN()
 
         alignBehind(root, tr, FOCUS_DISTANCE)
     end))
-
-    local lastHighlightSync = 0
 
     table.insert(permanentConnections, RunService.RenderStepped:Connect(function()
         tickSpaceRelease()
@@ -2046,13 +2109,6 @@ local function RUN()
         end
 
         ensureInvisible()
-
-        if now - lastHighlightSync >= 0.35 then
-            lastHighlightSync = now
-            if tableFlipRunning then
-                syncTableFlipHighlights(true)
-            end
-        end
 
         local realRoot = getRoot()
         local cc = cloneCharacter
@@ -2136,37 +2192,44 @@ RUN()
 local loader = loadstring
 if typeof(loader) ~= "function" then
     local msg = "LOAD ERROR: loadstring is not available in this executor."
-    copyToClipboard(msg)
+    local ok = copyToClipboard(msg)
+    if not ok then
+        showErrorGui("Auto Farm - Load Error", msg)
+    end
     notify("Auto Farm - Load Error", msg, 15)
-    warn(msg)
     return
 end
 
 local loadedFn, loadErr = loader(SCRIPT_SOURCE)
 if not loadedFn then
     local msg = "LOAD ERROR (compile-time)\n\n" .. tostring(loadErr)
-    copyToClipboard(msg)
-    notify("Auto Farm - Load Error", "Compile error copied to clipboard.\n" .. tostring(loadErr):sub(1, 80), 15)
-    warn(msg)
+    local ok = copyToClipboard(msg)
+    if not ok then
+        showErrorGui("Auto Farm - Compile Error", msg)
+    end
+    notify("Auto Farm - Compile Error", "Error shown in window (clipboard failed).", 20)
     return
 end
 
 local ok, runErr = xpcall(loadedFn, function(e)
     local msg = tostring(e)
-    local tb = debug.traceback("", 2)
-    return msg .. "\n\n" .. tb
+    local tb = ""
+    if typeof(debug) == "table" and typeof(debug.traceback) == "function" then
+        local ok2, res = pcall(debug.traceback, "", 2)
+        if ok2 and typeof(res) == "string" then
+            tb = "\n\n" .. res
+        end
+    end
+    return msg .. tb
 end)
 
 if not ok then
-    local fullMsg = "RUNTIME ERROR\n\n" .. tostring(runErr)
-    local copied = copyToClipboard(fullMsg)
-    local preview = tostring(runErr):sub(1, 80)
-    if copied then
-        notify("Auto Farm - Runtime Error", "Error copied to clipboard.\n" .. preview, 15)
-    else
-        notify("Auto Farm - Runtime Error", "Clipboard failed.\n" .. preview, 15)
+    local msg = "RUNTIME ERROR\n\n" .. tostring(runErr)
+    local copied = copyToClipboard(msg)
+    if not copied then
+        showErrorGui("Auto Farm - Runtime Error", msg)
     end
-    warn(fullMsg)
+    notify("Auto Farm - Runtime Error", copied and "Copied to clipboard." or "Shown in window.", 20)
     return
 end
 
