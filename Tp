@@ -1,0 +1,628 @@
+--[[
+	TP GUI  •  Mobile-ready  •  LocalScript
+	Put this in:  StarterPlayer > StarterPlayerScripts  (or StarterGui as a LocalScript)
+
+	• Draggable + collapsible panel that auto-scales to any screen
+	• TextBox : full player name OR just the first 3 letters
+	• Toggle  : sethiddenproperty(OurRoot, "PhysicsRepRootPart", TargetRoot) + CFrame follow
+	• Sliders : X / Y / Z   (-20 .. 20 , default  X0  Y0  Z-5)
+	• All driven from RunService.Heartbeat
+--]]
+
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
+
+-- sethiddenproperty only exists in executors that provide it
+local hasSHP = (type(sethiddenproperty) == "function")
+
+--==============================================================
+-- THEME
+--==============================================================
+local C = {
+	Bg     = Color3.fromRGB(20, 21, 26),
+	Panel  = Color3.fromRGB(30, 31, 38),
+	Panel2 = Color3.fromRGB(44, 45, 55),
+	Accent = Color3.fromRGB(94, 148, 255),
+	Green  = Color3.fromRGB(64, 214, 130),
+	Red    = Color3.fromRGB(255, 92, 92),
+	Text   = Color3.fromRGB(238, 239, 245),
+	Sub    = Color3.fromRGB(148, 150, 165),
+	Track  = Color3.fromRGB(58, 60, 72),
+}
+
+--==============================================================
+-- HELPERS
+--==============================================================
+local function make(class, props)
+	local inst = Instance.new(class)
+	local parent
+	for k, v in pairs(props) do
+		if k == "Parent" then parent = v else inst[k] = v end
+	end
+	if parent then inst.Parent = parent end
+	return inst
+end
+
+local MAIN_W, MAIN_H = 292, 344
+local MIN_V, MAX_V   = -20, 20
+
+local old = PlayerGui:FindFirstChild("TPGui")
+if old then old:Destroy() end
+
+--==============================================================
+-- ROOT
+--==============================================================
+local gui = make("ScreenGui", {
+	Name = "TPGui",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	DisplayOrder = 99,
+	Parent = PlayerGui,
+})
+
+local main = make("Frame", {
+	Name = "Main",
+	Size = UDim2.new(0, MAIN_W, 0, MAIN_H),
+	Position = UDim2.new(0.5, 0, 0.5, 0),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	BackgroundColor3 = C.Panel,
+	BorderSizePixel = 0,
+	Parent = gui,
+})
+make("UICorner", { CornerRadius = UDim.new(0, 16), Parent = main })
+make("UIStroke", { Color = Color3.fromRGB(62, 64, 78), Thickness = 1, Parent = main })
+
+local uiScale = make("UIScale", { Scale = 1, Parent = main })
+
+--==============================================================
+-- TOP BAR
+--==============================================================
+local topBar = make("Frame", {
+	Name = "TopBar",
+	Size = UDim2.new(1, 0, 0, 46),
+	BackgroundTransparency = 1,
+	Parent = main,
+})
+
+local dragArea = make("TextButton", {
+	Name = "DragArea",
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	Text = "",
+	AutoButtonColor = false,
+	Parent = topBar,
+})
+
+make("Frame", {
+	Size = UDim2.new(0, 8, 0, 8),
+	Position = UDim2.new(0, 16, 0.5, 0),
+	AnchorPoint = Vector2.new(0, 0.5),
+	BackgroundColor3 = C.Accent,
+	BorderSizePixel = 0,
+	Parent = topBar,
+}):ClearAllChildren()
+
+local titleDot = topBar:FindFirstChildOfClass("Frame")
+make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = titleDot })
+
+make("TextLabel", {
+	Size = UDim2.new(1, -90, 1, 0),
+	Position = UDim2.new(0, 32, 0, 0),
+	BackgroundTransparency = 1,
+	Font = Enum.Font.GothamBold,
+	Text = "TELEPORT",
+	TextColor3 = C.Text,
+	TextSize = 14,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = topBar,
+})
+
+local collapse = make("TextButton", {
+	Size = UDim2.new(0, 34, 0, 34),
+	Position = UDim2.new(1, -10, 0.5, 0),
+	AnchorPoint = Vector2.new(1, 0.5),
+	BackgroundColor3 = C.Panel2,
+	AutoButtonColor = false,
+	Text = "–",
+	Font = Enum.Font.GothamBold,
+	TextColor3 = C.Text,
+	TextSize = 18,
+	Parent = topBar,
+})
+make("UICorner", { CornerRadius = UDim.new(0, 10), Parent = collapse })
+
+--==============================================================
+-- BODY
+--==============================================================
+local body = make("Frame", {
+	Name = "Body",
+	Size = UDim2.new(1, 0, 1, -46),
+	Position = UDim2.new(0, 0, 0, 46),
+	BackgroundTransparency = 1,
+	Parent = main,
+})
+make("UIPadding", {
+	PaddingLeft = UDim.new(0, 14),
+	PaddingRight = UDim.new(0, 14),
+	PaddingBottom = UDim.new(0, 14),
+	Parent = body,
+})
+make("UIListLayout", {
+	Padding = UDim.new(0, 8),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Parent = body,
+})
+
+-- ---- search box ------------------------------------------------
+local searchBox = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 42),
+	BackgroundColor3 = C.Bg,
+	BorderSizePixel = 0,
+	LayoutOrder = 1,
+	Parent = body,
+})
+make("UICorner", { CornerRadius = UDim.new(0, 11), Parent = searchBox })
+make("UIStroke", { Color = Color3.fromRGB(54, 56, 68), Thickness = 1, Parent = searchBox })
+
+local search = make("TextBox", {
+	Size = UDim2.new(1, -20, 1, 0),
+	Position = UDim2.new(0, 10, 0, 0),
+	BackgroundTransparency = 1,
+	Font = Enum.Font.Gotham,
+	PlaceholderText = "Player name (or 3 letters)",
+	PlaceholderColor3 = Color3.fromRGB(105, 107, 122),
+	Text = "",
+	TextColor3 = C.Text,
+	TextSize = 14,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ClearTextOnFocus = false,
+	Parent = searchBox,
+})
+
+-- ---- status row ------------------------------------------------
+local statusRow = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 18),
+	BackgroundTransparency = 1,
+	LayoutOrder = 2,
+	Parent = body,
+})
+
+local statusDot = make("Frame", {
+	Size = UDim2.new(0, 7, 0, 7),
+	Position = UDim2.new(0, 3, 0.5, 0),
+	AnchorPoint = Vector2.new(0, 0.5),
+	BackgroundColor3 = C.Sub,
+	BorderSizePixel = 0,
+	Parent = statusRow,
+})
+make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = statusDot })
+
+local status = make("TextLabel", {
+	Size = UDim2.new(1, -20, 1, 0),
+	Position = UDim2.new(0, 18, 0, 0),
+	BackgroundTransparency = 1,
+	Font = Enum.Font.GothamMedium,
+	Text = "Idle",
+	TextColor3 = C.Sub,
+	TextSize = 12,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = statusRow,
+})
+
+-- ---- toggle row ------------------------------------------------
+local toggleRow = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 46),
+	BackgroundColor3 = C.Bg,
+	BorderSizePixel = 0,
+	LayoutOrder = 3,
+	Parent = body,
+})
+make("UICorner", { CornerRadius = UDim.new(0, 11), Parent = toggleRow })
+make("UIStroke", { Color = Color3.fromRGB(54, 56, 68), Thickness = 1, Parent = toggleRow })
+
+make("TextLabel", {
+	Size = UDim2.new(1, -90, 1, 0),
+	Position = UDim2.new(0, 14, 0, 0),
+	BackgroundTransparency = 1,
+	Font = Enum.Font.GothamMedium,
+	Text = "Teleport to player",
+	TextColor3 = C.Text,
+	TextSize = 13,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	Parent = toggleRow,
+})
+
+local switch = make("TextButton", {
+	Size = UDim2.new(0, 50, 0, 30),
+	Position = UDim2.new(1, -12, 0.5, 0),
+	AnchorPoint = Vector2.new(1, 0.5),
+	BackgroundColor3 = C.Track,
+	AutoButtonColor = false,
+	Text = "",
+	Parent = toggleRow,
+})
+make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = switch })
+
+local switchKnob = make("Frame", {
+	Size = UDim2.new(0, 24, 0, 24),
+	Position = UDim2.new(0, 3, 0.5, 0),
+	AnchorPoint = Vector2.new(0, 0.5),
+	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+	BorderSizePixel = 0,
+	Parent = switch,
+})
+make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = switchKnob })
+
+-- ---- sliders holder --------------------------------------------
+local sliderHolder = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 152),
+	BackgroundTransparency = 1,
+	LayoutOrder = 4,
+	Parent = body,
+})
+make("UIListLayout", {
+	Padding = UDim.new(0, 4),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Parent = sliderHolder,
+})
+
+--==============================================================
+-- STATE
+--==============================================================
+local Settings = {
+	Enabled = false,
+	Query   = "",
+	Offset  = Vector3.new(0, 0, -5),  -- X0  Y0  Z-5
+}
+
+--==============================================================
+-- SLIDER FACTORY
+--==============================================================
+local function createSlider(order, labelText, default, onChange)
+	local row = make("Frame", {
+		Size = UDim2.new(1, 0, 0, 48),
+		BackgroundTransparency = 1,
+		LayoutOrder = order,
+		Parent = sliderHolder,
+	})
+
+	make("TextLabel", {
+		Size = UDim2.new(0, 160, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamMedium,
+		Text = labelText,
+		TextColor3 = C.Sub,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = row,
+	})
+
+	local valueLabel = make("TextLabel", {
+		Size = UDim2.new(0, 60, 0, 16),
+		Position = UDim2.new(1, -60, 0, 0),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.GothamBold,
+		Text = tostring(default),
+		TextColor3 = C.Accent,
+		TextSize = 12,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = row,
+	})
+
+	-- transparent button = big touch target
+	local track = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 26),
+		Position = UDim2.new(0, 0, 0, 20),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+		Parent = row,
+	})
+
+	local bar = make("Frame", {
+		Size = UDim2.new(1, -20, 0, 6),
+		Position = UDim2.new(0, 10, 0.5, -3),
+		BackgroundColor3 = C.Track,
+		BorderSizePixel = 0,
+		Parent = track,
+	})
+	make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = bar })
+
+	local fill = make("Frame", {
+		Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = C.Accent,
+		BorderSizePixel = 0,
+		Parent = bar,
+	})
+	make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
+
+	local knob = make("Frame", {
+		Size = UDim2.new(0, 18, 0, 18),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BorderSizePixel = 0,
+		Parent = bar,
+	})
+	make("UICorner", { CornerRadius = UDim.new(1, 0), Parent = knob })
+
+	local function setValue(v, fire)
+		v = math.clamp(math.floor(v + 0.5), MIN_V, MAX_V)
+		local alpha = (v - MIN_V) / (MAX_V - MIN_V)
+		fill.Size = UDim2.new(alpha, 0, 1, 0)
+		knob.Position = UDim2.new(alpha, 0, 0.5, 0)
+		valueLabel.Text = (v > 0 and "+" or "") .. tostring(v)
+		if fire ~= false and onChange then onChange(v) end
+	end
+
+	-- ---- input handling (mouse + touch) ----
+	local dragging = false
+
+	local function applyFromX(px)
+		local abs = bar.AbsolutePosition
+		local w   = bar.AbsoluteSize.X
+		if w <= 0 then return end
+		local alpha = math.clamp((px - abs.X) / w, 0, 1)
+		setValue(MIN_V + alpha * (MAX_V - MIN_V))
+	end
+
+	track.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			applyFromX(input.Position.X)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch then
+			applyFromX(input.Position.X)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	setValue(default, false)
+	return setValue
+end
+
+-- ---- the three offset sliders ----------------------------------
+createSlider(1, "X   left / right", 0, function(v)
+	Settings.Offset = Vector3.new(v, Settings.Offset.Y, Settings.Offset.Z)
+end)
+
+createSlider(2, "Y   up / down", 0, function(v)
+	Settings.Offset = Vector3.new(Settings.Offset.X, v, Settings.Offset.Z)
+end)
+
+createSlider(3, "Z   front / back", -5, function(v)
+	Settings.Offset = Vector3.new(Settings.Offset.X, Settings.Offset.Y, v)
+end)
+
+--==============================================================
+-- TARGET RESOLUTION
+--==============================================================
+local function resolveTarget()
+	local q = Settings.Query
+	if q == "" then return nil end
+	q = string.lower(q)
+
+	local exact, prefix, partial
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer then
+			local n  = string.lower(plr.Name)
+			local dn = string.lower(plr.DisplayName)
+
+			if n == q or dn == q then
+				return plr
+			elseif not prefix and (string.sub(n, 1, #q) == q or string.sub(dn, 1, #q) == q) then
+				prefix = plr
+			elseif not partial and (string.find(n, q, 1, true) or string.find(dn, q, 1, true)) then
+				partial = plr
+			end
+		end
+	end
+
+	return prefix or partial
+end
+
+--==============================================================
+-- STATUS
+--==============================================================
+local function updateStatus()
+	if not Settings.Enabled then
+		status.Text = "Idle"
+		status.TextColor3 = C.Sub
+		statusDot.BackgroundColor3 = C.Sub
+		return
+	end
+
+	local t = resolveTarget()
+	if t then
+		status.Text = "Following  " .. t.Name
+		status.TextColor3 = C.Green
+		statusDot.BackgroundColor3 = C.Green
+	else
+		status.Text = (Settings.Query == "" and "Type a player name" or "No player found")
+		status.TextColor3 = C.Red
+		statusDot.BackgroundColor3 = C.Red
+	end
+end
+
+--==============================================================
+-- TOGGLE
+--==============================================================
+local function setToggle(on)
+	Settings.Enabled = on
+
+	local info = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	TweenService:Create(switch, info, {
+		BackgroundColor3 = on and C.Green or C.Track,
+	}):Play()
+
+	TweenService:Create(switchKnob, info, {
+		Position = on and UDim2.new(0, 23, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+	}):Play()
+
+	updateStatus()
+end
+
+--==============================================================
+-- CONNECTIONS
+--==============================================================
+search:GetPropertyChangedSignal("Text"):Connect(function()
+	Settings.Query = (string.gsub(search.Text, "^%s*(.-)%s*$", "%1"))
+	updateStatus()
+end)
+
+search.FocusLost:Connect(function()
+	Settings.Query = (string.gsub(search.Text, "^%s*(.-)%s*$", "%1"))
+	updateStatus()
+end)
+
+switch.MouseButton1Click:Connect(function()
+	setToggle(not Settings.Enabled)
+end)
+
+-- collapse / expand
+local collapsed = false
+collapse.MouseButton1Click:Connect(function()
+	collapsed = not collapsed
+	body.Visible = not collapsed
+	collapse.Text = collapsed and "+" or "–"
+
+	TweenService:Create(main, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = collapsed and UDim2.new(0, MAIN_W, 0, 46) or UDim2.new(0, MAIN_W, 0, MAIN_H),
+	}):Play()
+end)
+
+-- dragging the panel
+local dragging, dragStart, startPos = false, nil, nil
+
+dragArea.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+		dragging  = true
+		dragStart = input.Position
+		startPos  = main.Position
+
+		local conn
+		conn = input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+				conn:Disconnect()
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not dragging or not dragStart then return end
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+	or input.UserInputType == Enum.UserInputType.Touch then
+		local d = input.Position - dragStart
+		main.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + d.X,
+			startPos.Y.Scale, startPos.Y.Offset + d.Y
+		)
+	end
+end)
+
+--==============================================================
+-- RESPONSIVE SCALING
+--==============================================================
+local function updateUIScale()
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+	local vp = cam.ViewportSize
+	local s = math.min(vp.X / 340, vp.Y / 430)
+	uiScale.Scale = math.clamp(s, 0.72, 1.15)
+end
+
+updateUIScale()
+
+local function hookCamera()
+	local cam = workspace.CurrentCamera
+	if cam then
+		cam:GetPropertyChangedSignal("ViewportSize"):Connect(updateUIScale)
+	end
+end
+
+hookCamera()
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	hookCamera()
+	updateUIScale()
+end)
+
+--==============================================================
+-- HEARTBEAT LOOP  (teleport + offsets + sethiddenproperty)
+--==============================================================
+local activeTarget = nil
+
+RunService.Heartbeat:Connect(function()
+	local character = LocalPlayer.Character
+	local myRoot    = character and character:FindFirstChild("HumanoidRootPart")
+
+	-- ---- OFF : release the physics rep root ----
+	if not Settings.Enabled then
+		if activeTarget then
+			activeTarget = nil
+			if myRoot and hasSHP then
+				pcall(sethiddenproperty, myRoot, "PhysicsRepRootPart", myRoot)
+			end
+		end
+		return
+	end
+
+	if not myRoot then return end
+
+	-- ---- resolve target ----
+	local target = resolveTarget()
+	if not target then return end
+
+	local tChar = target.Character
+	local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+	if not tRoot then return end
+
+	activeTarget = target
+
+	-- ---- sethiddenproperty trick ----
+	if hasSHP then
+		pcall(sethiddenproperty, myRoot, "PhysicsRepRootPart", tRoot)
+	end
+
+	-- ---- apply position with sliders offset ----
+	local o = Settings.Offset
+	myRoot.CFrame = tRoot.CFrame * CFrame.new(o.X, o.Y, o.Z)
+
+	-- kill momentum so we don't jitter / fall
+	myRoot.AssemblyLinearVelocity  = Vector3.zero
+	myRoot.AssemblyAngularVelocity = Vector3.zero
+end)
+
+--==============================================================
+-- STATUS REFRESH LOOP
+--==============================================================
+task.spawn(function()
+	while gui.Parent do
+		updateStatus()
+		task.wait(0.4)
+	end
+end)
+
+updateStatus()
