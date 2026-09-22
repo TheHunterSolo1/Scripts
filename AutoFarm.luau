@@ -83,15 +83,15 @@ local CAMERA_MIN_DIST = 5
 local CAMERA_MAX_DIST = 60
 local CAMERA_HEIGHT = 3
 
-local CLONE_CHECK_INTERVAL = 0.5
-local CLONE_REBUILD_COOLDOWN = 1.5
+local CLONE_CHECK_INTERVAL = 0
+local CLONE_REBUILD_COOLDOWN = 0
 
 local HEAD_DISTANCE_THRESHOLD = 6
 local FORCEFIELD_MAX_EFFECTIVE = 3
 local STEALTH_STREAK_THRESHOLD = 6
 
-local HEAD_SAFE_LOCK_DURATION = 1
-local HEAD_SAFE_COOLDOWN = 2.5
+local HEAD_SAFE_LOCK_DURATION = 5
+local HEAD_SAFE_COOLDOWN = 0
 
 local THROWN_CLEAR_DELAY = 0.06
 
@@ -236,7 +236,7 @@ local function RUN()
 
     local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.Size = UDim2.fromOffset(250, 420)
+    Main.Size = UDim2.fromOffset(230, 390)
     Main.Position = UDim2.new(0.5, -125, 0.5, -210)
     Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
     Main.BackgroundTransparency = 0.05
