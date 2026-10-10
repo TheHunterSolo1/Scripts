@@ -78,7 +78,7 @@ local function setPhysRep(root, target)
     if root == nil then
         return
     end
-    pcall(function() sethiddenFn(root, "PhysicsRepRootPart", target) end)
+    sethiddenFn(root, "PhysicsRepRootPart", target)
 end
 
 local forceHealthConnection = nil
@@ -90,19 +90,14 @@ local function setupForceHealth(character)
     end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if humanoid == nil then
-        local okW = false
-        local h = nil
-        okW = pcall(function() h = character:WaitForChild("Humanoid", 5) end)
-        if okW then
-            humanoid = h
-        end
+        humanoid = character:WaitForChild("Humanoid", 5)
     end
     if humanoid == nil then
         return
     end
 
-    pcall(function() humanoid.BreakJointsOnDeath = false end)
-    pcall(function() humanoid.RequiresNeck = false end)
+    humanoid.BreakJointsOnDeath = false
+    humanoid.RequiresNeck = false
 
     if forceHealthConnection ~= nil then
         forceHealthConnection:Disconnect()
@@ -142,14 +137,16 @@ local SAFE_POSITION = Vector3.new(0, -9997, 0)
 local TWIN_FANGS_NAME = "Twin Fangs"
 local TWIN_FANGS_SLOT = 2
 
-local TF_ALIGN_DURATION = 2
+local TF_ALIGN_DURATION = 2.4
 local TF_BOUNDARY_SETTLE = 3.0
 local TF_ACTIVATION_TIMEOUT = 3.0
 local TF_RETRY_INTERVAL = 0.1
-local FALLBACK_TOOL_DURATION = 0.5
-local ROTATION_LOOP_DELAY = 0.05
+local FALLBACK_TOOL_DURATION = 1
+local FINISHER_TOOL_DURATION = 0
+local ROTATION_LOOP_DELAY = 0
 
 local LOW_HP_THRESHOLD = 0.2
+local TARGET_SWITCH_DELAY = 0.025
 
 local ANTI_MODE_COLOR = Color3.fromRGB(255, 120, 60)
 
@@ -178,10 +175,16 @@ local HOP_TELEPORT_VERIFY_WAIT = 6
 local HOP_MAX_ATTEMPTS = 5
 local HOP_CANDIDATE_TRY_COUNT = 3
 
-local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME }
+local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME ,
+"Grand Fissure"
+}
+
+
 local PROXIMITY_PRIORITY_RANGE = 50
 
 local ATTACK_POSITION_EPS = 0.01
+
+local MOBILE_UI_SCALE = 0.75
 
 local G = _G
 
@@ -210,45 +213,27 @@ local function randomString(length)
 end
 
 local function readConfig()
-    if typeof(isfile) ~= "function" then
-        return nil
-    end
-    if typeof(readfile) ~= "function" then
-        return nil
-    end
-    local ok, exists = pcall(function() return isfile(CONFIG_PATH) end)
-    if not ok or not exists then
-        return nil
-    end
-    local readOk, content = pcall(function() return readfile(CONFIG_PATH) end)
-    if not readOk or content == nil then
-        return nil
-    end
-    if content == "" then
-        return nil
-    end
-    local decodeOk, data = pcall(function() return HttpService:JSONDecode(content) end)
-    if not decodeOk or typeof(data) ~= "table" then
-        return nil
-    end
+    if typeof(isfile) ~= "function" then return nil end
+    if typeof(readfile) ~= "function" then return nil end
+    if not isfile(CONFIG_PATH) then return nil end
+    local content = readfile(CONFIG_PATH)
+    if content == nil or content == "" then return nil end
+    local data = HttpService:JSONDecode(content)
+    if typeof(data) ~= "table" then return nil end
     return data
 end
 
 local function writeConfig(data)
-    if typeof(writefile) ~= "function" then
-        return
-    end
-    local encodeOk, encoded = pcall(function() return HttpService:JSONEncode(data) end)
-    if not encodeOk or encoded == nil then
-        return
-    end
-    pcall(function() writefile(CONFIG_PATH, encoded) end)
+    if typeof(writefile) ~= "function" then return end
+    local encoded = HttpService:JSONEncode(data)
+    if encoded == nil then return end
+    writefile(CONFIG_PATH, encoded)
 end
 
 local function RUN()
     local IS_MOBILE = UserInputService.TouchEnabled
 
-    pcall(function() math.randomseed(os.time() + random_(1, 1e6)) end)
+    math.randomseed(os.time() + random_(1, 1e6))
 
     local guiParent = getGuiParent()
 
@@ -269,28 +254,18 @@ local function RUN()
     local performanceMode = true
     local stealthMode = false
     local serverHopEnabled = false
+    local spamFinishersEnabled = false
     local targetKills = 20
     local showsKills = 0
 
     if saved ~= nil then
-        if typeof(saved.farmEnabled) == "boolean" then
-            farmEnabled = saved.farmEnabled
-        end
-        if typeof(saved.performanceMode) == "boolean" then
-            performanceMode = saved.performanceMode
-        end
-        if typeof(saved.stealthMode) == "boolean" then
-            stealthMode = saved.stealthMode
-        end
-        if typeof(saved.serverHopEnabled) == "boolean" then
-            serverHopEnabled = saved.serverHopEnabled
-        end
-        if typeof(saved.targetKills) == "number" then
-            targetKills = saved.targetKills
-        end
-        if typeof(saved.showsKills) == "number" then
-            showsKills = saved.showsKills
-        end
+        if typeof(saved.farmEnabled) == "boolean" then farmEnabled = saved.farmEnabled end
+        if typeof(saved.performanceMode) == "boolean" then performanceMode = saved.performanceMode end
+        if typeof(saved.stealthMode) == "boolean" then stealthMode = saved.stealthMode end
+        if typeof(saved.serverHopEnabled) == "boolean" then serverHopEnabled = saved.serverHopEnabled end
+        if typeof(saved.spamFinishersEnabled) == "boolean" then spamFinishersEnabled = saved.spamFinishersEnabled end
+        if typeof(saved.targetKills) == "number" then targetKills = saved.targetKills end
+        if typeof(saved.showsKills) == "number" then showsKills = saved.showsKills end
     end
 
     local configExisted = saved ~= nil
@@ -302,10 +277,17 @@ local function RUN()
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = guiParent
 
+    if IS_MOBILE then
+        local uiScale = Instance.new("UIScale")
+        uiScale.Scale = MOBILE_UI_SCALE
+        uiScale.Parent = ScreenGui
+    end
+
     local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.Size = UDim2.fromOffset(230, 390)
-    Main.Position = UDim2.new(0.5, -125, 0.5, -210)
+    Main.Size = UDim2.fromOffset(230, 500)
+    Main.ClipsDescendants = false
+    Main.Position = UDim2.new(0.5, -125, 0.5, -250)
     Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
     Main.BackgroundTransparency = 0.05
     Main.BorderSizePixel = 0
@@ -400,11 +382,12 @@ local function RUN()
     local PerfButton, PerfState = makeToggle("PerformanceToggle", "Performance Mode", UDim2.fromOffset(0, 101))
     local StealthButton, StealthState = makeToggle("StealthToggle", "Stealth Mode", UDim2.fromOffset(0, 147))
     local HopButton, HopState = makeToggle("ServerHopToggle", "Server Hop", UDim2.fromOffset(0, 193))
+    local SpamFinisherButton, SpamFinisherState = makeToggle("SpamFinishersToggle", "Spam Finishers", UDim2.fromOffset(0, 239))
 
     local KillsRow = Instance.new("Frame")
     KillsRow.Name = "KillsRow"
     KillsRow.Size = UDim2.new(1, 0, 0, 30)
-    KillsRow.Position = UDim2.fromOffset(0, 240)
+    KillsRow.Position = UDim2.fromOffset(0, 286)
     KillsRow.BackgroundTransparency = 1
     KillsRow.Parent = Main
 
@@ -441,7 +424,7 @@ local function RUN()
     local ShowsLabel = Instance.new("TextLabel")
     ShowsLabel.Name = "ShowsLabel"
     ShowsLabel.Size = UDim2.new(1, 0, 0, 18)
-    ShowsLabel.Position = UDim2.fromOffset(0, 274)
+    ShowsLabel.Position = UDim2.fromOffset(0, 320)
     ShowsLabel.BackgroundTransparency = 1
     ShowsLabel.Text = "Shows Kills: 0"
     ShowsLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
@@ -453,7 +436,7 @@ local function RUN()
     local CurrentLabel = Instance.new("TextLabel")
     CurrentLabel.Name = "CurrentLabel"
     CurrentLabel.Size = UDim2.new(1, 0, 0, 18)
-    CurrentLabel.Position = UDim2.fromOffset(0, 292)
+    CurrentLabel.Position = UDim2.fromOffset(0, 338)
     CurrentLabel.BackgroundTransparency = 1
     CurrentLabel.Text = "Current Kills: 0"
     CurrentLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
@@ -465,7 +448,7 @@ local function RUN()
     local WarningLabel = Instance.new("TextLabel")
     WarningLabel.Name = "Warning"
     WarningLabel.Size = UDim2.new(1, 0, 0, 40)
-    WarningLabel.Position = UDim2.fromOffset(0, 320)
+    WarningLabel.Position = UDim2.fromOffset(0, 362)
     WarningLabel.BackgroundColor3 = Color3.fromRGB(60, 25, 25)
     WarningLabel.BackgroundTransparency = 0.15
     WarningLabel.BorderSizePixel = 0
@@ -480,6 +463,25 @@ local function RUN()
     local WarnCorner = Instance.new("UICorner")
     WarnCorner.CornerRadius = UDim.new(0, 8)
     WarnCorner.Parent = WarningLabel
+
+    local SpamInfoLabel = Instance.new("TextLabel")
+    SpamInfoLabel.Name = "SpamInfoLabel"
+    SpamInfoLabel.Size = UDim2.new(1, 0, 0, 50)
+    SpamInfoLabel.Position = UDim2.fromOffset(0, 406)
+    SpamInfoLabel.BackgroundColor3 = Color3.fromRGB(22, 40, 22)
+    SpamInfoLabel.BackgroundTransparency = 0.15
+    SpamInfoLabel.BorderSizePixel = 0
+    SpamInfoLabel.RichText = true
+    SpamInfoLabel.Text = "Uses Moves at Dead People\nto gain <font color=\"rgb(0,255,0)\">Ultimate FASTER</font>"
+    SpamInfoLabel.TextColor3 = Color3.fromRGB(200, 210, 200)
+    SpamInfoLabel.TextSize = 11
+    SpamInfoLabel.Font = Enum.Font.GothamMedium
+    SpamInfoLabel.TextWrapped = true
+    SpamInfoLabel.Parent = Main
+
+    local SpamInfoCorner = Instance.new("UICorner")
+    SpamInfoCorner.CornerRadius = UDim.new(0, 8)
+    SpamInfoCorner.Parent = SpamInfoLabel
 
     local protectionActive = false
     local rotationRunning = false
@@ -500,6 +502,10 @@ local function RUN()
     local targetStates = {}
     local fallbackIndex = 0
 
+    local lastTargetPlayer = nil
+    local pendingTargetPlayer = nil
+    local targetSwitchLockUntil = 0
+
     local windowDragging = false
     local windowDragStart = Vector2.zero
     local windowStartPos = UDim2.new()
@@ -517,6 +523,10 @@ local function RUN()
     local lastWatchedCharacter = nil
     local lastCloneCheck = 0
     local lastCloneRebuild = 0
+
+    local finisherActive = false
+    local finisherLoopRunning = false
+    local finisherTargetRoot = nil
 
     local spamTrack = nil
     local spamTrackCharacter = nil
@@ -542,6 +552,7 @@ local function RUN()
             performanceMode = performanceMode,
             stealthMode = stealthMode,
             serverHopEnabled = serverHopEnabled,
+            spamFinishersEnabled = spamFinishersEnabled,
             targetKills = targetKills,
             showsKills = showsKills,
         })
@@ -572,6 +583,9 @@ local function RUN()
         elseif hopInProgress then
             Status.Text = "Mode: Server Hopping"
             Status.TextColor3 = Color3.fromRGB(170, 170, 180)
+        elseif finisherLoopRunning or finisherActive then
+            Status.Text = "Mode: Spam Finisher"
+            Status.TextColor3 = Color3.fromRGB(80, 230, 130)
         elseif rotationRunning then
             Status.Text = "Mode: Rotation Sequence"
             Status.TextColor3 = Color3.fromRGB(170, 170, 180)
@@ -598,6 +612,8 @@ local function RUN()
         setToggle(FarmState, farmEnabled)
         if not farmEnabled then
             suppressHeartbeatTp = false
+            finisherActive = false
+            finisherTargetRoot = nil
         end
         persistConfig()
         refreshStatus()
@@ -627,6 +643,17 @@ local function RUN()
         end
     end)
 
+    SpamFinisherButton.Activated:Connect(function()
+        spamFinishersEnabled = not spamFinishersEnabled
+        setToggle(SpamFinisherState, spamFinishersEnabled)
+        if not spamFinishersEnabled then
+            finisherActive = false
+            finisherTargetRoot = nil
+        end
+        persistConfig()
+        refreshStatus()
+    end)
+
     KillsBox.FocusLost:Connect(function()
         local n = tonumber(KillsBox.Text)
         if n ~= nil and n > 0 then
@@ -640,6 +667,7 @@ local function RUN()
     setToggle(PerfState, performanceMode)
     setToggle(StealthState, stealthMode)
     setToggle(HopState, serverHopEnabled)
+    setToggle(SpamFinisherState, spamFinishersEnabled)
     WarningLabel.Visible = stealthMode
     refreshKillsDisplay()
 
@@ -692,52 +720,33 @@ local function RUN()
     end)
 
     local function hasProtection(character)
-        if character:FindFirstChild("AbsoluteImmortal") ~= nil then
-            return true
-        end
-        if character:FindFirstChild("ForceField") ~= nil then
-            return true
-        end
-        if character:FindFirstChild("FinalDeath") ~= nil then
-            return true
-        end
-        if character:FindFirstChild("Counter") ~= nil then
-            return true
-        end
+        if character == nil then return true end
+        if character:FindFirstChild("AbsoluteImmortal") ~= nil then return true end
+        if character:FindFirstChild("ForceField") ~= nil then return true end
+        if character:FindFirstChild("FinalDeath") ~= nil then return true end
+        if character:FindFirstChild("Counter") ~= nil then return true end
         return false
     end
 
     local function getRoot()
         local character = LocalPlayer.Character
-        if character == nil then
-            return nil
-        end
+        if character == nil then return nil end
         local root = character:FindFirstChild("HumanoidRootPart")
-        if root == nil then
-            return nil
-        end
-        if not root:IsA("BasePart") then
-            return nil
-        end
+        if root == nil then return nil end
+        if not root:IsA("BasePart") then return nil end
         return root
     end
 
     local function selfHasRagdoll()
         local character = LocalPlayer.Character
-        if character == nil then
-            return false
-        end
-        if character:FindFirstChild("Ragdoll") ~= nil then
-            return true
-        end
+        if character == nil then return false end
+        if character:FindFirstChild("Ragdoll") ~= nil then return true end
         return false
     end
 
     local function checkAttacking()
         local root = getRoot()
-        if root == nil then
-            return false
-        end
+        if root == nil then return false end
         local pos = root.CFrame.Position
         local dx = pos.X - 0
         local dy = pos.Y - 0
@@ -747,33 +756,17 @@ local function RUN()
     end
 
     local function getPlayerRoot(player)
-        if player == nil then
-            return nil
-        end
-        if player == LocalPlayer then
-            return nil
-        end
+        if player == nil then return nil end
+        if player == LocalPlayer then return nil end
         local tc = player.Character
-        if tc == nil then
-            return nil
-        end
-        if hasProtection(tc) then
-            return nil
-        end
+        if tc == nil then return nil end
+        if hasProtection(tc) then return nil end
         local hum = tc:FindFirstChildOfClass("Humanoid")
-        if hum == nil then
-            return nil
-        end
-        if hum.Health <= 0 then
-            return nil
-        end
+        if hum == nil then return nil end
+        if hum.Health <= 0 then return nil end
         local tr = tc:FindFirstChild("HumanoidRootPart")
-        if tr == nil then
-            return nil
-        end
-        if not tr:IsA("BasePart") then
-            return nil
-        end
+        if tr == nil then return nil end
+        if not tr:IsA("BasePart") then return nil end
         return tr
     end
 
@@ -802,46 +795,165 @@ local function RUN()
         return best
     end
 
-    local function getTarget()
-        local root = getRoot()
-        if root == nil then
-            return nil
-        end
-        local close = getClosestPlayerWithin(PROXIMITY_PRIORITY_RANGE, root.Position)
-        if close ~= nil then
-            return close
-        end
+    local function isCharacterDead(tc)
+        if tc == nil or tc.Parent == nil then return false end
+        if tc:FindFirstChild("FinalDeath") ~= nil then return true end
+        if tc:FindFirstChild("FinalDeath", true) ~= nil then return true end
+        local hum = tc:FindFirstChildOfClass("Humanoid")
+        if hum ~= nil and hum.Health <= 0 then return true end
+        return false
+    end
 
-        local lowestHpPlayer = nil
-        local lowestHealth = huge_
+    local function getDeadTargetRoot()
+        local root = getRoot()
+        if root == nil then return nil end
+        local best = nil
+        local bestDSq = huge_
+
         local players = Players:GetPlayers()
         local i = 1
         while i <= #players do
             local player = players[i]
             if player ~= LocalPlayer then
                 local tc = player.Character
-                if tc ~= nil and not hasProtection(tc) then
-                    local hum = tc:FindFirstChildOfClass("Humanoid")
-                    if hum ~= nil and hum.Health > 0 then
-                        local tr = tc:FindFirstChild("HumanoidRootPart")
-                        if tr ~= nil and tr:IsA("BasePart") then
-                            if hum.Health < lowestHealth then
-                                lowestHealth = hum.Health
-                                lowestHpPlayer = player
-                            end
+                if tc ~= nil and tc.Parent ~= nil and isCharacterDead(tc) then
+                    local tr = tc:FindFirstChild("HumanoidRootPart")
+                    if tr ~= nil and tr:IsA("BasePart") then
+                        local dx = tr.Position.X - root.Position.X
+                        local dy = tr.Position.Y - root.Position.Y
+                        local dz = tr.Position.Z - root.Position.Z
+                        local dSq = dx * dx + dy * dy + dz * dz
+                        if dSq < bestDSq then
+                            bestDSq = dSq
+                            best = tr
                         end
                     end
                 end
             end
             i = i + 1
         end
-        return lowestHpPlayer
+
+        if best == nil then
+            local myChar = LocalPlayer.Character
+            local children = Workspace:GetChildren()
+            local j = 1
+            while j <= #children do
+                local obj = children[j]
+                if obj:IsA("Model") and obj ~= myChar then
+                    if obj:FindFirstChild("FinalDeath") ~= nil or obj:FindFirstChild("FinalDeath", true) ~= nil then
+                        local tr = obj:FindFirstChild("HumanoidRootPart")
+                        if tr ~= nil and tr:IsA("BasePart") then
+                            local dx = tr.Position.X - root.Position.X
+                            local dy = tr.Position.Y - root.Position.Y
+                            local dz = tr.Position.Z - root.Position.Z
+                            local dSq = dx * dx + dy * dy + dz * dz
+                            if dSq < bestDSq then
+                                bestDSq = dSq
+                                best = tr
+                            end
+                        end
+                    end
+                end
+                j = j + 1
+            end
+        end
+
+        return best
+    end
+
+    local function getTarget()
+        local root = getRoot()
+        if root == nil then
+            lastTargetPlayer = nil
+            pendingTargetPlayer = nil
+            targetSwitchLockUntil = 0
+            return nil
+        end
+
+        local now = clock()
+
+        if pendingTargetPlayer ~= nil then
+            if now < targetSwitchLockUntil then
+                return lastTargetPlayer
+            end
+            lastTargetPlayer = pendingTargetPlayer
+            pendingTargetPlayer = nil
+            targetSwitchLockUntil = 0
+        end
+
+        local result = nil
+
+        local close = getClosestPlayerWithin(PROXIMITY_PRIORITY_RANGE, root.Position)
+        if close ~= nil then
+            result = close
+        else
+            local lowestHpPlayer = nil
+            local lowestHealth = huge_
+            local players = Players:GetPlayers()
+            local i = 1
+            while i <= #players do
+                local player = players[i]
+                if player ~= LocalPlayer then
+                    local tc = player.Character
+                    if tc ~= nil and not hasProtection(tc) then
+                        local hum = tc:FindFirstChildOfClass("Humanoid")
+                        if hum ~= nil and hum.Health > 0 then
+                            local tr = tc:FindFirstChild("HumanoidRootPart")
+                            if tr ~= nil and tr:IsA("BasePart") then
+                                if hum.Health < lowestHealth then
+                                    lowestHealth = hum.Health
+                                    lowestHpPlayer = player
+                                end
+                            end
+                        end
+                    end
+                end
+                i = i + 1
+            end
+            result = lowestHpPlayer
+        end
+
+        if result == nil then
+            lastTargetPlayer = nil
+            pendingTargetPlayer = nil
+            targetSwitchLockUntil = 0
+            return nil
+        end
+
+        if result ~= lastTargetPlayer then
+            if lastTargetPlayer ~= nil then
+                pendingTargetPlayer = result
+                targetSwitchLockUntil = now + TARGET_SWITCH_DELAY
+                return lastTargetPlayer
+            end
+            lastTargetPlayer = result
+            return result
+        end
+
+        return result
+    end
+
+    local function canAlignToTarget(target)
+        if target == nil then return false end
+        if target == LocalPlayer then return false end
+        local tc = target.Character
+        if tc == nil or tc.Parent == nil then return false end
+        if hasProtection(tc) then return false end
+        local tr = tc:FindFirstChild("HumanoidRootPart")
+        if tr == nil or not tr:IsA("BasePart") then return false end
+        return true
+    end
+
+    local function targetRootForAlign()
+        local target = getTarget()
+        if not canAlignToTarget(target) then
+            return nil
+        end
+        return target.Character:FindFirstChild("HumanoidRootPart")
     end
 
     local function pinToSafeZone(root)
-        if root == nil then
-            return
-        end
+        if root == nil then return end
         setPhysRep(root, nil)
         root.CFrame = CFrame.new(SAFE_POSITION)
         root.AssemblyLinearVelocity = Vector3.zero
@@ -855,21 +967,17 @@ local function RUN()
 
     local function pressG()
         local now = clock()
-        if now - lastGPress < G_INTERVAL then
-            return
-        end
+        if now - lastGPress < G_INTERVAL then return end
         lastGPress = now
         pressKey(Enum.KeyCode.G)
     end
 
     local function pressJump()
         local now = clock()
-        if now - lastJumpPress < JUMP_INTERVAL then
-            return
-        end
+        if now - lastJumpPress < JUMP_INTERVAL then return end
         lastJumpPress = now
         if not spaceDown then
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
             spaceDown = true
             spaceDownAt = now
         end
@@ -884,89 +992,25 @@ local function RUN()
         end
     end
 
+
     local function getCommunicate()
         local character = LocalPlayer.Character
-        if character == nil then
-            return nil
-        end
+        if character == nil then return nil end
         local comm = character:FindFirstChild("Communicate")
-        if comm == nil then
-            return nil
-        end
-        if not comm:IsA("RemoteEvent") then
-            return nil
-        end
+        if comm == nil then return nil end
+        if not comm:IsA("RemoteEvent") then return nil end
         return comm
     end
 
     local function getMouseCFrame()
         local cam = Workspace.CurrentCamera
-        if cam == nil then
-            return nil
-        end
+        if cam == nil then return nil end
         local mp = UserInputService:GetMouseLocation()
         local ray = cam:ViewportPointToRay(mp.X, mp.Y)
         return CFrame.lookAt(ray.Origin, ray.Origin + ray.Direction * 1000)
     end
 
-    local function fireCommunicate()
-        local now = clock()
-        if now - lastRemoteFire < REMOTE_COOLDOWN then
-            return
-        end
-        lastRemoteFire = now
-        local comm = getCommunicate()
-        if comm == nil then
-            return
-        end
-        local mouseCF = getMouseCFrame()
-        if mouseCF == nil then
-            return
-        end
-        comm:FireServer({ Mobile = IS_MOBILE, Goal = "LeftClick", MousePos = mouseCF })
-    end
-
-    local function activateToolViaRemote(tool)
-        local comm = getCommunicate()
-        if comm == nil then
-            return
-        end
-        comm:FireServer({ Tool = tool, Goal = "Console Move", IsAutoActivate = true })
-    end
-
-    local function fireRagdollFinish()
-        local comm = getCommunicate()
-        if comm == nil then
-            return
-        end
-        local mouseCF = getMouseCFrame()
-        if mouseCF == nil then
-            return
-        end
-        comm:FireServer({ Dash = Enum.KeyCode.W, Key = Enum.KeyCode.Q, Goal = "KeyPress", MousePos = mouseCF })
-    end
-
-    local function tryFireRagdollFinish()
-        local now = clock()
-        if now - lastRagdollFire < RAGDOLL_COOLDOWN then
-            return
-        end
-        local target = getTarget()
-        if target == nil then
-            return
-        end
-        local tc = target.Character
-        if tc == nil then
-            return
-        end
-        if tc:FindFirstChild("Ragdoll") == nil then
-            return
-        end
-        lastRagdollFire = now
-        fireRagdollFinish()
-    end
-
-    local function getBackpack()
+local function getBackpack()
         if cachedBackpack ~= nil and cachedBackpack.Parent ~= nil then
             return cachedBackpack
         end
@@ -978,7 +1022,9 @@ local function RUN()
         return nil
     end
 
-    local function findTool(name)
+
+
+local function findTool(name)
         local target = lower_(name)
         local bp = getBackpack()
         if bp ~= nil then
@@ -986,10 +1032,8 @@ local function RUN()
             local i = 1
             while i <= #children do
                 local c = children[i]
-                if c:IsA("Tool") then
-                    if lower_(c.Name) == target then
-                        return c
-                    end
+                if c:IsA("Tool") and lower_(c.Name) == target then
+                    return c
                 end
                 i = i + 1
             end
@@ -1000,16 +1044,92 @@ local function RUN()
             local i = 1
             while i <= #children do
                 local c = children[i]
-                if c:IsA("Tool") then
-                    if lower_(c.Name) == target then
-                        return c
-                    end
+                if c:IsA("Tool") and lower_(c.Name) == target then
+                    return c
                 end
                 i = i + 1
             end
         end
         return nil
     end
+
+
+local function twinFangsExists()
+        if findTool(TWIN_FANGS_NAME) ~= nil or LocalPlayer.Character:GetAttribute("Ulted") == true then return true end
+        return false
+    end
+
+    local function fireCommunicate()
+        local now = clock()
+        if now - lastRemoteFire < REMOTE_COOLDOWN then return end
+        lastRemoteFire = now
+        local comm = getCommunicate()
+        if comm == nil then return end
+        local mouseCF = getMouseCFrame()
+        if mouseCF == nil then return end
+
+        local character = LocalPlayer.Character
+        if character == nil then return end
+        local isM1ing = character:FindFirstChild("M1ing") ~= nil
+
+        if twinFangsExists() then
+            if isM1ing then
+                comm:FireServer(
+                    {
+                        Goal = "KeyPress",
+                        Key = Enum.KeyCode.F,
+                        MousePos = mouseCF
+                    }
+                )
+                comm:FireServer({
+                    Goal = "LeftClickRelease",
+                    Mobile = IS_MOBILE
+                })
+            else
+                comm:FireServer(
+                    {
+                        Goal = "KeyRelease",
+                        Key = Enum.KeyCode.F
+                    }
+                )
+            end
+        else
+            if not isM1ing then
+                comm:FireServer({ Mobile = IS_MOBILE, Goal = "LeftClick", MousePos = mouseCF })
+            end
+        end
+    end
+
+
+
+    local function activateToolViaRemote(tool)
+        local comm = getCommunicate()
+        if comm == nil then return end
+        comm:FireServer({ Tool = tool, Goal = "Console Move", IsAutoActivate = true })
+    end
+
+    local function fireRagdollFinish()
+        local comm = getCommunicate()
+        if comm == nil then return end
+        local mouseCF = getMouseCFrame()
+        if mouseCF == nil then return end
+if twinFangsExists() then return end
+        comm:FireServer({ Dash = Enum.KeyCode.W, Key = Enum.KeyCode.Q, Goal = "KeyPress", MousePos = mouseCF })
+    end
+
+    local function tryFireRagdollFinish()
+        local now = clock()
+        if now - lastRagdollFire < RAGDOLL_COOLDOWN then return end
+        local target = getTarget()
+        if target == nil then return end
+        local tc = target.Character
+        if tc == nil then return end
+        if tc:FindFirstChild("Ragdoll") == nil then return end
+        lastRagdollFire = now
+        fireRagdollFinish()
+    end
+
+
 
     local function getAllTools(exclude)
         local excl = {}
@@ -1025,10 +1145,8 @@ local function RUN()
             local j = 1
             while j <= #children do
                 local c = children[j]
-                if c:IsA("Tool") then
-                    if not excl[lower_(c.Name)] then
-                        insert_(result, c)
-                    end
+                if c:IsA("Tool") and not excl[lower_(c.Name)] then
+                    insert_(result, c)
                 end
                 j = j + 1
             end
@@ -1039,10 +1157,8 @@ local function RUN()
             local j = 1
             while j <= #children do
                 local c = children[j]
-                if c:IsA("Tool") then
-                    if not excl[lower_(c.Name)] then
-                        insert_(result, c)
-                    end
+                if c:IsA("Tool") and not excl[lower_(c.Name)] then
+                    insert_(result, c)
                 end
                 j = j + 1
             end
@@ -1050,17 +1166,9 @@ local function RUN()
         return result
     end
 
-    local function twinFangsExists()
-        if findTool(TWIN_FANGS_NAME) ~= nil then
-            return true
-        end
-        return false
-    end
+
 
     local function genericSpam()
-        if twinFangsExists() then
-            return
-        end
         pressJump()
         fireCommunicate()
         tryFireRagdollFinish()
@@ -1068,49 +1176,29 @@ local function RUN()
 
     local function hotbarHasCooldown(slot)
         local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        if pg == nil then
-            return false
-        end
+        if pg == nil then return false end
         local hotbar = pg:FindFirstChild("Hotbar")
-        if hotbar == nil then
-            return false
-        end
+        if not hotbar then return false end
         local bp = hotbar:FindFirstChild("Backpack")
-        if bp == nil then
-            return false
-        end
+        if bp == nil then return false end
         local slots = bp:FindFirstChild("Hotbar")
-        if slots == nil then
-            return false
-        end
+        if slots == nil then return false end
         local frame = slots:FindFirstChild(tostring(slot))
-        if frame == nil then
-            return false
-        end
+        if frame == nil then return false end
         local baseFrame = frame:FindFirstChild("Base")
-        if baseFrame == nil then
-            return false
-        end
-        if baseFrame:FindFirstChild("Cooldown") ~= nil then
-            return true
-        end
+        if baseFrame == nil then return false end
+        if baseFrame:FindFirstChild("Cooldown") ~= nil then return true end
         return false
     end
 
     local function ensureInvisible()
         local character = LocalPlayer.Character
-        if character == nil then
-            return
-        end
+        if character == nil then return end
         local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid == nil then
-            return
-        end
+        if humanoid == nil then return end
 
         if spamTrackCharacter ~= character then
-            if spamTrack ~= nil then
-                pcall(function() spamTrack:Stop(0) end)
-            end
+            if spamTrack ~= nil then spamTrack:Stop(0) end
             spamTrack = nil
             spamTrackCharacter = character
         end
@@ -1121,68 +1209,42 @@ local function RUN()
             na.Parent = humanoid
             animator = na
         end
-        if animator == nil then
-            return
-        end
+        if animator == nil then return end
 
         if spamTrack == nil then
             local anim = Instance.new("Animation")
             anim.AnimationId = "rbxassetid://" .. SPAM_ANIMATION_ID
-            local ok, track = pcall(function() return animator:LoadAnimation(anim) end)
-            if not ok then
-                return
+            local track = animator:LoadAnimation(anim)
+            if typeof(track) == "Instance" then
+                track.Priority = Enum.AnimationPriority.Action4
+                track.Looped = true
+                spamTrack = track
             end
-            if typeof(track) ~= "Instance" then
-                return
-            end
-            track.Priority = Enum.AnimationPriority.Action4
-            track.Looped = true
-            spamTrack = track
         end
 
         local t = spamTrack
-        if not t.IsPlaying then
-            pcall(function() t:Play(0, 1, 0) end)
-        end
-        pcall(function() t:AdjustSpeed(0) end)
-        pcall(function() t.TimePosition = 0 end)
-        pcall(function() t:AdjustWeight(1, 0) end)
+        if t == nil then return end
+        if not t.IsPlaying then t:Play(0, 1, 0) end
+        t:AdjustSpeed(0)
+        t.TimePosition = 0
+        t:AdjustWeight(1, 0)
     end
 
     local function validateClone()
         local cc = cloneCharacter
-        if cc == nil then
-            return false
-        end
-        if cc.Parent == nil then
-            return false
-        end
-        if cc:FindFirstChild("HumanoidRootPart") == nil then
-            return false
-        end
-        if cc:FindFirstChildOfClass("Humanoid") == nil then
-            return false
-        end
-        if cc:FindFirstChild("Head") == nil then
-            return false
-        end
+        if cc == nil then return false end
+        if cc.Parent == nil then return false end
+        if cc:FindFirstChild("HumanoidRootPart") == nil then return false end
+        if cc:FindFirstChildOfClass("Humanoid") == nil then return false end
+        if cc:FindFirstChild("Head") == nil then return false end
         return true
     end
 
     local function getCloneAnimator()
         local ca = cloneAnimator
-        if ca ~= nil then
-            if ca.Parent ~= nil then
-                return ca
-            end
-        end
+        if ca ~= nil and ca.Parent ~= nil then return ca end
         local ch = cloneHumanoid
-        if ch == nil then
-            return nil
-        end
-        if ch.Parent == nil then
-            return nil
-        end
+        if ch == nil or ch.Parent == nil then return nil end
         local a = ch:FindFirstChildOfClass("Animator")
         if a == nil then
             a = Instance.new("Animator")
@@ -1195,29 +1257,13 @@ local function RUN()
     local function syncCloneAnimations()
         local character = LocalPlayer.Character
         local cc = cloneCharacter
-        if character == nil then
-            return
-        end
-        if cc == nil then
-            return
-        end
-        if cc.Parent == nil then
-            return
-        end
-
+        if character == nil or cc == nil or cc.Parent == nil then return end
         local ca = getCloneAnimator()
-        if ca == nil then
-            return
-        end
-
+        if ca == nil then return end
         local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid == nil then
-            return
-        end
+        if humanoid == nil then return end
         local animator = humanoid:FindFirstChildOfClass("Animator")
-        if animator == nil then
-            return
-        end
+        if animator == nil then return end
 
         local tracks = animator:GetPlayingAnimationTracks()
         local active = {}
@@ -1233,8 +1279,8 @@ local function RUN()
                     if mirror == nil then
                         local cloneAnim = Instance.new("Animation")
                         cloneAnim.AnimationId = anim.AnimationId
-                        local ok, t = pcall(function() return ca:LoadAnimation(cloneAnim) end)
-                        if ok and typeof(t) == "Instance" then
+                        local t = ca:LoadAnimation(cloneAnim)
+                        if typeof(t) == "Instance" then
                             mirror = t
                             mirror.Priority = track.Priority
                             mirror.Looped = track.Looped
@@ -1247,20 +1293,12 @@ local function RUN()
                     if m ~= nil then
                         m.Priority = track.Priority
                         m.Looped = track.Looped
-                        if not m.IsPlaying then
-                            m:Play(0, 1, track.Speed)
-                        end
+                        if not m.IsPlaying then m:Play(0, 1, track.Speed) end
                         local w = track.WeightCurrent
-                        if w < 0.01 then
-                            w = 0.01
-                        end
+                        if w < 0.01 then w = 0.01 end
                         m:AdjustWeight(w, 0)
-                        if abs_(m.Speed - track.Speed) > 0.001 then
-                            m:AdjustSpeed(track.Speed)
-                        end
-                        if m.TimePosition ~= track.TimePosition then
-                            m.TimePosition = track.TimePosition
-                        end
+                        if abs_(m.Speed - track.Speed) > 0.001 then m:AdjustSpeed(track.Speed) end
+                        if m.TimePosition ~= track.TimePosition then m.TimePosition = track.TimePosition end
                     end
                 end
             end
@@ -1271,9 +1309,7 @@ local function RUN()
         local trackKey, mirrorValue = next(animationMirrors)
         while trackKey ~= nil do
             if not active[trackKey] then
-                if mirrorValue.IsPlaying then
-                    mirrorValue:Stop(0.05)
-                end
+                if mirrorValue.IsPlaying then mirrorValue:Stop(0.05) end
                 insert_(toRemove, trackKey)
             end
             trackKey, mirrorValue = next(animationMirrors, trackKey)
@@ -1287,9 +1323,7 @@ local function RUN()
 
     local function createCloneInner()
         local old = cloneCharacter
-        if old ~= nil then
-            old:Destroy()
-        end
+        if old ~= nil then old:Destroy() end
         cloneCharacter = nil
         cloneRoot = nil
         cloneHumanoid = nil
@@ -1297,21 +1331,12 @@ local function RUN()
         animationMirrors = {}
 
         local character = LocalPlayer.Character
-        if character == nil then
-            return
-        end
-        if character:FindFirstChild("HumanoidRootPart") == nil then
-            return
-        end
-        if character:FindFirstChildOfClass("Humanoid") == nil then
-            return
-        end
+        if character == nil then return end
+        if character:FindFirstChild("HumanoidRootPart") == nil then return end
+        if character:FindFirstChildOfClass("Humanoid") == nil then return end
 
         local clone = character:Clone()
-        if typeof(clone) ~= "Instance" then
-            return
-        end
-
+        if typeof(clone) ~= "Instance" then return end
         clone.Name = "VisualFocusClone"
 
         local descendants = clone:GetDescendants()
@@ -1332,9 +1357,7 @@ local function RUN()
                 local k = 1
                 while k <= #kids do
                     local kid = kids[k]
-                    if kid:IsA("Sound") or kid:IsA("SoundGroup") then
-                        kid:Destroy()
-                    end
+                    if kid:IsA("Sound") or kid:IsA("SoundGroup") then kid:Destroy() end
                     k = k + 1
                 end
             elseif d:IsA("ProximityPrompt") then
@@ -1364,130 +1387,81 @@ local function RUN()
         cloneCharacter = clone
 
         local root = clone:FindFirstChild("HumanoidRootPart")
-        if root ~= nil and root:IsA("BasePart") then
-            cloneRoot = root
-        end
+        if root ~= nil and root:IsA("BasePart") then cloneRoot = root end
     end
 
     local function createClone()
-        local okCreate, errCreate = pcall(function() createCloneInner() end)
-        if not okCreate then
-            warn("[AutoFarm Clone Error] " .. tostring(errCreate))
-        end
+        createCloneInner()
     end
 
     local function getStreak()
         local character = LocalPlayer.Character
-        if character == nil then
-            return 0
-        end
+        if character == nil then return 0 end
         local v = character:GetAttribute("CurrentStreak")
-        if typeof(v) == "number" then
-            return v
-        end
+        if typeof(v) == "number" then return v end
         return 0
     end
 
     local function killSelf()
         local character = LocalPlayer.Character
-        if character == nil then
-            return
-        end
+        if character == nil then return end
         local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid == nil then
-            return
-        end
+        if humanoid == nil then return end
         if humanoid.Health > 0 then
             if forceHealthConnection ~= nil then
                 forceHealthConnection:Disconnect()
                 forceHealthConnection = nil
             end
             killFlag = true
-            pcall(function() humanoid.Health = 0 end)
+            humanoid.Health = 0
             killFlag = false
         end
     end
 
     local function startThrownWatcher()
-        if thrownConnection ~= nil then
-            thrownConnection:Disconnect()
-        end
+        if thrownConnection ~= nil then thrownConnection:Disconnect() end
         local thrown = Workspace:FindFirstChild("Thrown")
-        if thrown == nil then
-            return
-        end
+        if thrown == nil then return end
         thrownConnection = thrown.ChildAdded:Connect(function()
             wait_(THROWN_CLEAR_DELAY)
-            pcall(function() thrown:ClearAllChildren() end)
+            thrown:ClearAllChildren()
         end)
     end
 
     local function httpGet(url)
-        local ok, res = pcall(function() return game:HttpGet(url) end)
-        if ok and typeof(res) == "string" then
-            if #res > 0 then
-                return res
-            end
-        end
-
+        local res = game:HttpGet(url)
+        if typeof(res) == "string" and #res > 0 then return res end
         if typeof(request) == "function" then
-            local ok2, res2 = pcall(function() return request({ Url = url, Method = "GET" }) end)
-            if ok2 and typeof(res2) == "table" then
-                if typeof(res2.Body) == "string" and #res2.Body > 0 then
-                    return res2.Body
-                end
-                if typeof(res2.body) == "string" and #res2.body > 0 then
-                    return res2.body
-                end
+            local res2 = request({ Url = url, Method = "GET" })
+            if typeof(res2) == "table" then
+                if typeof(res2.Body) == "string" and #res2.Body > 0 then return res2.Body end
+                if typeof(res2.body) == "string" and #res2.body > 0 then return res2.body end
             end
         end
-
         if typeof(http_request) == "function" then
-            local ok3, res3 = pcall(function() return http_request({ Url = url, Method = "GET" }) end)
-            if ok3 and typeof(res3) == "table" then
-                if typeof(res3.Body) == "string" and #res3.Body > 0 then
-                    return res3.Body
-                end
-                if typeof(res3.body) == "string" and #res3.body > 0 then
-                    return res3.body
-                end
+            local res3 = http_request({ Url = url, Method = "GET" })
+            if typeof(res3) == "table" then
+                if typeof(res3.Body) == "string" and #res3.Body > 0 then return res3.Body end
+                if typeof(res3.body) == "string" and #res3.body > 0 then return res3.body end
             end
         end
-
-        if typeof(syn) == "table" then
-            if typeof(syn.request) == "function" then
-                local ok4, res4 = pcall(function() return syn.request({ Url = url, Method = "GET" }) end)
-                if ok4 and typeof(res4) == "table" then
-                    if typeof(res4.Body) == "string" and #res4.Body > 0 then
-                        return res4.Body
-                    end
-                    if typeof(res4.body) == "string" and #res4.body > 0 then
-                        return res4.body
-                    end
-                end
+        if typeof(syn) == "table" and typeof(syn.request) == "function" then
+            local res4 = syn.request({ Url = url, Method = "GET" })
+            if typeof(res4) == "table" then
+                if typeof(res4.Body) == "string" and #res4.Body > 0 then return res4.Body end
+                if typeof(res4.body) == "string" and #res4.body > 0 then return res4.body end
             end
         end
-
         return nil
     end
 
     local function fetchServerList()
         local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
         local response = httpGet(url)
-        if response == nil then
-            return nil
-        end
-
-        local decodeOk, data = pcall(function() return HttpService:JSONDecode(response) end)
-        if not decodeOk then
-            return nil
-        end
-        if typeof(data) ~= "table" then
-            return nil
-        end
-        if typeof(data.data) ~= "table" then
-            return nil
-        end
+        if response == nil then return nil end
+        local data = HttpService:JSONDecode(response)
+        if typeof(data) ~= "table" then return nil end
+        if typeof(data.data) ~= "table" then return nil end
         return data.data
     end
 
@@ -1506,215 +1480,100 @@ local function RUN()
             end
             i = i + 1
         end
-        sort_(candidates, function(a, b)
-            return a.playing > b.playing
-        end)
+        sort_(candidates, function(a, b) return a.playing > b.playing end)
         return candidates
     end
 
     local function ensureTeleportFailListener()
-        if teleportFailConnection ~= nil then
-            return
-        end
+        if teleportFailConnection ~= nil then return end
         teleportFailConnection = TeleportService.TeleportInitFailed:Connect(function(player)
-            if player == LocalPlayer then
-                teleportFailedFlag = true
-            end
+            if player == LocalPlayer then teleportFailedFlag = true end
         end)
     end
 
     local function attemptTeleport(jobId, originalJob)
         teleportFailedFlag = false
         ensureTeleportFailListener()
-
-        local ok = pcall(function()
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
-        end)
-        if not ok then
-            return false
-        end
-
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
         local t0 = clock()
         while clock() - t0 < HOP_TELEPORT_VERIFY_WAIT do
-            if not serverHopEnabled then
-                return false
-            end
-            if hopRequestedStop then
-                return false
-            end
+            if not serverHopEnabled then return false end
+            if hopRequestedStop then return false end
             wait_(0.05)
-            if game.JobId ~= originalJob then
-                return true
-            end
-            if LocalPlayer.Parent == nil then
-                return true
-            end
-            if teleportFailedFlag then
-                return false
-            end
+            if game.JobId ~= originalJob then return true end
+            if LocalPlayer.Parent == nil then return true end
+            if teleportFailedFlag then return false end
         end
         return false
     end
 
     local function queueReexec()
         local code = "loadstring(game:HttpGet(\"" .. REEXEC_URL .. "\"))()"
-        pcall(function()
-            if typeof(queue_on_teleport) == "function" then
-                queue_on_teleport(code)
-            elseif typeof(queueonteleport) == "function" then
-                queueonteleport(code)
-            elseif typeof(QueueOnTeleport) == "function" then
-                QueueOnTeleport(code)
-            elseif typeof(syn) == "table" then
-                if typeof(syn.queue_on_teleport) == "function" then
-                    syn.queue_on_teleport(code)
-                end
-            end
-        end)
+        if typeof(queue_on_teleport) == "function" then
+            queue_on_teleport(code)
+        elseif typeof(queueonteleport) == "function" then
+            queueonteleport(code)
+        elseif typeof(QueueOnTeleport) == "function" then
+            QueueOnTeleport(code)
+        elseif typeof(syn) == "table" and typeof(syn.queue_on_teleport) == "function" then
+            syn.queue_on_teleport(code)
+        end
     end
 
     local function doServerHop()
-        if hopInProgress then
-            return
-        end
-        if not serverHopEnabled then
-            return
-        end
-
+        if hopInProgress then return end
+        if not serverHopEnabled then return end
         hopInProgress = true
         hopRequestedStop = false
         refreshStatus()
-
         queueReexec()
-
         local originalJob = game.JobId
         local attempt = 0
-
         while serverHopEnabled and not hopRequestedStop and hopInProgress and attempt < HOP_MAX_ATTEMPTS do
             attempt = attempt + 1
-
             local servers = fetchServerList()
             if servers ~= nil then
                 local candidates = buildCandidates(servers)
                 local tryCount = min_(#candidates, HOP_CANDIDATE_TRY_COUNT)
                 local ci = 1
                 while ci <= tryCount do
-                    if not serverHopEnabled then
-                        break
-                    end
-                    if hopRequestedStop then
-                        break
-                    end
+                    if not serverHopEnabled or hopRequestedStop then break end
                     local c = candidates[ci]
-                    if attemptTeleport(c.id, originalJob) then
-                        return
-                    end
+                    if attemptTeleport(c.id, originalJob) then return end
                     wait_(0.3)
                     ci = ci + 1
                 end
             end
-
-            if not serverHopEnabled then
-                break
-            end
-            if hopRequestedStop then
-                break
-            end
-
+            if not serverHopEnabled or hopRequestedStop then break end
             if typeof(serverhop) == "function" then
-                pcall(serverhop)
+                serverhop()
                 local t0 = clock()
                 while clock() - t0 < HOP_TELEPORT_VERIFY_WAIT do
-                    if not serverHopEnabled then
-                        break
-                    end
-                    if hopRequestedStop then
-                        break
-                    end
+                    if not serverHopEnabled or hopRequestedStop then break end
                     wait_(0.1)
-                    if game.JobId ~= originalJob then
-                        return
-                    end
-                    if LocalPlayer.Parent == nil then
-                        return
-                    end
+                    if game.JobId ~= originalJob or LocalPlayer.Parent == nil then return end
                 end
             end
-
-            if not serverHopEnabled then
-                break
-            end
-            if hopRequestedStop then
-                break
-            end
-
+            if not serverHopEnabled or hopRequestedStop then break end
             if typeof(ServerHop) == "function" then
-                pcall(ServerHop)
+                ServerHop()
                 local t0 = clock()
                 while clock() - t0 < HOP_TELEPORT_VERIFY_WAIT do
-                    if not serverHopEnabled then
-                        break
-                    end
-                    if hopRequestedStop then
-                        break
-                    end
+                    if not serverHopEnabled or hopRequestedStop then break end
                     wait_(0.1)
-                    if game.JobId ~= originalJob then
-                        return
-                    end
-                    if LocalPlayer.Parent == nil then
-                        return
-                    end
+                    if game.JobId ~= originalJob or LocalPlayer.Parent == nil then return end
                 end
             end
-
-            if not serverHopEnabled then
-                break
-            end
-            if hopRequestedStop then
-                break
-            end
+            if not serverHopEnabled or hopRequestedStop then break end
             wait_(1)
         end
-
         hopInProgress = false
         refreshStatus()
     end
 
-    local function targetRootForAlign()
-        local target = getTarget()
-        if target == nil then
-            return nil
-        end
-        local tc = target.Character
-        if tc == nil then
-            return nil
-        end
-        if hasProtection(tc) then
-            return nil
-        end
-        local tr = tc:FindFirstChild("HumanoidRootPart")
-        if tr == nil then
-            return nil
-        end
-        if not tr:IsA("BasePart") then
-            return nil
-        end
-        return tr
-    end
-
     local function frameAlignUntil(endTime, getTargetRoot)
         while clock() < endTime do
-            if not farmEnabled then
-                return true
-            end
-            if protectionActive then
-                return true
-            end
-            if lowHealthMode then
-                return true
-            end
-            if selfRagdollActive then
+            if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
                 return true
             end
             local root = getRoot()
@@ -1734,31 +1593,16 @@ local function RUN()
     local function activateTwinFangs()
         local deadline = clock() + TF_ACTIVATION_TIMEOUT
         while clock() < deadline do
-            if not farmEnabled then
+            if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
                 return false
             end
-            if protectionActive then
-                return false
-            end
-            if lowHealthMode then
-                return false
-            end
-            if selfRagdollActive then
-                return false
-            end
-            if hotbarHasCooldown(TWIN_FANGS_SLOT) then
-                return true
-            end
+            if hotbarHasCooldown(TWIN_FANGS_SLOT) then return true end
             local tf = findTool(TWIN_FANGS_NAME)
-            if tf == nil then
-                return false
-            end
+            if tf == nil then return false end
             activateToolViaRemote(tf)
             local retryEnd = clock() + TF_RETRY_INTERVAL
             while clock() < retryEnd do
-                if hotbarHasCooldown(TWIN_FANGS_SLOT) then
-                    return true
-                end
+                if hotbarHasCooldown(TWIN_FANGS_SLOT) then return true end
                 local r = getRoot()
                 if r ~= nil then
                     local tr = targetRootForAlign()
@@ -1782,26 +1626,75 @@ local function RUN()
             return
         end
         fallbackIndex = fallbackIndex + 1
-        if fallbackIndex > #tools then
-            fallbackIndex = 1
-        end
+        if fallbackIndex > #tools then fallbackIndex = 1 end
         local tool = tools[fallbackIndex]
         activateToolViaRemote(tool)
         frameAlignUntil(clock() + FALLBACK_TOOL_DURATION, targetRootForAlign)
         genericSpam()
     end
 
+    local function runFinisherLoop()
+        if finisherLoopRunning then return end
+        finisherLoopRunning = true
+        finisherActive = true
+        refreshStatus()
+
+        while farmEnabled
+              and spamFinishersEnabled
+              and not twinFangsExists()
+             and not LocalPlayer.Character:GetAttribute("Ulted") do
+            if not farmEnabled then break end
+            if not spamFinishersEnabled then break end
+            if twinFangsExists() or LocalPlayer.Character:GetAttribute("Ulted") then break end
+
+            local deadRoot = getDeadTargetRoot()
+            if deadRoot == nil then
+                wait_(0.03)
+                deadRoot = getDeadTargetRoot()
+                if deadRoot == nil then break end
+            end
+
+            finisherTargetRoot = deadRoot
+            local root = getRoot()
+
+            if root ~= nil and deadRoot.Parent ~= nil then
+                setPhysRep(root, deadRoot)
+                root.CFrame = ALIGN_CF
+                root.AssemblyLinearVelocity = Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+            end
+
+            local tools = getAllTools(FALLBACK_EXCLUDE)
+            if #tools > 0 then
+                fallbackIndex = fallbackIndex + 1
+                if fallbackIndex > #tools then fallbackIndex = 1 end
+                local tool = tools[fallbackIndex]
+                if tool ~= nil and tool.Parent ~= nil then
+                    activateToolViaRemote(tool)
+                end
+            end
+
+            pressG()
+            pressJump()
+            fireCommunicate()
+
+            wait_(FINISHER_TOOL_DURATION)
+        end
+
+        finisherActive = false
+        finisherTargetRoot = nil
+        finisherLoopRunning = false
+        refreshStatus()
+    end
+
     local function rotationStep()
-        if not farmEnabled then
+        if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
+            wait_(0.05)
             return
         end
-        if protectionActive then
-            return
-        end
-        if lowHealthMode then
-            return
-        end
-        if selfRagdollActive then
+
+        if finisherLoopRunning or finisherActive then
+            wait_(0.1)
             return
         end
 
@@ -1815,8 +1708,21 @@ local function RUN()
 
         local tf = findTool(TWIN_FANGS_NAME)
 
+        if not twinFangsExists() then
+            local target = getTarget()
+            if target ~= nil and target.Character ~= nil then
+                if target.Character:FindFirstChild("Ragdoll") ~= nil then
+                    runFallbackTools()
+                    wait_(0.05)
+                    return
+                end
+            end
+            wait_(0.05)
+            return
+        end
+
         if tf == nil then
-            runFallbackTools()
+            wait_(0.05)
             return
         end
 
@@ -1824,21 +1730,14 @@ local function RUN()
         if not tfOnCd then
             local activated = activateTwinFangs()
             if not activated then
+                wait_(0.05)
                 return
             end
             frameAlignUntil(clock() + TF_ALIGN_DURATION, targetRootForAlign)
         end
 
-        if not farmEnabled then
-            return
-        end
-        if protectionActive then
-            return
-        end
-        if lowHealthMode then
-            return
-        end
-        if selfRagdollActive then
+        if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
+            wait_(0.05)
             return
         end
 
@@ -1846,9 +1745,7 @@ local function RUN()
 
         local settleEnd = clock() + TF_BOUNDARY_SETTLE
         while farmEnabled and not protectionActive and not lowHealthMode and not selfRagdollActive do
-            if clock() >= settleEnd then
-                break
-            end
+            if clock() >= settleEnd then break end
             local r = getRoot()
             if r ~= nil then
                 setPhysRep(r, nil)
@@ -1860,23 +1757,13 @@ local function RUN()
             wait_()
         end
 
-        if not farmEnabled then
-            return
-        end
-        if protectionActive then
-            return
-        end
-        if lowHealthMode then
-            return
-        end
-        if selfRagdollActive then
+        if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
+            wait_(0.05)
             return
         end
 
         while farmEnabled and not protectionActive and not lowHealthMode and not selfRagdollActive do
-            if not hotbarHasCooldown(TWIN_FANGS_SLOT) then
-                break
-            end
+            if not hotbarHasCooldown(TWIN_FANGS_SLOT) then break end
             local r = getRoot()
             if r ~= nil then
                 setPhysRep(r, nil)
@@ -1890,20 +1777,13 @@ local function RUN()
     end
 
     local function runRotationLoop()
-        if rotationRunning then
-            return
-        end
+        if rotationRunning then return end
         rotationRunning = true
         refreshStatus()
 
         while farmEnabled and not protectionActive and not lowHealthMode and not selfRagdollActive do
-            local ok, err = pcall(function() rotationStep() end)
-            if not ok then
-                warn("[AutoFarm Rotation Error] " .. tostring(err))
-            end
-            if ROTATION_LOOP_DELAY > 0 then
-                wait_(ROTATION_LOOP_DELAY)
-            end
+            rotationStep()
+            task.wait()
         end
 
         suppressHeartbeatTp = false
@@ -1915,9 +1795,7 @@ local function RUN()
         local i = 1
         while i <= #characterConnections do
             local c = characterConnections[i]
-            if c ~= nil then
-                c:Disconnect()
-            end
+            if c ~= nil then c:Disconnect() end
             i = i + 1
         end
         characterConnections = {}
@@ -1925,9 +1803,7 @@ local function RUN()
     end
 
     local function watchTool(tool)
-        if watchedTools[tool] then
-            return
-        end
+        if watchedTools[tool] then return end
         watchedTools[tool] = true
     end
 
@@ -1942,15 +1818,11 @@ local function RUN()
             local i = 1
             while i <= #bpChildren do
                 local c = bpChildren[i]
-                if c:IsA("Tool") then
-                    watchTool(c)
-                end
+                if c:IsA("Tool") then watchTool(c) end
                 i = i + 1
             end
             insert_(characterConnections, bp.ChildAdded:Connect(function(c)
-                if c:IsA("Tool") then
-                    watchTool(c)
-                end
+                if c:IsA("Tool") then watchTool(c) end
             end))
         end
 
@@ -1958,15 +1830,11 @@ local function RUN()
         local i = 1
         while i <= #charChildren do
             local c = charChildren[i]
-            if c:IsA("Tool") then
-                watchTool(c)
-            end
+            if c:IsA("Tool") then watchTool(c) end
             i = i + 1
         end
         insert_(characterConnections, character.ChildAdded:Connect(function(c)
-            if c:IsA("Tool") then
-                watchTool(c)
-            end
+            if c:IsA("Tool") then watchTool(c) end
         end))
 
         lastWatchedCharacter = character
@@ -1975,27 +1843,14 @@ local function RUN()
     end
 
     local function updateKillsFromLeaderstats()
-        if killsValue ~= nil then
-            if killsValue.Parent ~= nil then
-                return
-            end
-        end
+        if killsValue ~= nil and killsValue.Parent ~= nil then return end
         killsValue = nil
-
         local ls = LocalPlayer:FindFirstChild("leaderstats")
-        if ls == nil then
-            return
-        end
+        if ls == nil then return end
         local k = ls:FindFirstChild("Kills")
-        if k == nil then
-            return
-        end
-        if not k:IsA("IntValue") then
-            return
-        end
-
+        if k == nil then return end
+        if not k:IsA("IntValue") then return end
         killsValue = k
-
         if not configInitialized then
             configInitialized = true
             local live = k.Value
@@ -2011,16 +1866,10 @@ local function RUN()
 
     insert_(permanentConnections, RunService.Heartbeat:Connect(function()
         local character = LocalPlayer.Character
-        if character == nil then
-            return
-        end
+        if character == nil then return end
         local root = character:FindFirstChild("HumanoidRootPart")
-        if root == nil then
-            return
-        end
-        if not root:IsA("BasePart") then
-            return
-        end
+        if root == nil then return end
+        if not root:IsA("BasePart") then return end
 
         updateKillsFromLeaderstats()
 
@@ -2041,19 +1890,17 @@ local function RUN()
         end
 
         local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid ~= nil then
-            if humanoid.MaxHealth > 0 then
-                local pct = humanoid.Health / humanoid.MaxHealth
-                if pct < LOW_HP_THRESHOLD then
-                    if not lowHealthMode then
-                        lowHealthMode = true
-                        refreshStatus()
-                    end
-                elseif pct >= LOW_HP_THRESHOLD then
-                    if lowHealthMode then
-                        lowHealthMode = false
-                        refreshStatus()
-                    end
+        if humanoid ~= nil and humanoid.MaxHealth > 0 then
+            local pct = humanoid.Health / humanoid.MaxHealth
+            if pct < LOW_HP_THRESHOLD then
+                if not lowHealthMode then
+                    lowHealthMode = true
+                    refreshStatus()
+                end
+            elseif pct >= LOW_HP_THRESHOLD then
+                if lowHealthMode then
+                    lowHealthMode = false
+                    refreshStatus()
                 end
             end
         end
@@ -2107,26 +1954,38 @@ local function RUN()
         end
 
         if farmEnabled then
+            if spamFinishersEnabled and not twinFangsExists()  and not LocalPlayer.Character:GetAttribute("Ulted") then
+                if getDeadTargetRoot() ~= nil then
+                    if not finisherLoopRunning then
+                        spawn_(runFinisherLoop)
+                    end
+                    pressG()
+                    return
+                end
+            end
+
             pressG()
             genericSpam()
 
+            local target = getTarget()
+
+            if target == nil then
+                pinToSafeZone(root)
+                if not rotationRunning then spawn_(runRotationLoop) end
+                return
+            end
+
             if not suppressHeartbeatTp then
-                local target = getTarget()
-                if target ~= nil then
-                    local tc = target.Character
-                    if tc ~= nil and not hasProtection(tc) then
-                        local tr = tc:FindFirstChild("HumanoidRootPart")
-                        if tr ~= nil and tr:IsA("BasePart") then
-                            setPhysRep(root, tr)
-                            root.CFrame = ALIGN_CF
-                        end
+                if canAlignToTarget(target) then
+                    local tr = target.Character:FindFirstChild("HumanoidRootPart")
+                    if tr ~= nil and tr:IsA("BasePart") then
+                        setPhysRep(root, tr)
+                        root.CFrame = ALIGN_CF
                     end
                 end
             end
 
-            if not rotationRunning then
-                spawn_(runRotationLoop)
-            end
+            if not rotationRunning then spawn_(runRotationLoop) end
         end
     end))
 
@@ -2142,9 +2001,7 @@ local function RUN()
         end
 
         if performanceMode then
-            if thrownConnection == nil then
-                startThrownWatcher()
-            end
+            if thrownConnection == nil then startThrownWatcher() end
         else
             if thrownConnection ~= nil then
                 thrownConnection:Disconnect()
@@ -2180,7 +2037,12 @@ local function RUN()
         local cc = cloneCharacter
         if cc ~= nil and cc.Parent ~= nil and realRoot ~= nil then
             if attackingActive then
-                local targetRoot = targetRootForAlign()
+                local targetRoot = nil
+                if finisherLoopRunning and finisherTargetRoot ~= nil and finisherTargetRoot.Parent ~= nil then
+                    targetRoot = finisherTargetRoot
+                else
+                    targetRoot = targetRootForAlign()
+                end
                 if targetRoot ~= nil then
                     cc:PivotTo(targetRoot.CFrame * ALIGN_CF)
                 else
@@ -2193,9 +2055,7 @@ local function RUN()
         end
 
         local cam = Workspace.CurrentCamera
-        if cam == nil then
-            return
-        end
+        if cam == nil then return end
 
         local cr = cloneRoot
         local followRoot = nil
@@ -2223,9 +2083,7 @@ local function RUN()
 
     insert_(permanentConnections, Players.PlayerRemoving:Connect(function(player)
         local ch = player.Character
-        if ch == nil then
-            return
-        end
+        if ch == nil then return end
         local root = ch:FindFirstChild("HumanoidRootPart")
         if root ~= nil and root:IsA("BasePart") then
             targetStates[root] = nil
@@ -2244,6 +2102,11 @@ local function RUN()
         lowHealthMode = false
         selfRagdollActive = false
         attackingActive = false
+        lastTargetPlayer = nil
+        pendingTargetPlayer = nil
+        targetSwitchLockUntil = 0
+        finisherActive = false
+        finisherTargetRoot = nil
         spamTrack = nil
         spamTrackCharacter = nil
         cachedBackpack = nil
