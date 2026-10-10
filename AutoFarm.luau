@@ -69,6 +69,8 @@ local ALIGN_CF = CFrame.new(0, 0, 6)
 local sethiddenFn = nil
 if typeof(sethiddenproperty) == "function" then
     sethiddenFn = sethiddenproperty
+elseif typeof(syn) == "table" and typeof(syn.sethiddenproperty) == "function" then
+    sethiddenFn = syn.sethiddenproperty
 end
 
 local function setPhysRep(root, target)
@@ -78,8 +80,30 @@ local function setPhysRep(root, target)
     if root == nil then
         return
     end
-    sethiddenFn(root, "PhysicsRepRootPart", target)
+    pcall(function()
+        sethiddenFn(root, "PhysicsRepRootPart", target)
+    end)
 end
+
+local function forceFallenHeight()
+    pcall(function()
+        Workspace.FallenPartsDestroyHeight = 0/0
+    end)
+    if sethiddenFn ~= nil then
+        pcall(function()
+            sethiddenFn(Workspace, "FallenPartsDestroyHeight", 0/0)
+        end)
+    end
+end
+
+forceFallenHeight()
+
+RunService.Heartbeat:Connect(function()
+    local v = Workspace.FallenPartsDestroyHeight
+    if v == v then
+        forceFallenHeight()
+    end
+end)
 
 local forceHealthConnection = nil
 local killFlag = false
@@ -104,17 +128,19 @@ local function setupForceHealth(character)
         forceHealthConnection = nil
     end
 
-    if humanoid.Health < 100 then
+    pcall(function()
+        humanoid.MaxHealth = 100
         humanoid.Health = 100
-    end
+    end)
 
     forceHealthConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
         if killFlag then
             return
         end
-        if humanoid.Health < 100 then
+        pcall(function()
+            humanoid.MaxHealth = 100
             humanoid.Health = 100
-        end
+        end)
     end)
 end
 
@@ -123,10 +149,19 @@ if LocalPlayer.Character ~= nil then
 end
 
 LocalPlayer.CharacterAdded:Connect(function(Character)
+    forceFallenHeight()
     setupForceHealth(Character)
+    spawn_(function()
+        wait_(0.5)
+        forceFallenHeight()
+        setupForceHealth(Character)
+    end)
+    spawn_(function()
+        wait_(2)
+        forceFallenHeight()
+        setupForceHealth(Character)
+    end)
 end)
-
-Workspace.FallenPartsDestroyHeight = 0/0
 
 local CONFIG_PATH = "autofarm_config.json"
 local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
@@ -2115,10 +2150,21 @@ if twinFangsExists() then return end
         killsValue = nil
         suppressHeartbeatTp = false
 
+        forceFallenHeight()
+
         targetStates = {}
         lastWatchedCharacter = character
         watchCharacter(character)
         refreshStatus()
+
+        spawn_(function()
+            wait_(0.5)
+            forceFallenHeight()
+        end)
+        spawn_(function()
+            wait_(2)
+            forceFallenHeight()
+        end)
     end)
 
     refreshKillsDisplay()
