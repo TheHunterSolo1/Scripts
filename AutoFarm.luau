@@ -5,6 +5,12 @@ local Players = game:GetService("Players")
 
 local CONFIG_PATH = "autofarm_config.json"
 local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
+local HOP_QUEUE_FLAG = "autofarm_queued.flag"
+
+if _G.__AUTO_FARM_WRAPPER_ACTIVE == true then
+    return
+end
+_G.__AUTO_FARM_WRAPPER_ACTIVE = true
 
 local function notify(title, text, duration)
     pcall(function()
@@ -37,6 +43,73 @@ end
 notify("Auto Farm", "Wrapper started. Compiling...", 4)
 
 local SCRIPT_SOURCE = [==[
+do
+    local _W = game:GetService("Workspace")
+    local _SS = game:GetService("SoundService")
+    local _RS = game:GetService("ReplicatedStorage")
+    local _RF = game:GetService("ReplicatedFirst")
+    local _Players = game:GetService("Players")
+
+    local function inLocalChar(o)
+        local lp = _Players.LocalPlayer
+        if lp == nil then return false end
+        local ch = lp.Character
+        if ch == nil then return false end
+        local p = o
+        while p ~= nil do
+            if p == ch then return true end
+            p = p.Parent
+        end
+        return false
+    end
+
+    local function nuke(o)
+        local c = o.ClassName
+        if c == "Sound" then o.Enabled = false o.Volume = 0 pcall(function() o.Playing = false end) return end
+        if c == "SoundGroup" then o.Volume = 0 return end
+        if c == "ParticleEmitter" then o.Enabled = false return end
+        if c == "Beam" then o.Enabled = false return end
+        if c == "Trail" then o.Enabled = false return end
+        if c == "Fire" then o.Enabled = false return end
+        if c == "Smoke" then o.Enabled = false return end
+        if c == "Sparkles" then o.Enabled = false return end
+        if c == "Explosion" then o.Visible = false o.BlastPressure = 0 o.BlastRadius = 0 return end
+        if c == "PointLight" then o.Enabled = false return end
+        if c == "SpotLight" then o.Enabled = false return end
+        if c == "SurfaceLight" then o.Enabled = false return end
+        if c == "Highlight" then o.Enabled = false return end
+        if c == "SelectionBox" then o.Visible = false return end
+        if c == "SelectionSphere" then o.Visible = false return end
+    end
+
+    local function clean(root)
+        pcall(function()
+            for _, o in ipairs(root:GetDescendants()) do
+                if not inLocalChar(o) then
+                    pcall(nuke, o)
+                end
+            end
+        end)
+        root.DescendantAdded:Connect(function(o)
+            if inLocalChar(o) then return end
+            pcall(nuke, o)
+        end)
+    end
+
+    pcall(function() clean(_W) end)
+    pcall(function() clean(_SS) end)
+    pcall(function() clean(_RS) end)
+    pcall(function() clean(_RF) end)
+
+    pcall(function() _W.Map.Benchs:Destroy() end)
+    pcall(function() _W.Map.Trash:Destroy() end)
+    pcall(function() _W.Map.Trees:Destroy() end)
+    pcall(function() _W.Map.Walls:Destroy() end)
+    pcall(function() _W.Preload:Destroy() end)
+
+    pcall(function() setfpscap(10000) end)
+end
+
 local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -45,6 +118,23 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
+local Stats = game:GetService("Stats")
+
+local HOP_QUEUE_FLAG = "autofarm_queued.flag"
+
+if _G.__AUTO_FARM_INNER_ACTIVE == true then
+    return
+end
+
+if typeof(isfile) == "function" and isfile(HOP_QUEUE_FLAG) then
+    pcall(function()
+        if typeof(delfile) == "function" then
+            delfile(HOP_QUEUE_FLAG)
+        end
+    end)
+end
+
+_G.__AUTO_FARM_INNER_ACTIVE = true
 
 local LocalPlayer = Players.LocalPlayer
 local clock = os.clock
@@ -63,8 +153,20 @@ local concat_ = table.concat
 local lower_ = string.lower
 local sub_ = string.sub
 local match_ = string.match
+local fmt_ = string.format
 
 local ALIGN_CF = CFrame.new(0, 0, 6)
+
+local SPECIAL_ANIM_IDS = {
+    ["136370737633649"] = true,
+    ["18182425133"] = true,
+}
+
+local FORCE_VOID_ANIM_IDS = {
+    ["94638356008696"] = true,
+    ["115484690572880"] = true,
+    ["95034083206292"] = true,
+}
 
 local sethiddenFn = nil
 if typeof(sethiddenproperty) == "function" then
@@ -73,13 +175,18 @@ elseif typeof(syn) == "table" and typeof(syn.sethiddenproperty) == "function" th
     sethiddenFn = syn.sethiddenproperty
 end
 
+if sethiddenFn ~= nil then
+    local ok = pcall(function()
+        sethiddenFn(Workspace, "FallenPartsDestroyHeight", 0/0)
+    end)
+    if not ok then
+        sethiddenFn = nil
+    end
+end
+
 local function setPhysRep(root, target)
-    if sethiddenFn == nil then
-        return
-    end
-    if root == nil then
-        return
-    end
+    if sethiddenFn == nil then return end
+    
     pcall(function()
         sethiddenFn(root, "PhysicsRepRootPart", target)
     end)
@@ -106,22 +213,21 @@ RunService.Heartbeat:Connect(function()
 end)
 
 local forceHealthConnection = nil
+local forceHealthTrackedChar = nil
 local killFlag = false
 
 local function setupForceHealth(character)
-    if character == nil then
-        return
-    end
+    if character == nil then return end
+    if character == forceHealthTrackedChar then return end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid == nil then
-        humanoid = character:WaitForChild("Humanoid", 5)
-    end
-    if humanoid == nil then
-        return
-    end
+    if humanoid == nil then return end
 
-    humanoid.BreakJointsOnDeath = false
-    humanoid.RequiresNeck = false
+    forceHealthTrackedChar = character
+
+    pcall(function()
+        humanoid.BreakJointsOnDeath = false
+        humanoid.RequiresNeck = false
+    end)
 
     if forceHealthConnection ~= nil then
         forceHealthConnection:Disconnect()
@@ -134,9 +240,7 @@ local function setupForceHealth(character)
     end)
 
     forceHealthConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-        if killFlag then
-            return
-        end
+        if killFlag then return end
         pcall(function()
             humanoid.MaxHealth = 100
             humanoid.Health = 100
@@ -144,20 +248,31 @@ local function setupForceHealth(character)
     end)
 end
 
-if LocalPlayer.Character ~= nil then
-    setupForceHealth(LocalPlayer.Character)
-end
-
 LocalPlayer.CharacterAdded:Connect(function(Character)
     forceFallenHeight()
     setupForceHealth(Character)
+
     spawn_(function()
         wait_(0.5)
+        if Character == nil then return end
+        if Character.Parent == nil then return end
+        local ai = Character:FindFirstChild("AbsoluteImmortal")
+        if ai ~= nil then
+            pcall(function() ai:Destroy() end)
+        end
+        local ff = Character:FindFirstChild("ForceField")
+        if ff ~= nil then
+            pcall(function() ff:Destroy() end)
+        end
+    end)
+
+    spawn_(function()
+        wait_(1.5)
         forceFallenHeight()
         setupForceHealth(Character)
     end)
     spawn_(function()
-        wait_(2)
+        wait_(2.5)
         forceFallenHeight()
         setupForceHealth(Character)
     end)
@@ -171,28 +286,40 @@ local SAFE_POSITION = Vector3.new(0, -9997, 0)
 
 local TWIN_FANGS_NAME = "Twin Fangs"
 local TWIN_FANGS_SLOT = 2
+local CROWD_BUSTER_NAME = "Crowd Buster"
+local HAMMER_HEEL_NAME = "Hammer Heel"
+local BINDING_CLOTH_NAME = "Binding Cloth"
 
-local TF_ALIGN_DURATION = 2.4
+local TF_ALIGN_DURATION = 2.2
 local TF_BOUNDARY_SETTLE = 3.0
 local TF_ACTIVATION_TIMEOUT = 3.0
 local TF_RETRY_INTERVAL = 0.1
-local FALLBACK_TOOL_DURATION = 1
-local FINISHER_TOOL_DURATION = 0
-local ROTATION_LOOP_DELAY = 0
+local FALLBACK_TOOL_DURATION = 1.5
+local FALLBACK_NORMAL_DELAY = 0
+local LOW_TARGET_HP_THRESHOLD = 0.25
+local VOID_KILL_DELAY = 2.5
+local RESPAWN_G_GRACE = 1.5
 
 local LOW_HP_THRESHOLD = 0.2
 local TARGET_SWITCH_DELAY = 0.025
 
 local ANTI_MODE_COLOR = Color3.fromRGB(255, 120, 60)
+local VOID_ZONE_COLOR = Color3.fromRGB(150, 100, 255)
+local VOID_KILLING_COLOR = Color3.fromRGB(200, 80, 255)
+local FARMING_KILLS_COLOR = Color3.fromRGB(80, 230, 130)
+local DEFAULT_MODE_COLOR = Color3.fromRGB(170, 170, 180)
 
 local SPAM_ANIMATION_ID = "119169968232874"
 local SPAM_NUMERIC = match_(SPAM_ANIMATION_ID, "%d+") or SPAM_ANIMATION_ID
 
-local REMOTE_COOLDOWN = 0.03
 local G_INTERVAL = 0.01
 local JUMP_INTERVAL = 0.01
 local SPACE_HOLD_TIME = 0.03
 local RAGDOLL_COOLDOWN = 0.5
+
+local REMOTE_COOLDOWN = 0.03
+
+local EMOTE_SPIN_MIN_INTERVAL = 0.02
 
 local CAMERA_SENSITIVITY = 0.003
 local CAMERA_MIN_DIST = 5
@@ -210,16 +337,22 @@ local HOP_TELEPORT_VERIFY_WAIT = 6
 local HOP_MAX_ATTEMPTS = 5
 local HOP_CANDIDATE_TRY_COUNT = 3
 
-local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME ,
-"Grand Fissure"
-}
-
+local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME, "Grand Fissure" }
 
 local PROXIMITY_PRIORITY_RANGE = 50
 
 local ATTACK_POSITION_EPS = 0.01
 
 local MOBILE_UI_SCALE = 0.75
+
+local PROT_CACHE_TTL = 0.03
+local TF_CACHE_TTL = 0.1
+local HOTBAR_CACHE_TTL = 0.05
+local SPECIAL_ANIM_CACHE_TTL = 0.05
+local TARGET_CACHE_TTL = 0.03
+
+-- Void detection threshold: anything at/below this Y counts as "near void"
+local VOID_Y_THRESHOLD = -9000
 
 local G = _G
 
@@ -287,24 +420,50 @@ local function RUN()
 
     local farmEnabled = false
     local performanceMode = true
+    local noRenderEnabled = true
     local stealthMode = false
     local serverHopEnabled = false
-    local spamFinishersEnabled = false
     local targetKills = 20
     local showsKills = 0
 
     if saved ~= nil then
         if typeof(saved.farmEnabled) == "boolean" then farmEnabled = saved.farmEnabled end
         if typeof(saved.performanceMode) == "boolean" then performanceMode = saved.performanceMode end
+        if typeof(saved.noRenderEnabled) == "boolean" then noRenderEnabled = saved.noRenderEnabled end
         if typeof(saved.stealthMode) == "boolean" then stealthMode = saved.stealthMode end
         if typeof(saved.serverHopEnabled) == "boolean" then serverHopEnabled = saved.serverHopEnabled end
-        if typeof(saved.spamFinishersEnabled) == "boolean" then spamFinishersEnabled = saved.spamFinishersEnabled end
         if typeof(saved.targetKills) == "number" then targetKills = saved.targetKills end
         if typeof(saved.showsKills) == "number" then showsKills = saved.showsKills end
     end
 
     local configExisted = saved ~= nil
     local configInitialized = false
+
+    local function applyNoRender()
+        pcall(function()
+            RunService:Set3dRenderingEnabled(not noRenderEnabled)
+        end)
+    end
+
+    applyNoRender()
+
+    local currentFps = 60
+    local fpsCounter = 0
+    local lastFpsSample = clock()
+
+    RunService.RenderStepped:Connect(function()
+        fpsCounter = fpsCounter + 1
+        local now = clock()
+        local dt = now - lastFpsSample
+        if dt >= 1 then
+            local measured = fpsCounter / dt
+            if measured < 5 then measured = 5 end
+            if measured > 240 then measured = 240 end
+            currentFps = measured
+            fpsCounter = 0
+            lastFpsSample = now
+        end
+    end)
 
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "AutoFarmPanel"
@@ -320,23 +479,39 @@ local function RUN()
 
     local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.Size = UDim2.fromOffset(230, 500)
+    Main.Size = UDim2.fromOffset(220, 400)
     Main.ClipsDescendants = false
-    Main.Position = UDim2.new(0.5, -125, 0.5, -250)
-    Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-    Main.BackgroundTransparency = 0.05
+    Main.Position = UDim2.new(0.5, -110, 0.5, -200)
+    Main.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
     Main.BorderSizePixel = 0
     Main.Active = true
     Main.Parent = ScreenGui
 
     local MainCorner = Instance.new("UICorner")
-    MainCorner.CornerRadius = UDim.new(0, 12)
+    MainCorner.CornerRadius = UDim.new(0, 11)
     MainCorner.Parent = Main
 
+    local MainGradient = Instance.new("UIGradient")
+    MainGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 28, 36)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 16, 22)),
+    }
+    MainGradient.Rotation = 90
+    MainGradient.Parent = Main
+
     local MainStroke = Instance.new("UIStroke")
-    MainStroke.Thickness = 1.5
-    MainStroke.Transparency = 0.25
+    MainStroke.Thickness = 1.2
+    MainStroke.Transparency = 0.35
     MainStroke.Parent = Main
+
+    local StrokeGradient = Instance.new("UIGradient")
+    StrokeGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 230, 130)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 180, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 100, 255)),
+    }
+    StrokeGradient.Rotation = 45
+    StrokeGradient.Parent = MainStroke
 
     local Pad = Instance.new("UIPadding")
     Pad.PaddingTop = UDim.new(0, 10)
@@ -347,22 +522,23 @@ local function RUN()
 
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
-    Title.Size = UDim2.new(1, -40, 0, 28)
+    Title.Size = UDim2.new(1, 0, 0, 26)
+    Title.Position = UDim2.fromOffset(0, 0)
     Title.BackgroundTransparency = 1
     Title.Text = "Auto Farm"
-    Title.TextColor3 = Color3.new(1, 1, 1)
-    Title.TextSize = 18
+    Title.TextColor3 = Color3.fromRGB(240, 245, 255)
+    Title.TextSize = 17
     Title.Font = Enum.Font.GothamBold
     Title.TextXAlignment = Enum.TextXAlignment.Left
     Title.Parent = Main
 
     local Status = Instance.new("TextLabel")
     Status.Name = "Status"
-    Status.Size = UDim2.new(1, -40, 0, 18)
-    Status.Position = UDim2.fromOffset(0, 29)
+    Status.Size = UDim2.new(1, 0, 0, 16)
+    Status.Position = UDim2.fromOffset(0, 28)
     Status.BackgroundTransparency = 1
     Status.Text = "Mode: Idle"
-    Status.TextColor3 = Color3.fromRGB(170, 170, 180)
+    Status.TextColor3 = DEFAULT_MODE_COLOR
     Status.TextSize = 11
     Status.Font = Enum.Font.Gotham
     Status.TextXAlignment = Enum.TextXAlignment.Left
@@ -371,58 +547,58 @@ local function RUN()
     local function makeToggle(name, text, pos)
         local btn = Instance.new("TextButton")
         btn.Name = name
-        btn.Size = UDim2.new(1, 0, 0, 43)
+        btn.Size = UDim2.new(1, 0, 0, 38)
         btn.Position = pos
-        btn.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+        btn.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
         btn.BorderSizePixel = 0
         btn.AutoButtonColor = false
         btn.Text = ""
         btn.Parent = Main
 
         local c = Instance.new("UICorner")
-        c.CornerRadius = UDim.new(0, 9)
+        c.CornerRadius = UDim.new(0, 8)
         c.Parent = btn
 
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -65, 1, 0)
-        lbl.Position = UDim2.fromOffset(13, 0)
+        lbl.Size = UDim2.new(1, -60, 1, 0)
+        lbl.Position = UDim2.fromOffset(12, 0)
         lbl.BackgroundTransparency = 1
         lbl.Text = text
-        lbl.TextColor3 = Color3.new(1, 1, 1)
-        lbl.TextSize = 14
+        lbl.TextColor3 = Color3.fromRGB(225, 228, 235)
+        lbl.TextSize = 13
         lbl.Font = Enum.Font.GothamMedium
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.Parent = btn
 
         local state = Instance.new("TextLabel")
         state.Name = "State"
-        state.Size = UDim2.fromOffset(50, 26)
-        state.Position = UDim2.new(1, -57, 0.5, -13)
-        state.BackgroundColor3 = Color3.fromRGB(55, 55, 62)
+        state.Size = UDim2.fromOffset(46, 22)
+        state.Position = UDim2.new(1, -52, 0.5, -11)
+        state.BackgroundColor3 = Color3.fromRGB(52, 52, 60)
         state.BorderSizePixel = 0
         state.Text = "OFF"
         state.TextColor3 = Color3.fromRGB(190, 190, 195)
-        state.TextSize = 11
+        state.TextSize = 10
         state.Font = Enum.Font.GothamBold
         state.Parent = btn
 
         local sc = Instance.new("UICorner")
-        sc.CornerRadius = UDim.new(0, 7)
+        sc.CornerRadius = UDim.new(0, 6)
         sc.Parent = state
 
         return btn, state
     end
 
-    local FarmButton, FarmState = makeToggle("AutoFarmToggle", "Auto Farm", UDim2.fromOffset(0, 55))
-    local PerfButton, PerfState = makeToggle("PerformanceToggle", "Performance Mode", UDim2.fromOffset(0, 101))
-    local StealthButton, StealthState = makeToggle("StealthToggle", "Stealth Mode", UDim2.fromOffset(0, 147))
-    local HopButton, HopState = makeToggle("ServerHopToggle", "Server Hop", UDim2.fromOffset(0, 193))
-    local SpamFinisherButton, SpamFinisherState = makeToggle("SpamFinishersToggle", "Spam Finishers", UDim2.fromOffset(0, 239))
+    local FarmButton, FarmState = makeToggle("AutoFarmToggle", "Auto Farm", UDim2.fromOffset(0, 48))
+    local PerfButton, PerfState = makeToggle("PerformanceToggle", "Performance Mode", UDim2.fromOffset(0, 89))
+    local NoRenderButton, NoRenderState = makeToggle("NoRenderToggle", "No Render", UDim2.fromOffset(0, 130))
+    local StealthButton, StealthState = makeToggle("StealthToggle", "Stealth Mode", UDim2.fromOffset(0, 171))
+    local HopButton, HopState = makeToggle("ServerHopToggle", "Server Hop", UDim2.fromOffset(0, 212))
 
     local KillsRow = Instance.new("Frame")
     KillsRow.Name = "KillsRow"
-    KillsRow.Size = UDim2.new(1, 0, 0, 30)
-    KillsRow.Position = UDim2.fromOffset(0, 286)
+    KillsRow.Size = UDim2.new(1, 0, 0, 26)
+    KillsRow.Position = UDim2.fromOffset(0, 254)
     KillsRow.BackgroundTransparency = 1
     KillsRow.Parent = Main
 
@@ -432,7 +608,7 @@ local function RUN()
     KillsLabel.BackgroundTransparency = 1
     KillsLabel.Text = "Target Kills:"
     KillsLabel.TextColor3 = Color3.fromRGB(210, 210, 220)
-    KillsLabel.TextSize = 13
+    KillsLabel.TextSize = 12
     KillsLabel.Font = Enum.Font.GothamMedium
     KillsLabel.TextXAlignment = Enum.TextXAlignment.Left
     KillsLabel.Parent = KillsRow
@@ -441,11 +617,11 @@ local function RUN()
     KillsBox.Name = "KillsBox"
     KillsBox.Size = UDim2.new(0.45, 0, 1, 0)
     KillsBox.Position = UDim2.new(0.55, 0, 0, 0)
-    KillsBox.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+    KillsBox.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
     KillsBox.BorderSizePixel = 0
     KillsBox.Text = tostring(targetKills)
-    KillsBox.TextColor3 = Color3.new(1, 1, 1)
-    KillsBox.TextSize = 13
+    KillsBox.TextColor3 = Color3.fromRGB(240, 245, 255)
+    KillsBox.TextSize = 12
     KillsBox.Font = Enum.Font.GothamMedium
     KillsBox.PlaceholderText = "20"
     KillsBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
@@ -458,8 +634,8 @@ local function RUN()
 
     local ShowsLabel = Instance.new("TextLabel")
     ShowsLabel.Name = "ShowsLabel"
-    ShowsLabel.Size = UDim2.new(1, 0, 0, 18)
-    ShowsLabel.Position = UDim2.fromOffset(0, 320)
+    ShowsLabel.Size = UDim2.new(1, 0, 0, 15)
+    ShowsLabel.Position = UDim2.fromOffset(0, 282)
     ShowsLabel.BackgroundTransparency = 1
     ShowsLabel.Text = "Shows Kills: 0"
     ShowsLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
@@ -470,8 +646,8 @@ local function RUN()
 
     local CurrentLabel = Instance.new("TextLabel")
     CurrentLabel.Name = "CurrentLabel"
-    CurrentLabel.Size = UDim2.new(1, 0, 0, 18)
-    CurrentLabel.Position = UDim2.fromOffset(0, 338)
+    CurrentLabel.Size = UDim2.new(1, 0, 0, 15)
+    CurrentLabel.Position = UDim2.fromOffset(0, 299)
     CurrentLabel.BackgroundTransparency = 1
     CurrentLabel.Text = "Current Kills: 0"
     CurrentLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
@@ -482,8 +658,8 @@ local function RUN()
 
     local WarningLabel = Instance.new("TextLabel")
     WarningLabel.Name = "Warning"
-    WarningLabel.Size = UDim2.new(1, 0, 0, 40)
-    WarningLabel.Position = UDim2.fromOffset(0, 362)
+    WarningLabel.Size = UDim2.new(1, 0, 0, 38)
+    WarningLabel.Position = UDim2.fromOffset(0, 316)
     WarningLabel.BackgroundColor3 = Color3.fromRGB(60, 25, 25)
     WarningLabel.BackgroundTransparency = 0.15
     WarningLabel.BorderSizePixel = 0
@@ -499,39 +675,50 @@ local function RUN()
     WarnCorner.CornerRadius = UDim.new(0, 8)
     WarnCorner.Parent = WarningLabel
 
-    local SpamInfoLabel = Instance.new("TextLabel")
-    SpamInfoLabel.Name = "SpamInfoLabel"
-    SpamInfoLabel.Size = UDim2.new(1, 0, 0, 50)
-    SpamInfoLabel.Position = UDim2.fromOffset(0, 406)
-    SpamInfoLabel.BackgroundColor3 = Color3.fromRGB(22, 40, 22)
-    SpamInfoLabel.BackgroundTransparency = 0.15
-    SpamInfoLabel.BorderSizePixel = 0
-    SpamInfoLabel.RichText = true
-    SpamInfoLabel.Text = "Uses Moves at Dead People\nto gain <font color=\"rgb(0,255,0)\">Ultimate FASTER</font>"
-    SpamInfoLabel.TextColor3 = Color3.fromRGB(200, 210, 200)
-    SpamInfoLabel.TextSize = 11
-    SpamInfoLabel.Font = Enum.Font.GothamMedium
-    SpamInfoLabel.TextWrapped = true
-    SpamInfoLabel.Parent = Main
+    local StatsLabel = Instance.new("TextLabel")
+    StatsLabel.Name = "StatsLabel"
+    StatsLabel.Size = UDim2.new(1, 0, 0, 20)
+    StatsLabel.Position = UDim2.fromOffset(0, 356)
+    StatsLabel.BackgroundColor3 = Color3.fromRGB(26, 26, 34)
+    StatsLabel.BackgroundTransparency = 0.15
+    StatsLabel.BorderSizePixel = 0
+    StatsLabel.RichText = true
+    StatsLabel.Text = 'Ping <font color="rgb(150,200,255)">0</font> ms  <font color="rgb(80,80,100)">|</font>  Fps <font color="rgb(150,255,180)">60</font>'
+    StatsLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+    StatsLabel.TextSize = 11
+    StatsLabel.Font = Enum.Font.GothamMedium
+    StatsLabel.Parent = Main
 
-    local SpamInfoCorner = Instance.new("UICorner")
-    SpamInfoCorner.CornerRadius = UDim.new(0, 8)
-    SpamInfoCorner.Parent = SpamInfoLabel
+    local StatsCorner = Instance.new("UICorner")
+    StatsCorner.CornerRadius = UDim.new(0, 6)
+    StatsCorner.Parent = StatsLabel
 
     local protectionActive = false
     local rotationRunning = false
     local lowHealthMode = false
     local selfRagdollActive = false
     local attackingActive = false
+    local specialAnimActive = false
+    local forceVoidActive = false
+    local voidKillingActive = false
+    local voidKillingCounting = false
+    local voidKillingTimerStart = 0
+    local respawnGraceUntil = 0
+    local lastSetupCharacter = nil
 
     local protectionOrigin = nil
     local lastRemoteFire = 0
+    local lastEmoteSpin = 0
+    local lastFallbackFire = 0
     local lastGPress = 0
     local lastJumpPress = 0
     local lastRagdollFire = 0
     local lastKillsLabelUpdate = 0
+    local lastStatsUpdate = 0
+    local lastStatusRefresh = 0
 
     local characterConnections = {}
+    local stripConnections = {}
     local permanentConnections = {}
     local watchedTools = {}
     local targetStates = {}
@@ -555,13 +742,8 @@ local function RUN()
     local cloneAnimator = nil
     local animationMirrors = {}
 
-    local lastWatchedCharacter = nil
     local lastCloneCheck = 0
     local lastCloneRebuild = 0
-
-    local finisherActive = false
-    local finisherLoopRunning = false
-    local finisherTargetRoot = nil
 
     local spamTrack = nil
     local spamTrackCharacter = nil
@@ -570,6 +752,7 @@ local function RUN()
     local spaceDownAt = 0
 
     local cachedBackpack = nil
+    local cachedBackpackParent = nil
     local thrownConnection = nil
 
     local killsValue = nil
@@ -581,13 +764,65 @@ local function RUN()
     local teleportFailedFlag = false
     local teleportFailConnection = nil
 
+    local tfCacheT = 0
+    local tfCacheV = false
+    local hotbarCacheT = {}
+    local hotbarCacheV = {}
+    local specialAnimCacheT = 0
+    local specialAnimCacheV = false
+    local forceVoidCacheT = 0
+    local forceVoidCacheV = false
+    local crowdBusterCacheT = 0
+    local crowdBusterCacheV = false
+    local hammerBindingCacheT = 0
+    local hammerBindingCacheV = false
+    local protCache = setmetatable({}, {__mode = "k"})
+    local targetCacheT = 0
+    local targetCacheV = nil
+    local rootCacheChar = nil
+    local rootCacheV = nil
+
+    local lastStatusText = nil
+    local lastStatusColor = nil
+
+    local twinFangsExists = nil
+    local crowdBusterExists = nil
+    local hammerOrBindingExists = nil
+    local hotbarHasCooldown = nil
+
+    local function disconnectStripConnections()
+        local i = 1
+        while i <= #stripConnections do
+            local c = stripConnections[i]
+            if c ~= nil then
+                pcall(function() c:Disconnect() end)
+            end
+            i = i + 1
+        end
+        stripConnections = {}
+    end
+
+    local function stripRespawnProtections(character)
+        pcall(function()
+            if character == nil or character.Parent == nil then return end
+            local ai = character:FindFirstChild("AbsoluteImmortal")
+            if ai ~= nil then
+                pcall(function() ai:Destroy() end)
+            end
+            local ff = character:FindFirstChild("ForceField")
+            if ff ~= nil then
+                pcall(function() ff:Destroy() end)
+            end
+        end)
+    end
+
     local function persistConfig()
         writeConfig({
             farmEnabled = farmEnabled,
             performanceMode = performanceMode,
+            noRenderEnabled = noRenderEnabled,
             stealthMode = stealthMode,
             serverHopEnabled = serverHopEnabled,
-            spamFinishersEnabled = spamFinishersEnabled,
             targetKills = targetKills,
             showsKills = showsKills,
         })
@@ -605,203 +840,178 @@ local function RUN()
         end
     end
 
-    local function refreshStatus()
-        if selfRagdollActive then
-            Status.Text = "Mode: Anti (Anti Invisible)"
-            Status.TextColor3 = ANTI_MODE_COLOR
-        elseif protectionActive then
-            Status.Text = "Mode: Boundary Zone"
-            Status.TextColor3 = Color3.fromRGB(170, 170, 180)
-        elseif lowHealthMode then
-            Status.Text = "Mode: LOW HP - Recovering"
-            Status.TextColor3 = Color3.fromRGB(255, 90, 90)
-        elseif hopInProgress then
-            Status.Text = "Mode: Server Hopping"
-            Status.TextColor3 = Color3.fromRGB(170, 170, 180)
-        elseif finisherLoopRunning or finisherActive then
-            Status.Text = "Mode: Spam Finisher"
-            Status.TextColor3 = Color3.fromRGB(80, 230, 130)
-        elseif rotationRunning then
-            Status.Text = "Mode: Rotation Sequence"
-            Status.TextColor3 = Color3.fromRGB(170, 170, 180)
-        elseif farmEnabled then
-            Status.Text = "Mode: FULL ACTIVE"
-            Status.TextColor3 = Color3.fromRGB(170, 170, 180)
-        else
-            Status.Text = "Mode: Idle"
-            Status.TextColor3 = Color3.fromRGB(170, 170, 180)
-        end
-    end
-
-    local function refreshKillsDisplay()
-        ShowsLabel.Text = "Shows Kills: " .. tostring(showsKills)
-        if killsValue ~= nil then
-            CurrentLabel.Text = "Current Kills: " .. tostring(killsValue.Value)
-        else
-            CurrentLabel.Text = "Current Kills: 0"
-        end
-    end
-
-    FarmButton.Activated:Connect(function()
-        farmEnabled = not farmEnabled
-        setToggle(FarmState, farmEnabled)
-        if not farmEnabled then
-            suppressHeartbeatTp = false
-            finisherActive = false
-            finisherTargetRoot = nil
-        end
-        persistConfig()
-        refreshStatus()
-    end)
-
-    PerfButton.Activated:Connect(function()
-        performanceMode = not performanceMode
-        setToggle(PerfState, performanceMode)
-        persistConfig()
-    end)
-
-    StealthButton.Activated:Connect(function()
-        stealthMode = not stealthMode
-        setToggle(StealthState, stealthMode)
-        WarningLabel.Visible = stealthMode
-        persistConfig()
-    end)
-
-    HopButton.Activated:Connect(function()
-        serverHopEnabled = not serverHopEnabled
-        setToggle(HopState, serverHopEnabled)
-        persistConfig()
-        if not serverHopEnabled then
-            hopRequestedStop = true
-            hopInProgress = false
-            refreshStatus()
-        end
-    end)
-
-    SpamFinisherButton.Activated:Connect(function()
-        spamFinishersEnabled = not spamFinishersEnabled
-        setToggle(SpamFinisherState, spamFinishersEnabled)
-        if not spamFinishersEnabled then
-            finisherActive = false
-            finisherTargetRoot = nil
-        end
-        persistConfig()
-        refreshStatus()
-    end)
-
-    KillsBox.FocusLost:Connect(function()
-        local n = tonumber(KillsBox.Text)
-        if n ~= nil and n > 0 then
-            targetKills = floor_(n)
-        end
-        KillsBox.Text = tostring(targetKills)
-        persistConfig()
-    end)
-
-    setToggle(FarmState, farmEnabled)
-    setToggle(PerfState, performanceMode)
-    setToggle(StealthState, stealthMode)
-    setToggle(HopState, serverHopEnabled)
-    setToggle(SpamFinisherState, spamFinishersEnabled)
-    WarningLabel.Visible = stealthMode
-    refreshKillsDisplay()
-
-    Title.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            windowDragging = true
-            windowDragStart = Vector2.new(input.Position.X, input.Position.Y)
-            windowStartPos = Main.Position
-        elseif input.UserInputType == Enum.UserInputType.Touch then
-            windowDragging = true
-            windowDragStart = Vector2.new(input.Position.X, input.Position.Y)
-            windowStartPos = Main.Position
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if windowDragging then
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                local delta = Vector2.new(input.Position.X, input.Position.Y) - windowDragStart
-                Main.Position = UDim2.new(
-                    windowStartPos.X.Scale,
-                    windowStartPos.X.Offset + delta.X,
-                    windowStartPos.Y.Scale,
-                    windowStartPos.Y.Offset + delta.Y
-                )
-            end
-            return
-        end
-
-        local uit = input.UserInputType
-        if uit == Enum.UserInputType.MouseMovement then
-            if input.Delta.X ~= 0 or input.Delta.Y ~= 0 then
-                cameraYaw = cameraYaw - input.Delta.X * CAMERA_SENSITIVITY
-                cameraPitch = clamp_(cameraPitch - input.Delta.Y * CAMERA_SENSITIVITY, rad_(-80), rad_(80))
-            end
-        elseif uit == Enum.UserInputType.Touch then
-            if input.Delta.X ~= 0 or input.Delta.Y ~= 0 then
-                cameraYaw = cameraYaw - input.Delta.X * CAMERA_SENSITIVITY * 1.4
-                cameraPitch = clamp_(cameraPitch - input.Delta.Y * CAMERA_SENSITIVITY * 1.4, rad_(-80), rad_(80))
-            end
-        elseif uit == Enum.UserInputType.MouseWheel then
-            cameraDistance = clamp_(cameraDistance - input.Position.Z * 2, CAMERA_MIN_DIST, CAMERA_MAX_DIST)
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            windowDragging = false
-        end
-    end)
-
     local function hasProtection(character)
         if character == nil then return true end
-        if character:FindFirstChild("AbsoluteImmortal") ~= nil then return true end
-        if character:FindFirstChild("ForceField") ~= nil then return true end
-        if character:FindFirstChild("FinalDeath") ~= nil then return true end
-        if character:FindFirstChild("Counter") ~= nil then return true end
-        return false
+        local now = clock()
+        local entry = protCache[character]
+        if entry ~= nil then
+            if now - entry.t < PROT_CACHE_TTL then
+                return entry.v
+            end
+        end
+        local v = false
+        if character:FindFirstChild("AbsoluteImmortal") ~= nil then
+            v = true
+        elseif character:FindFirstChild("ForceField") ~= nil then
+            v = true
+        elseif character:FindFirstChild("FinalDeath") ~= nil then
+            v = true
+        elseif character:FindFirstChild("Counter") ~= nil then
+            v = true
+        elseif character:FindFirstChild("BeingGrabbed") ~= nil then
+            v = true
+        elseif character:FindFirstChild("BeingGrapped") ~= nil then
+            v = true
+        end
+        protCache[character] = {t = now, v = v}
+        return v
     end
 
     local function getRoot()
         local character = LocalPlayer.Character
-        if character == nil then return nil end
+        if character == nil then
+            rootCacheChar = nil
+            rootCacheV = nil
+            return nil
+        end
+        if character == rootCacheChar then
+            if rootCacheV ~= nil and rootCacheV.Parent ~= nil then
+                return rootCacheV
+            end
+        end
         local root = character:FindFirstChild("HumanoidRootPart")
-        if root == nil then return nil end
-        if not root:IsA("BasePart") then return nil end
+        if root == nil or not root:IsA("BasePart") then
+            rootCacheChar = character
+            rootCacheV = nil
+            return nil
+        end
+        rootCacheChar = character
+        rootCacheV = root
         return root
     end
 
     local function selfHasRagdoll()
         local character = LocalPlayer.Character
         if character == nil then return false end
-        if character:FindFirstChild("Ragdoll") ~= nil then return true end
-        return false
+        return character:FindFirstChild("Ragdoll") ~= nil
+    end
+
+    -- NEW: true when the local root is at/below the void detection Y level
+    local function isNearVoid()
+        local root = getRoot()
+        if root == nil then return false end
+        return root.Position.Y <= VOID_Y_THRESHOLD
+    end
+
+    local function isSpecialAnimationPlaying()
+        local now = clock()
+        if now - specialAnimCacheT < SPECIAL_ANIM_CACHE_TTL then
+            return specialAnimCacheV
+        end
+        specialAnimCacheT = now
+        local character = LocalPlayer.Character
+        if character == nil then
+            specialAnimCacheV = false
+            return false
+        end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid == nil then
+            specialAnimCacheV = false
+            return false
+        end
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if animator == nil then
+            specialAnimCacheV = false
+            return false
+        end
+        local ok, tracks = pcall(function()
+            return animator:GetPlayingAnimationTracks()
+        end)
+        if not ok or tracks == nil then
+            specialAnimCacheV = false
+            return false
+        end
+        local found = false
+        local i = 1
+        while i <= #tracks do
+            local anim = tracks[i].Animation
+            if anim ~= nil then
+                local numeric = match_(anim.AnimationId, "%d+")
+                if numeric ~= nil and SPECIAL_ANIM_IDS[numeric] then
+                    found = true
+                    break
+                end
+            end
+            i = i + 1
+        end
+        specialAnimCacheV = found
+        return found
+    end
+
+    local function isForceVoidAnimationPlaying()
+        local now = clock()
+        if now - forceVoidCacheT < SPECIAL_ANIM_CACHE_TTL then
+            return forceVoidCacheV
+        end
+        forceVoidCacheT = now
+        local character = LocalPlayer.Character
+        if character == nil then
+            forceVoidCacheV = false
+            return false
+        end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid == nil then
+            forceVoidCacheV = false
+            return false
+        end
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if animator == nil then
+            forceVoidCacheV = false
+            return false
+        end
+        local ok, tracks = pcall(function()
+            return animator:GetPlayingAnimationTracks()
+        end)
+        if not ok or tracks == nil then
+            forceVoidCacheV = false
+            return false
+        end
+        local found = false
+        local i = 1
+        while i <= #tracks do
+            local anim = tracks[i].Animation
+            if anim ~= nil then
+                local numeric = match_(anim.AnimationId, "%d+")
+                if numeric ~= nil and FORCE_VOID_ANIM_IDS[numeric] then
+                    found = true
+                    break
+                end
+            end
+            i = i + 1
+        end
+        forceVoidCacheV = found
+        return found
     end
 
     local function checkAttacking()
         local root = getRoot()
         if root == nil then return false end
         local pos = root.CFrame.Position
-        local dx = pos.X - 0
-        local dy = pos.Y - 0
+        local dx = pos.X
+        local dy = pos.Y
         local dz = pos.Z - 6
-        local distSq = dx * dx + dy * dy + dz * dz
-        return distSq <= (ATTACK_POSITION_EPS * ATTACK_POSITION_EPS)
+        return (dx * dx + dy * dy + dz * dz) <= (ATTACK_POSITION_EPS * ATTACK_POSITION_EPS)
     end
 
     local function getPlayerRoot(player)
-        if player == nil then return nil end
-        if player == LocalPlayer then return nil end
+        if player == nil or player == LocalPlayer then return nil end
         local tc = player.Character
         if tc == nil then return nil end
         if hasProtection(tc) then return nil end
         local hum = tc:FindFirstChildOfClass("Humanoid")
-        if hum == nil then return nil end
-        if hum.Health <= 0 then return nil end
+        if hum == nil or hum.Health <= 0 then return nil end
         local tr = tc:FindFirstChild("HumanoidRootPart")
-        if tr == nil then return nil end
-        if not tr:IsA("BasePart") then return nil end
+        if tr == nil or not tr:IsA("BasePart") then return nil end
         return tr
     end
 
@@ -809,15 +1019,19 @@ local function RUN()
         local best = nil
         local bestDSq = range * range
         local players = Players:GetPlayers()
+        local rX = refPos.X
+        local rY = refPos.Y
+        local rZ = refPos.Z
         local i = 1
         while i <= #players do
             local player = players[i]
             if player ~= LocalPlayer then
                 local tr = getPlayerRoot(player)
                 if tr ~= nil then
-                    local dx = tr.Position.X - refPos.X
-                    local dy = tr.Position.Y - refPos.Y
-                    local dz = tr.Position.Z - refPos.Z
+                    local p = tr.Position
+                    local dx = p.X - rX
+                    local dy = p.Y - rY
+                    local dz = p.Z - rZ
                     local dSq = dx * dx + dy * dy + dz * dz
                     if dSq <= bestDSq then
                         bestDSq = dSq
@@ -830,85 +1044,24 @@ local function RUN()
         return best
     end
 
-    local function isCharacterDead(tc)
-        if tc == nil or tc.Parent == nil then return false end
-        if tc:FindFirstChild("FinalDeath") ~= nil then return true end
-        if tc:FindFirstChild("FinalDeath", true) ~= nil then return true end
-        local hum = tc:FindFirstChildOfClass("Humanoid")
-        if hum ~= nil and hum.Health <= 0 then return true end
-        return false
-    end
-
-    local function getDeadTargetRoot()
-        local root = getRoot()
-        if root == nil then return nil end
-        local best = nil
-        local bestDSq = huge_
-
-        local players = Players:GetPlayers()
-        local i = 1
-        while i <= #players do
-            local player = players[i]
-            if player ~= LocalPlayer then
-                local tc = player.Character
-                if tc ~= nil and tc.Parent ~= nil and isCharacterDead(tc) then
-                    local tr = tc:FindFirstChild("HumanoidRootPart")
-                    if tr ~= nil and tr:IsA("BasePart") then
-                        local dx = tr.Position.X - root.Position.X
-                        local dy = tr.Position.Y - root.Position.Y
-                        local dz = tr.Position.Z - root.Position.Z
-                        local dSq = dx * dx + dy * dy + dz * dz
-                        if dSq < bestDSq then
-                            bestDSq = dSq
-                            best = tr
-                        end
-                    end
-                end
-            end
-            i = i + 1
-        end
-
-        if best == nil then
-            local myChar = LocalPlayer.Character
-            local children = Workspace:GetChildren()
-            local j = 1
-            while j <= #children do
-                local obj = children[j]
-                if obj:IsA("Model") and obj ~= myChar then
-                    if obj:FindFirstChild("FinalDeath") ~= nil or obj:FindFirstChild("FinalDeath", true) ~= nil then
-                        local tr = obj:FindFirstChild("HumanoidRootPart")
-                        if tr ~= nil and tr:IsA("BasePart") then
-                            local dx = tr.Position.X - root.Position.X
-                            local dy = tr.Position.Y - root.Position.Y
-                            local dz = tr.Position.Z - root.Position.Z
-                            local dSq = dx * dx + dy * dy + dz * dz
-                            if dSq < bestDSq then
-                                bestDSq = dSq
-                                best = tr
-                            end
-                        end
-                    end
-                end
-                j = j + 1
-            end
-        end
-
-        return best
-    end
-
     local function getTarget()
+        local now = clock()
+        if now - targetCacheT < TARGET_CACHE_TTL then
+            return targetCacheV
+        end
+        targetCacheT = now
         local root = getRoot()
         if root == nil then
             lastTargetPlayer = nil
             pendingTargetPlayer = nil
             targetSwitchLockUntil = 0
+            targetCacheV = nil
             return nil
         end
 
-        local now = clock()
-
         if pendingTargetPlayer ~= nil then
             if now < targetSwitchLockUntil then
+                targetCacheV = lastTargetPlayer
                 return lastTargetPlayer
             end
             lastTargetPlayer = pendingTargetPlayer
@@ -952,6 +1105,7 @@ local function RUN()
             lastTargetPlayer = nil
             pendingTargetPlayer = nil
             targetSwitchLockUntil = 0
+            targetCacheV = nil
             return nil
         end
 
@@ -959,18 +1113,20 @@ local function RUN()
             if lastTargetPlayer ~= nil then
                 pendingTargetPlayer = result
                 targetSwitchLockUntil = now + TARGET_SWITCH_DELAY
+                targetCacheV = lastTargetPlayer
                 return lastTargetPlayer
             end
             lastTargetPlayer = result
+            targetCacheV = result
             return result
         end
 
+        targetCacheV = result
         return result
     end
 
     local function canAlignToTarget(target)
-        if target == nil then return false end
-        if target == LocalPlayer then return false end
+        if target == nil or target == LocalPlayer then return false end
         local tc = target.Character
         if tc == nil or tc.Parent == nil then return false end
         if hasProtection(tc) then return false end
@@ -981,9 +1137,7 @@ local function RUN()
 
     local function targetRootForAlign()
         local target = getTarget()
-        if not canAlignToTarget(target) then
-            return nil
-        end
+        if not canAlignToTarget(target) then return nil end
         return target.Character:FindFirstChild("HumanoidRootPart")
     end
 
@@ -996,13 +1150,20 @@ local function RUN()
     end
 
     local function pressKey(code)
-        VirtualInputManager:SendKeyEvent(true, code, false, game)
-        VirtualInputManager:SendKeyEvent(false, code, false, game)
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(true, code, false, game)
+            VirtualInputManager:SendKeyEvent(false, code, false, game)
+        end)
     end
 
     local function pressG()
         local now = clock()
         if now - lastGPress < G_INTERVAL then return end
+        if now < respawnGraceUntil then return end
+        if crowdBusterExists ~= nil then
+            local ok, cb = pcall(crowdBusterExists)
+            if ok and cb then return end
+        end
         lastGPress = now
         pressKey(Enum.KeyCode.G)
     end
@@ -1012,28 +1173,28 @@ local function RUN()
         if now - lastJumpPress < JUMP_INTERVAL then return end
         lastJumpPress = now
         if not spaceDown then
-VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            pcall(function()
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            end)
             spaceDown = true
             spaceDownAt = now
         end
     end
 
     local function tickSpaceRelease()
-        if spaceDown then
-            if clock() - spaceDownAt >= SPACE_HOLD_TIME then
+        if spaceDown and clock() - spaceDownAt >= SPACE_HOLD_TIME then
+            pcall(function()
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-                spaceDown = false
-            end
+            end)
+            spaceDown = false
         end
     end
-
 
     local function getCommunicate()
         local character = LocalPlayer.Character
         if character == nil then return nil end
         local comm = character:FindFirstChild("Communicate")
-        if comm == nil then return nil end
-        if not comm:IsA("RemoteEvent") then return nil end
+        if comm == nil or not comm:IsA("RemoteEvent") then return nil end
         return comm
     end
 
@@ -1045,21 +1206,31 @@ VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
         return CFrame.lookAt(ray.Origin, ray.Origin + ray.Direction * 1000)
     end
 
-local function getBackpack()
-        if cachedBackpack ~= nil and cachedBackpack.Parent ~= nil then
-            return cachedBackpack
+    local function getBackpack()
+        if cachedBackpack ~= nil then
+            if cachedBackpackParent ~= nil and cachedBackpack.Parent ~= nil then
+                return cachedBackpack
+            end
+            local bp = LocalPlayer:FindFirstChild("Backpack")
+            if bp ~= nil and bp:IsA("Backpack") then
+                cachedBackpack = bp
+                cachedBackpackParent = bp.Parent
+                return bp
+            end
+            cachedBackpack = nil
+            cachedBackpackParent = nil
+            return nil
         end
         local bp = LocalPlayer:FindFirstChild("Backpack")
         if bp ~= nil and bp:IsA("Backpack") then
             cachedBackpack = bp
+            cachedBackpackParent = bp.Parent
             return bp
         end
         return nil
     end
 
-
-
-local function findTool(name)
+    local function findTool(name)
         local target = lower_(name)
         local bp = getBackpack()
         if bp ~= nil then
@@ -1088,10 +1259,58 @@ local function findTool(name)
         return nil
     end
 
+    twinFangsExists = function()
+        local now = clock()
+        if now - tfCacheT < TF_CACHE_TTL then
+            return tfCacheV
+        end
+        tfCacheT = now
+        local character = LocalPlayer.Character
+        if character == nil then
+            tfCacheV = false
+            return false
+        end
+        if character:GetAttribute("Ulted") == true then
+            tfCacheV = true
+            return true
+        end
+        tfCacheV = findTool(TWIN_FANGS_NAME) ~= nil
+        return tfCacheV
+    end
 
-local function twinFangsExists()
-        if findTool(TWIN_FANGS_NAME) ~= nil or LocalPlayer.Character:GetAttribute("Ulted") == true then return true end
-        return false
+    crowdBusterExists = function()
+        local now = clock()
+        if now - crowdBusterCacheT < TF_CACHE_TTL then
+            return crowdBusterCacheV
+        end
+        crowdBusterCacheT = now
+        crowdBusterCacheV = findTool(CROWD_BUSTER_NAME) ~= nil
+        return crowdBusterCacheV
+    end
+
+    hammerOrBindingExists = function()
+        local now = clock()
+        if now - hammerBindingCacheT < TF_CACHE_TTL then
+            return hammerBindingCacheV
+        end
+        hammerBindingCacheT = now
+        hammerBindingCacheV = findTool(HAMMER_HEEL_NAME) ~= nil or findTool(BINDING_CLOTH_NAME) ~= nil
+        return hammerBindingCacheV
+    end
+
+    local function fireEmoteSpin()
+        local now = clock()
+        local interval = 2 / currentFps
+        if interval < EMOTE_SPIN_MIN_INTERVAL then
+            interval = EMOTE_SPIN_MIN_INTERVAL
+        end
+        if now - lastEmoteSpin < interval then return end
+        lastEmoteSpin = now
+        local comm = getCommunicate()
+        if comm == nil then return end
+        pcall(function()
+            comm:FireServer({ Goal = "Emote Spin" })
+        end)
     end
 
     local function fireCommunicate()
@@ -1107,40 +1326,43 @@ local function twinFangsExists()
         if character == nil then return end
         local isM1ing = character:FindFirstChild("M1ing") ~= nil
 
-        if twinFangsExists() then
-            if isM1ing then
-                comm:FireServer(
-                    {
+        pcall(function()
+            if crowdBusterExists ~= nil and crowdBusterExists() then
+                if not isM1ing then
+                    comm:FireServer({ Mobile = IS_MOBILE, Goal = "LeftClick", MousePos = mouseCF })
+                end
+            elseif twinFangsExists() then
+                if isM1ing then
+                    comm:FireServer({
                         Goal = "KeyPress",
                         Key = Enum.KeyCode.F,
                         MousePos = mouseCF
-                    }
-                )
-                comm:FireServer({
-                    Goal = "LeftClickRelease",
-                    Mobile = IS_MOBILE
-                })
-            else
-                comm:FireServer(
-                    {
+                    })
+                    comm:FireServer({
+                        Goal = "LeftClickRelease",
+                        Mobile = IS_MOBILE
+                    })
+                else
+                    comm:FireServer({
                         Goal = "KeyRelease",
                         Key = Enum.KeyCode.F
-                    }
-                )
+                    })
+                end
+            else
+                if not isM1ing then
+                    comm:FireServer({ Mobile = IS_MOBILE, Goal = "LeftClick", MousePos = mouseCF })
+                end
             end
-        else
-            if not isM1ing then
-                comm:FireServer({ Mobile = IS_MOBILE, Goal = "LeftClick", MousePos = mouseCF })
-            end
-        end
+        end)
     end
-
-
 
     local function activateToolViaRemote(tool)
         local comm = getCommunicate()
         if comm == nil then return end
-        comm:FireServer({ Tool = tool, Goal = "Console Move", IsAutoActivate = true })
+        if tool == nil then return end
+        pcall(function()
+            comm:FireServer({ Tool = tool, Goal = "Console Move", IsAutoActivate = true })
+        end)
     end
 
     local function fireRagdollFinish()
@@ -1148,8 +1370,10 @@ local function twinFangsExists()
         if comm == nil then return end
         local mouseCF = getMouseCFrame()
         if mouseCF == nil then return end
-if twinFangsExists() then return end
-        comm:FireServer({ Dash = Enum.KeyCode.W, Key = Enum.KeyCode.Q, Goal = "KeyPress", MousePos = mouseCF })
+        if twinFangsExists() then return end
+        pcall(function()
+            comm:FireServer({ Dash = Enum.KeyCode.W, Key = Enum.KeyCode.Q, Goal = "KeyPress", MousePos = mouseCF })
+        end)
     end
 
     local function tryFireRagdollFinish()
@@ -1158,13 +1382,10 @@ if twinFangsExists() then return end
         local target = getTarget()
         if target == nil then return end
         local tc = target.Character
-        if tc == nil then return end
-        if tc:FindFirstChild("Ragdoll") == nil then return end
+        if tc == nil or tc:FindFirstChild("Ragdoll") == nil then return end
         lastRagdollFire = now
         fireRagdollFinish()
     end
-
-
 
     local function getAllTools(exclude)
         local excl = {}
@@ -1201,7 +1422,57 @@ if twinFangsExists() then return end
         return result
     end
 
+    local function getFilteredFallbackTools()
+        local cbActive = false
+        if crowdBusterExists ~= nil then
+            local ok, res = pcall(crowdBusterExists)
+            if ok then cbActive = res end
+        end
 
+        local hhTarget = lower_(HAMMER_HEEL_NAME)
+        local bcTarget = lower_(BINDING_CLOTH_NAME)
+        local result = {}
+
+        local hh = findTool(HAMMER_HEEL_NAME)
+        local bc = findTool(BINDING_CLOTH_NAME)
+
+        if hh ~= nil and bc ~= nil then
+            if random_() < 0.5 then
+                insert_(result, hh)
+                insert_(result, bc)
+            else
+                insert_(result, bc)
+                insert_(result, hh)
+            end
+        elseif hh ~= nil then
+            insert_(result, hh)
+        elseif bc ~= nil then
+            insert_(result, bc)
+        end
+
+        if cbActive then
+            if #result > 0 then
+                return result
+            end
+            return getAllTools(FALLBACK_EXCLUDE)
+        end
+
+        local others = getAllTools(FALLBACK_EXCLUDE)
+        local i = 1
+        while i <= #others do
+            local c = others[i]
+            local ln = lower_(c.Name)
+            if ln ~= hhTarget and ln ~= bcTarget then
+                insert_(result, c)
+            end
+            i = i + 1
+        end
+
+        if #result > 0 then
+            return result
+        end
+        return getAllTools(FALLBACK_EXCLUDE)
+    end
 
     local function genericSpam()
         pressJump()
@@ -1209,69 +1480,116 @@ if twinFangsExists() then return end
         tryFireRagdollFinish()
     end
 
-    local function hotbarHasCooldown(slot)
+    hotbarHasCooldown = function(slot)
+        local now = clock()
+        local lastT = hotbarCacheT[slot]
+        if lastT ~= nil and now - lastT < HOTBAR_CACHE_TTL then
+            return hotbarCacheV[slot]
+        end
+        hotbarCacheT[slot] = now
         local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        if pg == nil then return false end
+        if pg == nil then
+            hotbarCacheV[slot] = false
+            return false
+        end
         local hotbar = pg:FindFirstChild("Hotbar")
-        if not hotbar then return false end
+        if not hotbar then
+            hotbarCacheV[slot] = false
+            return false
+        end
         local bp = hotbar:FindFirstChild("Backpack")
-        if bp == nil then return false end
+        if bp == nil then
+            hotbarCacheV[slot] = false
+            return false
+        end
         local slots = bp:FindFirstChild("Hotbar")
-        if slots == nil then return false end
+        if slots == nil then
+            hotbarCacheV[slot] = false
+            return false
+        end
         local frame = slots:FindFirstChild(tostring(slot))
-        if frame == nil then return false end
+        if frame == nil then
+            hotbarCacheV[slot] = false
+            return false
+        end
         local baseFrame = frame:FindFirstChild("Base")
-        if baseFrame == nil then return false end
-        if baseFrame:FindFirstChild("Cooldown") ~= nil then return true end
-        return false
+        if baseFrame == nil then
+            hotbarCacheV[slot] = false
+            return false
+        end
+        local result = baseFrame:FindFirstChild("Cooldown") ~= nil
+        hotbarCacheV[slot] = result
+        return result
     end
 
     local function ensureInvisible()
-        local character = LocalPlayer.Character
-        if character == nil then return end
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid == nil then return end
+        pcall(function()
+            local character = LocalPlayer.Character
+            if character == nil then return end
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid == nil then return end
+            if humanoid.Health <= 0 then return end
 
-        if spamTrackCharacter ~= character then
-            if spamTrack ~= nil then spamTrack:Stop(0) end
-            spamTrack = nil
-            spamTrackCharacter = character
-        end
-
-        local animator = humanoid:FindFirstChildOfClass("Animator")
-        if animator == nil then
-            local na = Instance.new("Animator")
-            na.Parent = humanoid
-            animator = na
-        end
-        if animator == nil then return end
-
-        if spamTrack == nil then
-            local anim = Instance.new("Animation")
-            anim.AnimationId = "rbxassetid://" .. SPAM_ANIMATION_ID
-            local track = animator:LoadAnimation(anim)
-            if typeof(track) == "Instance" then
-                track.Priority = Enum.AnimationPriority.Action4
-                track.Looped = true
-                spamTrack = track
+            if spamTrackCharacter == character and spamTrack ~= nil then
+                local okCheck = pcall(function()
+                    return spamTrack.IsPlaying and spamTrack.Speed == 0 and spamTrack.WeightCurrent > 0.95
+                end)
+                if okCheck then
+                    if spamTrack.IsPlaying and spamTrack.Speed == 0 and spamTrack.WeightCurrent > 0.95 then
+                        return
+                    end
+                end
             end
-        end
 
-        local t = spamTrack
-        if t == nil then return end
-        if not t.IsPlaying then t:Play(0, 1, 0) end
-        t:AdjustSpeed(0)
-        t.TimePosition = 0
-        t:AdjustWeight(1, 0)
+            if spamTrackCharacter ~= character then
+                if spamTrack ~= nil then
+                    pcall(function() spamTrack:Stop(0) end)
+                end
+                spamTrack = nil
+                spamTrackCharacter = character
+            end
+
+            local animator = humanoid:FindFirstChildOfClass("Animator")
+            if animator == nil then
+                local na = Instance.new("Animator")
+                na.Parent = humanoid
+                animator = na
+            end
+            if animator == nil then return end
+
+            if spamTrack == nil then
+                local anim = Instance.new("Animation")
+                anim.AnimationId = "rbxassetid://" .. SPAM_ANIMATION_ID
+                local track = animator:LoadAnimation(anim)
+                if typeof(track) == "Instance" then
+                    track.Priority = Enum.AnimationPriority.Action4
+                    track.Looped = true
+                    spamTrack = track
+                end
+            end
+
+            local t = spamTrack
+            if t == nil then return end
+            if not t.IsPlaying then
+                pcall(function() t:Play(0, 1, 0) end)
+            end
+            pcall(function()
+                t:AdjustSpeed(0)
+                t.TimePosition = 0
+                t:AdjustWeight(1, 0)
+            end)
+        end)
     end
 
     local function validateClone()
         local cc = cloneCharacter
-        if cc == nil then return false end
-        if cc.Parent == nil then return false end
+        if cc == nil or cc.Parent == nil then return false end
         if cc:FindFirstChild("HumanoidRootPart") == nil then return false end
         if cc:FindFirstChildOfClass("Humanoid") == nil then return false end
         if cc:FindFirstChild("Head") == nil then return false end
+        local ch = LocalPlayer.Character
+        if ch == nil then return false end
+        if ch:FindFirstChild("HumanoidRootPart") == nil then return false end
         return true
     end
 
@@ -1300,7 +1618,11 @@ if twinFangsExists() then return end
         local animator = humanoid:FindFirstChildOfClass("Animator")
         if animator == nil then return end
 
-        local tracks = animator:GetPlayingAnimationTracks()
+        local ok, tracks = pcall(function()
+            return animator:GetPlayingAnimationTracks()
+        end)
+        if not ok or tracks == nil then return end
+
         local active = {}
         local i = 1
         while i <= #tracks do
@@ -1320,20 +1642,24 @@ if twinFangsExists() then return end
                             mirror.Priority = track.Priority
                             mirror.Looped = track.Looped
                             animationMirrors[track] = mirror
-                            mirror:Play(0, 1, track.Speed)
-                            mirror.TimePosition = track.TimePosition
+                            pcall(function()
+                                mirror:Play(0, 1, track.Speed)
+                                mirror.TimePosition = track.TimePosition
+                            end)
                         end
                     end
                     local m = mirror
                     if m ~= nil then
-                        m.Priority = track.Priority
-                        m.Looped = track.Looped
-                        if not m.IsPlaying then m:Play(0, 1, track.Speed) end
-                        local w = track.WeightCurrent
-                        if w < 0.01 then w = 0.01 end
-                        m:AdjustWeight(w, 0)
-                        if abs_(m.Speed - track.Speed) > 0.001 then m:AdjustSpeed(track.Speed) end
-                        if m.TimePosition ~= track.TimePosition then m.TimePosition = track.TimePosition end
+                        pcall(function()
+                            m.Priority = track.Priority
+                            m.Looped = track.Looped
+                            if not m.IsPlaying then m:Play(0, 1, track.Speed) end
+                            local w = track.WeightCurrent
+                            if w < 0.01 then w = 0.01 end
+                            m:AdjustWeight(w, 0)
+                            if abs_(m.Speed - track.Speed) > 0.001 then m:AdjustSpeed(track.Speed) end
+                            if m.TimePosition ~= track.TimePosition then m.TimePosition = track.TimePosition end
+                        end)
                     end
                 end
             end
@@ -1344,7 +1670,9 @@ if twinFangsExists() then return end
         local trackKey, mirrorValue = next(animationMirrors)
         while trackKey ~= nil do
             if not active[trackKey] then
-                if mirrorValue.IsPlaying then mirrorValue:Stop(0.05) end
+                pcall(function()
+                    if mirrorValue.IsPlaying then mirrorValue:Stop(0.05) end
+                end)
                 insert_(toRemove, trackKey)
             end
             trackKey, mirrorValue = next(animationMirrors, trackKey)
@@ -1426,7 +1754,7 @@ if twinFangsExists() then return end
     end
 
     local function createClone()
-        createCloneInner()
+        pcall(createCloneInner)
     end
 
     local function getStreak()
@@ -1448,7 +1776,9 @@ if twinFangsExists() then return end
                 forceHealthConnection = nil
             end
             killFlag = true
-            humanoid.Health = 0
+            pcall(function()
+                humanoid.Health = 0
+            end)
             killFlag = false
         end
     end
@@ -1459,7 +1789,9 @@ if twinFangsExists() then return end
         if thrown == nil then return end
         thrownConnection = thrown.ChildAdded:Connect(function()
             wait_(THROWN_CLEAR_DELAY)
-            thrown:ClearAllChildren()
+            pcall(function()
+                thrown:ClearAllChildren()
+            end)
         end)
     end
 
@@ -1532,8 +1864,7 @@ if twinFangsExists() then return end
         TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
         local t0 = clock()
         while clock() - t0 < HOP_TELEPORT_VERIFY_WAIT do
-            if not serverHopEnabled then return false end
-            if hopRequestedStop then return false end
+            if not serverHopEnabled or hopRequestedStop then return false end
             wait_(0.05)
             if game.JobId ~= originalJob then return true end
             if LocalPlayer.Parent == nil then return true end
@@ -1543,6 +1874,14 @@ if twinFangsExists() then return end
     end
 
     local function queueReexec()
+        if typeof(isfile) == "function" and isfile(HOP_QUEUE_FLAG) then
+            return
+        end
+        if typeof(writefile) == "function" then
+            pcall(function()
+                writefile(HOP_QUEUE_FLAG, "1")
+            end)
+        end
         local code = "loadstring(game:HttpGet(\"" .. REEXEC_URL .. "\"))()"
         if typeof(queue_on_teleport) == "function" then
             queue_on_teleport(code)
@@ -1607,17 +1946,18 @@ if twinFangsExists() then return end
     end
 
     local function frameAlignUntil(endTime, getTargetRoot)
+        local cachedTr = getTargetRoot()
         while clock() < endTime do
             if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
-                return true
+                if not specialAnimActive then return true end
+            end
+            if cachedTr ~= nil and cachedTr.Parent == nil then
+                cachedTr = getTargetRoot()
             end
             local root = getRoot()
-            if root ~= nil then
-                local tr = getTargetRoot()
-                if tr ~= nil then
-                    setPhysRep(root, tr)
-                    root.CFrame = ALIGN_CF
-                end
+            if root ~= nil and cachedTr ~= nil then
+                setPhysRep(root, cachedTr)
+                root.CFrame = ALIGN_CF
             end
             pressG()
             wait_()
@@ -1628,23 +1968,26 @@ if twinFangsExists() then return end
     local function activateTwinFangs()
         local deadline = clock() + TF_ACTIVATION_TIMEOUT
         while clock() < deadline do
-            if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
-                return false
+            if not farmEnabled then return false end
+            if not specialAnimActive then
+                if protectionActive or lowHealthMode or selfRagdollActive then return false end
             end
             if hotbarHasCooldown(TWIN_FANGS_SLOT) then return true end
             local tf = findTool(TWIN_FANGS_NAME)
             if tf == nil then return false end
             activateToolViaRemote(tf)
+
+            local cachedTr = targetRootForAlign()
             local retryEnd = clock() + TF_RETRY_INTERVAL
             while clock() < retryEnd do
                 if hotbarHasCooldown(TWIN_FANGS_SLOT) then return true end
+                if cachedTr ~= nil and cachedTr.Parent == nil then
+                    cachedTr = targetRootForAlign()
+                end
                 local r = getRoot()
-                if r ~= nil then
-                    local tr = targetRootForAlign()
-                    if tr ~= nil then
-                        setPhysRep(r, tr)
-                        r.CFrame = ALIGN_CF
-                    end
+                if r ~= nil and cachedTr ~= nil then
+                    setPhysRep(r, cachedTr)
+                    r.CFrame = ALIGN_CF
                 end
                 pressG()
                 wait_(0.02)
@@ -1655,82 +1998,34 @@ if twinFangsExists() then return end
 
     local function runFallbackTools()
         suppressHeartbeatTp = false
-        local tools = getAllTools(FALLBACK_EXCLUDE)
-        if #tools <= 0 then
-            wait_(0.5)
-            return
-        end
+        local tools = getFilteredFallbackTools()
+        if #tools <= 0 then return end
         fallbackIndex = fallbackIndex + 1
         if fallbackIndex > #tools then fallbackIndex = 1 end
         local tool = tools[fallbackIndex]
-        activateToolViaRemote(tool)
-        frameAlignUntil(clock() + FALLBACK_TOOL_DURATION, targetRootForAlign)
+        if tool ~= nil and tool.Parent ~= nil then
+            activateToolViaRemote(tool)
+        end
         genericSpam()
     end
 
-    local function runFinisherLoop()
-        if finisherLoopRunning then return end
-        finisherLoopRunning = true
-        finisherActive = true
-        refreshStatus()
-
-        while farmEnabled
-              and spamFinishersEnabled
-              and not twinFangsExists()
-             and not LocalPlayer.Character:GetAttribute("Ulted") do
-            if not farmEnabled then break end
-            if not spamFinishersEnabled then break end
-            if twinFangsExists() or LocalPlayer.Character:GetAttribute("Ulted") then break end
-
-            local deadRoot = getDeadTargetRoot()
-            if deadRoot == nil then
-                wait_(0.03)
-                deadRoot = getDeadTargetRoot()
-                if deadRoot == nil then break end
-            end
-
-            finisherTargetRoot = deadRoot
-            local root = getRoot()
-
-            if root ~= nil and deadRoot.Parent ~= nil then
-                setPhysRep(root, deadRoot)
-                root.CFrame = ALIGN_CF
-                root.AssemblyLinearVelocity = Vector3.zero
-                root.AssemblyAngularVelocity = Vector3.zero
-            end
-
-            local tools = getAllTools(FALLBACK_EXCLUDE)
-            if #tools > 0 then
-                fallbackIndex = fallbackIndex + 1
-                if fallbackIndex > #tools then fallbackIndex = 1 end
-                local tool = tools[fallbackIndex]
-                if tool ~= nil and tool.Parent ~= nil then
-                    activateToolViaRemote(tool)
-                end
-            end
-
-            pressG()
-            pressJump()
-            fireCommunicate()
-
-            wait_(FINISHER_TOOL_DURATION)
-        end
-
-        finisherActive = false
-        finisherTargetRoot = nil
-        finisherLoopRunning = false
-        refreshStatus()
+    -- NEW: fallback path requires the target to actually have a "Ragdoll" child
+    local function isTargetRagdolled(target)
+        if target == nil or target.Character == nil then return false end
+        return target.Character:FindFirstChild("Ragdoll") ~= nil
     end
 
     local function rotationStep()
-        if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
+        if not farmEnabled then
             wait_(0.05)
             return
         end
 
-        if finisherLoopRunning or finisherActive then
-            wait_(0.1)
-            return
+        if not specialAnimActive then
+            if protectionActive or lowHealthMode or selfRagdollActive then
+                wait_(0.05)
+                return
+            end
         end
 
         suppressHeartbeatTp = false
@@ -1746,10 +2041,9 @@ if twinFangsExists() then return end
         if not twinFangsExists() then
             local target = getTarget()
             if target ~= nil and target.Character ~= nil then
-                if target.Character:FindFirstChild("Ragdoll") ~= nil then
+                -- Only run fallback tools when the target is ragdolled
+                if isTargetRagdolled(target) then
                     runFallbackTools()
-                    wait_(0.05)
-                    return
                 end
             end
             wait_(0.05)
@@ -1761,25 +2055,36 @@ if twinFangsExists() then return end
             return
         end
 
-        local tfOnCd = hotbarHasCooldown(TWIN_FANGS_SLOT)
-        if not tfOnCd then
-            local activated = activateTwinFangs()
-            if not activated then
+        if hotbarHasCooldown(TWIN_FANGS_SLOT) then
+            wait_(0.05)
+            return
+        end
+
+        local activated = activateTwinFangs()
+        if not activated then
+            wait_(0.05)
+            return
+        end
+        frameAlignUntil(clock() + TF_ALIGN_DURATION, targetRootForAlign)
+
+        if not farmEnabled then
+            wait_(0.05)
+            return
+        end
+        if not specialAnimActive then
+            if protectionActive or lowHealthMode or selfRagdollActive then
                 wait_(0.05)
                 return
             end
-            frameAlignUntil(clock() + TF_ALIGN_DURATION, targetRootForAlign)
-        end
-
-        if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
-            wait_(0.05)
-            return
         end
 
         suppressHeartbeatTp = true
 
         local settleEnd = clock() + TF_BOUNDARY_SETTLE
-        while farmEnabled and not protectionActive and not lowHealthMode and not selfRagdollActive do
+        while farmEnabled do
+            if not specialAnimActive then
+                if protectionActive or lowHealthMode or selfRagdollActive then break end
+            end
             if clock() >= settleEnd then break end
             local r = getRoot()
             if r ~= nil then
@@ -1792,12 +2097,21 @@ if twinFangsExists() then return end
             wait_()
         end
 
-        if not farmEnabled or protectionActive or lowHealthMode or selfRagdollActive then
+        if not farmEnabled then
             wait_(0.05)
             return
         end
+        if not specialAnimActive then
+            if protectionActive or lowHealthMode or selfRagdollActive then
+                wait_(0.05)
+                return
+            end
+        end
 
-        while farmEnabled and not protectionActive and not lowHealthMode and not selfRagdollActive do
+        while farmEnabled do
+            if not specialAnimActive then
+                if protectionActive or lowHealthMode or selfRagdollActive then break end
+            end
             if not hotbarHasCooldown(TWIN_FANGS_SLOT) then break end
             local r = getRoot()
             if r ~= nil then
@@ -1816,7 +2130,10 @@ if twinFangsExists() then return end
         rotationRunning = true
         refreshStatus()
 
-        while farmEnabled and not protectionActive and not lowHealthMode and not selfRagdollActive do
+        while farmEnabled do
+            if not specialAnimActive then
+                if protectionActive or lowHealthMode or selfRagdollActive then break end
+            end
             rotationStep()
             task.wait()
         end
@@ -1846,6 +2163,7 @@ if twinFangsExists() then return end
         disconnectCharacterConnections()
         targetStates = {}
         cachedBackpack = nil
+        cachedBackpackParent = nil
 
         local bp = getBackpack()
         if bp ~= nil then
@@ -1872,7 +2190,6 @@ if twinFangsExists() then return end
             if c:IsA("Tool") then watchTool(c) end
         end))
 
-        lastWatchedCharacter = character
         createClone()
         lastCloneRebuild = clock()
     end
@@ -1899,28 +2216,404 @@ if twinFangsExists() then return end
         end
     end
 
+    function refreshStatus()
+        local text
+        local color
+        local ch = LocalPlayer.Character
+        local hum = nil
+        if ch ~= nil then
+            hum = ch:FindFirstChildOfClass("Humanoid")
+        end
+        local isSetup = (ch ~= nil and hum ~= nil and hum.Health > 0 and ch == lastSetupCharacter)
+
+        if not isSetup then
+            text = "Mode: Respawning..."
+            color = DEFAULT_MODE_COLOR
+        elseif forceVoidActive then
+            text = "Mode: Force Void"
+            color = VOID_ZONE_COLOR
+        elseif voidKillingActive then
+            text = "Mode: Void Killing"
+            color = VOID_KILLING_COLOR
+        elseif lowHealthMode then
+            text = "Mode: LOW HP - Recovering"
+            color = Color3.fromRGB(255, 90, 90)
+        elseif selfRagdollActive then
+            text = "Mode: Anti (Anti Invisible)"
+            color = ANTI_MODE_COLOR
+        elseif hopInProgress then
+            text = "Mode: Server Hopping"
+            color = DEFAULT_MODE_COLOR
+        elseif protectionActive then
+            text = "Mode: Void Zone"
+            color = VOID_ZONE_COLOR
+        elseif crowdBusterExists ~= nil and crowdBusterExists() then
+            text = "Mode: Void Killing"
+            color = VOID_KILLING_COLOR
+        elseif twinFangsExists ~= nil and twinFangsExists() then
+            text = "Mode: Farming Kills"
+            color = FARMING_KILLS_COLOR
+        else
+            text = "Mode: Getting Ultimate and Kills"
+            color = DEFAULT_MODE_COLOR
+        end
+        if text ~= lastStatusText then
+            lastStatusText = text
+            Status.Text = text
+        end
+        if color ~= lastStatusColor then
+            lastStatusColor = color
+            Status.TextColor3 = color
+        end
+    end
+
+    function refreshKillsDisplay()
+        ShowsLabel.Text = "Shows Kills: " .. tostring(showsKills)
+        if killsValue ~= nil then
+            CurrentLabel.Text = "Current Kills: " .. tostring(killsValue.Value)
+        else
+            CurrentLabel.Text = "Current Kills: 0"
+        end
+    end
+
+    local function updateStatsLabel()
+        local now = clock()
+        if now - lastStatsUpdate < 0.5 then return end
+        lastStatsUpdate = now
+
+        local ping = 0
+        local ok, val = pcall(function()
+            return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+        end)
+        if ok and typeof(val) == "number" then
+            ping = floor_(val)
+        end
+
+        local fps = floor_(currentFps)
+
+        local fpsColor
+        if fps >= 60 then
+            fpsColor = "rgb(120,255,150)"
+        elseif fps >= 40 then
+            fpsColor = "rgb(255,190,90)"
+        else
+            fpsColor = "rgb(255,90,90)"
+        end
+
+        local pingColor
+        if ping < 100 then
+            pingColor = "rgb(120,255,150)"
+        elseif ping < 200 then
+            pingColor = "rgb(255,190,90)"
+        else
+            pingColor = "rgb(255,90,90)"
+        end
+
+        StatsLabel.Text = fmt_(
+            'Ping <font color="%s">%d</font> ms  <font color="rgb(80,80,100)">|</font>  Fps <font color="%s">%d</font>',
+            pingColor, ping, fpsColor, fps
+        )
+    end
+
+    local function handleCharacterSetup()
+        local ch = LocalPlayer.Character
+        if ch == nil then return end
+        local hum = ch:FindFirstChildOfClass("Humanoid")
+        if hum == nil then return end
+        if hum.Health <= 0 then return end
+        if ch == lastSetupCharacter then return end
+
+        lastSetupCharacter = ch
+        respawnGraceUntil = clock() + RESPAWN_G_GRACE
+
+        rotationRunning = false
+        protectionActive = false
+        protectionOrigin = nil
+        lowHealthMode = false
+        selfRagdollActive = false
+        attackingActive = false
+        specialAnimActive = false
+        forceVoidActive = false
+        voidKillingActive = false
+        voidKillingCounting = false
+        voidKillingTimerStart = 0
+        lastTargetPlayer = nil
+        pendingTargetPlayer = nil
+        targetSwitchLockUntil = 0
+
+        if cloneCharacter ~= nil and cloneCharacter ~= ch then
+            pcall(function() cloneCharacter:Destroy() end)
+        end
+        cloneCharacter = nil
+        cloneRoot = nil
+        cloneHumanoid = nil
+        cloneAnimator = nil
+        animationMirrors = {}
+
+        if spamTrack ~= nil then
+            pcall(function() spamTrack:Stop(0) end)
+        end
+        spamTrack = nil
+        spamTrackCharacter = nil
+
+        cachedBackpack = nil
+        cachedBackpackParent = nil
+        spaceDown = false
+        lastRagdollFire = 0
+        killsValue = nil
+        suppressHeartbeatTp = false
+        rootCacheChar = nil
+        rootCacheV = nil
+        targetCacheT = 0
+        targetCacheV = nil
+        tfCacheT = 0
+        hotbarCacheT = {}
+        hotbarCacheV = {}
+        specialAnimCacheT = 0
+        forceVoidCacheT = 0
+        crowdBusterCacheT = 0
+        hammerBindingCacheT = 0
+        protCache = setmetatable({}, {__mode = "k"})
+        lastEmoteSpin = 0
+        lastFallbackFire = 0
+        lastCloneRebuild = 0
+        lastCloneCheck = 0
+
+        disconnectStripConnections()
+        disconnectCharacterConnections()
+
+        forceFallenHeight()
+        setupForceHealth(ch)
+        stripRespawnProtections(ch)
+
+        pcall(function()
+            local conn = ch.ChildAdded:Connect(function(c)
+                if ch == nil or ch.Parent == nil then return end
+                if ch ~= LocalPlayer.Character then return end
+                if c == nil then return end
+                if c.Name == "AbsoluteImmortal" or c.Name == "ForceField" then
+                    pcall(function() c:Destroy() end)
+                end
+            end)
+            insert_(stripConnections, conn)
+        end)
+
+        watchCharacter(ch)
+
+        refreshStatus()
+    end
+
+    FarmButton.Activated:Connect(function()
+        farmEnabled = not farmEnabled
+        setToggle(FarmState, farmEnabled)
+        if not farmEnabled then
+            suppressHeartbeatTp = false
+        end
+        persistConfig()
+        refreshStatus()
+    end)
+
+    PerfButton.Activated:Connect(function()
+        performanceMode = not performanceMode
+        setToggle(PerfState, performanceMode)
+        persistConfig()
+    end)
+
+    NoRenderButton.Activated:Connect(function()
+        noRenderEnabled = not noRenderEnabled
+        setToggle(NoRenderState, noRenderEnabled)
+        applyNoRender()
+        persistConfig()
+    end)
+
+    StealthButton.Activated:Connect(function()
+        stealthMode = not stealthMode
+        setToggle(StealthState, stealthMode)
+        WarningLabel.Visible = stealthMode
+        persistConfig()
+    end)
+
+    HopButton.Activated:Connect(function()
+        serverHopEnabled = not serverHopEnabled
+        setToggle(HopState, serverHopEnabled)
+        persistConfig()
+        if not serverHopEnabled then
+            hopRequestedStop = true
+            hopInProgress = false
+            if typeof(delfile) == "function" then
+                pcall(function() delfile(HOP_QUEUE_FLAG) end)
+            end
+            refreshStatus()
+        end
+    end)
+
+    KillsBox.FocusLost:Connect(function()
+        local n = tonumber(KillsBox.Text)
+        if n ~= nil and n > 0 then
+            targetKills = floor_(n)
+        end
+        KillsBox.Text = tostring(targetKills)
+        persistConfig()
+    end)
+
+    setToggle(FarmState, farmEnabled)
+    setToggle(PerfState, performanceMode)
+    setToggle(NoRenderState, noRenderEnabled)
+    setToggle(StealthState, stealthMode)
+    setToggle(HopState, serverHopEnabled)
+    WarningLabel.Visible = stealthMode
+    refreshKillsDisplay()
+
+    Title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            windowDragging = true
+            windowDragStart = Vector2.new(input.Position.X, input.Position.Y)
+            windowStartPos = Main.Position
+        elseif input.UserInputType == Enum.UserInputType.Touch then
+            windowDragging = true
+            windowDragStart = Vector2.new(input.Position.X, input.Position.Y)
+            windowStartPos = Main.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if windowDragging then
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                local delta = Vector2.new(input.Position.X, input.Position.Y) - windowDragStart
+                Main.Position = UDim2.new(
+                    windowStartPos.X.Scale,
+                    windowStartPos.X.Offset + delta.X,
+                    windowStartPos.Y.Scale,
+                    windowStartPos.Y.Offset + delta.Y
+                )
+            end
+            return
+        end
+
+        local uit = input.UserInputType
+        if uit == Enum.UserInputType.MouseMovement then
+            if input.Delta.X ~= 0 or input.Delta.Y ~= 0 then
+                cameraYaw = cameraYaw - input.Delta.X * CAMERA_SENSITIVITY
+                cameraPitch = clamp_(cameraPitch - input.Delta.Y * CAMERA_SENSITIVITY, rad_(-80), rad_(80))
+            end
+        elseif uit == Enum.UserInputType.Touch then
+            if input.Delta.X ~= 0 or input.Delta.Y ~= 0 then
+                cameraYaw = cameraYaw - input.Delta.X * CAMERA_SENSITIVITY * 1.4
+                cameraPitch = clamp_(cameraPitch - input.Delta.Y * CAMERA_SENSITIVITY * 1.4, rad_(-80), rad_(80))
+            end
+        elseif uit == Enum.UserInputType.MouseWheel then
+            cameraDistance = clamp_(cameraDistance - input.Position.Z * 2, CAMERA_MIN_DIST, CAMERA_MAX_DIST)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            windowDragging = false
+        end
+    end)
+
     insert_(permanentConnections, RunService.Heartbeat:Connect(function()
+        pcall(handleCharacterSetup)
+
+        pcall(tickSpaceRelease)
+        pcall(updateStatsLabel)
+
+        if killsValue ~= nil and killsValue.Parent ~= nil then
+            local now = clock()
+            if now - lastKillsLabelUpdate > 0.1 then
+                lastKillsLabelUpdate = now
+                pcall(function()
+                    CurrentLabel.Text = "Current Kills: " .. tostring(killsValue.Value)
+                end)
+            end
+        end
+
+        if lastSetupCharacter ~= LocalPlayer.Character then
+            local sn = clock()
+            if sn - lastStatusRefresh >= 0.25 then
+                lastStatusRefresh = sn
+                refreshStatus()
+            end
+            return
+        end
+
         local character = LocalPlayer.Character
         if character == nil then return end
         local root = character:FindFirstChild("HumanoidRootPart")
         if root == nil then return end
         if not root:IsA("BasePart") then return end
 
-        updateKillsFromLeaderstats()
+        rootCacheChar = character
+        rootCacheV = root
+
+        pcall(fireEmoteSpin)
+        pcall(ensureInvisible)
+
+        pcall(updateKillsFromLeaderstats)
+
+        pcall(function()
+            specialAnimActive = isSpecialAnimationPlaying()
+            forceVoidActive = isForceVoidAnimationPlaying()
+        end)
+
+        if forceVoidActive then
+            pinToSafeZone(root)
+            local sn = clock()
+            if sn - lastStatusRefresh >= 0.25 then
+                lastStatusRefresh = sn
+                refreshStatus()
+            end
+            return
+        end
+
+        voidKillingActive = false
+        if crowdBusterExists ~= nil then
+            local okCB, cbVal = pcall(crowdBusterExists)
+            if okCB and cbVal then
+                if hotbarHasCooldown(3) and hotbarHasCooldown(4) then
+                    if not voidKillingCounting then
+                        voidKillingCounting = true
+                        voidKillingTimerStart = clock()
+                    end
+                    voidKillingActive = true
+                    if clock() - voidKillingTimerStart >= VOID_KILL_DELAY then
+                        voidKillingCounting = false
+                        voidKillingTimerStart = 0
+                        pinToSafeZone(root)
+                        killSelf()
+                        local sn = clock()
+                        if sn - lastStatusRefresh >= 0.25 then
+                            lastStatusRefresh = sn
+                            refreshStatus()
+                        end
+                        return
+                    end
+                else
+                    voidKillingCounting = false
+                    voidKillingTimerStart = 0
+                end
+            else
+                voidKillingCounting = false
+                voidKillingTimerStart = 0
+            end
+        end
 
         local protected = character:FindFirstChild("AbsoluteImmortal") ~= nil
         if protected and not protectionActive then
             protectionOrigin = root.CFrame
             protectionActive = true
-            refreshStatus()
         elseif not protected and protectionActive then
             protectionActive = false
             protectionOrigin = nil
-            refreshStatus()
         end
 
-        if protectionActive then
+        if protectionActive and not specialAnimActive then
             pinToSafeZone(root)
+            local sn = clock()
+            if sn - lastStatusRefresh >= 0.25 then
+                lastStatusRefresh = sn
+                refreshStatus()
+            end
             return
         end
 
@@ -1928,35 +2621,36 @@ if twinFangsExists() then return end
         if humanoid ~= nil and humanoid.MaxHealth > 0 then
             local pct = humanoid.Health / humanoid.MaxHealth
             if pct < LOW_HP_THRESHOLD then
-                if not lowHealthMode then
-                    lowHealthMode = true
-                    refreshStatus()
-                end
+                lowHealthMode = true
             elseif pct >= LOW_HP_THRESHOLD then
-                if lowHealthMode then
-                    lowHealthMode = false
-                    refreshStatus()
-                end
+                lowHealthMode = false
             end
         end
 
-        if lowHealthMode then
+        if lowHealthMode and not specialAnimActive then
             pinToSafeZone(root)
+            local sn = clock()
+            if sn - lastStatusRefresh >= 0.25 then
+                lastStatusRefresh = sn
+                refreshStatus()
+            end
             return
         end
 
         local ragdollNow = selfHasRagdoll()
-        if ragdollNow ~= selfRagdollActive then
-            selfRagdollActive = ragdollNow
-            refreshStatus()
-        end
+        selfRagdollActive = ragdollNow
 
-        if selfRagdollActive then
+        if selfRagdollActive and not specialAnimActive then
             pinToSafeZone(root)
+            local sn = clock()
+            if sn - lastStatusRefresh >= 0.25 then
+                lastStatusRefresh = sn
+                refreshStatus()
+            end
             return
         end
 
-        if stealthMode and farmEnabled then
+        if stealthMode and farmEnabled and not specialAnimActive then
             if getStreak() >= STEALTH_STREAK_THRESHOLD then
                 pinToSafeZone(root)
                 killSelf()
@@ -1989,51 +2683,51 @@ if twinFangsExists() then return end
         end
 
         if farmEnabled then
-            if spamFinishersEnabled and not twinFangsExists()  and not LocalPlayer.Character:GetAttribute("Ulted") then
-                if getDeadTargetRoot() ~= nil then
-                    if not finisherLoopRunning then
-                        spawn_(runFinisherLoop)
-                    end
-                    pressG()
-                    return
-                end
-            end
-
             pressG()
             genericSpam()
 
             local target = getTarget()
 
             if target == nil then
-                pinToSafeZone(root)
+                if not specialAnimActive then
+                    pinToSafeZone(root)
+                end
                 if not rotationRunning then spawn_(runRotationLoop) end
+                local sn = clock()
+                if sn - lastStatusRefresh >= 0.25 then
+                    lastStatusRefresh = sn
+                    refreshStatus()
+                end
                 return
             end
 
-            if not suppressHeartbeatTp then
-                if canAlignToTarget(target) then
-                    local tr = target.Character:FindFirstChild("HumanoidRootPart")
-                    if tr ~= nil and tr:IsA("BasePart") then
-                        setPhysRep(root, tr)
-                        root.CFrame = ALIGN_CF
-                    end
+            -- NEW: near void -> clear PhysicsRepRootPart, but still escape the void
+            if isNearVoid() then
+                setPhysRep(root, nil)
+                if not suppressHeartbeatTp and canAlignToTarget(target) then
+                    root.CFrame = ALIGN_CF
+                end
+            elseif not suppressHeartbeatTp and canAlignToTarget(target) then
+                -- Enforce PhysicsRepRootPart onto the current target
+                local tr = target.Character:FindFirstChild("HumanoidRootPart")
+                if tr ~= nil and tr:IsA("BasePart") then
+                    setPhysRep(root, tr)
+                    root.CFrame = ALIGN_CF
                 end
             end
 
             if not rotationRunning then spawn_(runRotationLoop) end
         end
+
+        local statusNow = clock()
+        if statusNow - lastStatusRefresh >= 0.25 then
+            lastStatusRefresh = statusNow
+            refreshStatus()
+        end
     end))
 
     insert_(permanentConnections, RunService.RenderStepped:Connect(function()
-        tickSpaceRelease()
-
-        if killsValue ~= nil and killsValue.Parent ~= nil then
-            local now = clock()
-            if now - lastKillsLabelUpdate > 0.1 then
-                lastKillsLabelUpdate = now
-                CurrentLabel.Text = "Current Kills: " .. tostring(killsValue.Value)
-            end
-        end
+        if noRenderEnabled then return end
 
         if performanceMode then
             if thrownConnection == nil then startThrownWatcher() end
@@ -2045,13 +2739,7 @@ if twinFangsExists() then return end
         end
 
         local character = LocalPlayer.Character
-        if character ~= lastWatchedCharacter then
-            lastWatchedCharacter = character
-            if character ~= nil then
-                watchCharacter(character)
-                refreshStatus()
-            end
-        end
+        if character == nil or character ~= lastSetupCharacter then return end
 
         local now = clock()
         if now - lastCloneCheck >= CLONE_CHECK_INTERVAL then
@@ -2064,20 +2752,13 @@ if twinFangsExists() then return end
             end
         end
 
-        ensureInvisible()
-
         attackingActive = checkAttacking()
 
         local realRoot = getRoot()
         local cc = cloneCharacter
         if cc ~= nil and cc.Parent ~= nil and realRoot ~= nil then
             if attackingActive then
-                local targetRoot = nil
-                if finisherLoopRunning and finisherTargetRoot ~= nil and finisherTargetRoot.Parent ~= nil then
-                    targetRoot = finisherTargetRoot
-                else
-                    targetRoot = targetRootForAlign()
-                end
+                local targetRoot = targetRootForAlign()
                 if targetRoot ~= nil then
                     cc:PivotTo(targetRoot.CFrame * ALIGN_CF)
                 else
@@ -2119,53 +2800,12 @@ if twinFangsExists() then return end
     insert_(permanentConnections, Players.PlayerRemoving:Connect(function(player)
         local ch = player.Character
         if ch == nil then return end
+        protCache[ch] = nil
         local root = ch:FindFirstChild("HumanoidRootPart")
         if root ~= nil and root:IsA("BasePart") then
             targetStates[root] = nil
         end
     end))
-
-    if LocalPlayer.Character ~= nil then
-        lastWatchedCharacter = LocalPlayer.Character
-        watchCharacter(LocalPlayer.Character)
-    end
-
-    LocalPlayer.CharacterAdded:Connect(function(character)
-        rotationRunning = false
-        protectionActive = false
-        protectionOrigin = nil
-        lowHealthMode = false
-        selfRagdollActive = false
-        attackingActive = false
-        lastTargetPlayer = nil
-        pendingTargetPlayer = nil
-        targetSwitchLockUntil = 0
-        finisherActive = false
-        finisherTargetRoot = nil
-        spamTrack = nil
-        spamTrackCharacter = nil
-        cachedBackpack = nil
-        spaceDown = false
-        lastRagdollFire = 0
-        killsValue = nil
-        suppressHeartbeatTp = false
-
-        forceFallenHeight()
-
-        targetStates = {}
-        lastWatchedCharacter = character
-        watchCharacter(character)
-        refreshStatus()
-
-        spawn_(function()
-            wait_(0.5)
-            forceFallenHeight()
-        end)
-        spawn_(function()
-            wait_(2)
-            forceFallenHeight()
-        end)
-    end)
 
     refreshKillsDisplay()
 end
