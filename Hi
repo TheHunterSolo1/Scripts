@@ -1,0 +1,164 @@
+
+
+local Players    = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ============================================================
+-- GUI
+-- ============================================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ClosestPlayerGui"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0.35, 0, 0.15, 0)
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+local aspect = Instance.new("UIAspectRatioConstraint")
+aspect.AspectRatio = 2.5
+aspect.DominantAxis = Enum.DominantAxis.Width
+aspect.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0.3, 0)
+title.BackgroundTransparency = 1
+title.Text = "Closest Player"
+title.TextScaled = true
+title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Parent = mainFrame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0.8, 0, 0.4, 0)
+toggleButton.Position = UDim2.new(0.1, 0, 0.45, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+toggleButton.BorderSizePixel = 0
+toggleButton.Text = "Start"
+toggleButton.TextScaled = true
+toggleButton.Font = Enum.Font.Gotham
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Parent = mainFrame
+
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0, 6)
+buttonCorner.Parent = toggleButton
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, 0, 0.2, 0)
+status.Position = UDim2.new(0, 0, 0.85, 0)
+status.BackgroundTransparency = 1
+status.Text = "Idle"
+status.TextScaled = true
+status.Font = Enum.Font.Gotham
+status.TextColor3 = Color3.fromRGB(200, 200, 200)
+status.Parent = mainFrame
+
+-- ============================================================
+-- HELPERS
+-- ============================================================
+local function getMyRoot()
+    local character = LocalPlayer.Character
+    return character and character:FindFirstChild("HumanoidRootPart") or nil
+end
+
+local function getClosestPlayer()
+    local myRoot = getMyRoot()
+    if not myRoot then return nil, nil end
+
+    local closestPlayer = nil
+    local closestRoot   = nil
+    local shortest      = math.huge
+
+    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+        if otherPlayer ~= LocalPlayer then
+            local otherChar = otherPlayer.Character
+            local otherRoot = otherChar and otherChar:FindFirstChild("HumanoidRootPart")
+            if otherRoot then
+                local distance = (myRoot.Position - otherRoot.Position).Magnitude
+                if distance < shortest then
+                    shortest      = distance
+                    closestPlayer = otherPlayer
+                    closestRoot   = otherRoot
+                end
+            end
+        end
+    end
+
+    return closestPlayer, closestRoot
+end
+
+-- ============================================================
+-- HEARTBEAT LOOP
+-- ============================================================
+local isRunning = false
+local heartbeatConnection = nil
+
+local function heartbeatTick()
+    local myRoot = getMyRoot()
+    if not myRoot then return end
+
+    local closestPlayer, closestRoot = getClosestPlayer()
+    if not (closestPlayer and closestRoot) then
+        status.Text = "No target"
+        return
+    end
+
+    if type(sethiddenproperty) == "function" then
+        pcall(sethiddenproperty, myRoot, "PhysicsRepRootPart", closestRoot)
+    end
+
+    myRoot.CFrame = CFrame.new(0, 0, 6)
+    status.Text = "-> " .. closestPlayer.Name
+end
+
+local function start()
+    if isRunning then return end
+    isRunning = true
+    heartbeatConnection = RunService.Heartbeat:Connect(heartbeatTick)
+    toggleButton.Text = "Stop"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+end
+
+local function stop()
+    isRunning = false
+    if heartbeatConnection then
+        heartbeatConnection:Disconnect()
+        heartbeatConnection = nil
+    end
+    toggleButton.Text = "Start"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+    status.Text = "Idle"
+end
+
+-- ============================================================
+-- CONNECTIONS
+-- ============================================================
+toggleButton.MouseButton1Click:Connect(function()
+    if isRunning then
+        stop()
+    else
+        start()
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if isRunning then
+        stop()
+    end
+end)
+
