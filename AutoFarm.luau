@@ -186,7 +186,6 @@ end
 
 local function setPhysRep(root, target)
     if sethiddenFn == nil then return end
-    
     pcall(function()
         sethiddenFn(root, "PhysicsRepRootPart", target)
     end)
@@ -289,12 +288,13 @@ local TWIN_FANGS_SLOT = 2
 local CROWD_BUSTER_NAME = "Crowd Buster"
 local HAMMER_HEEL_NAME = "Hammer Heel"
 local BINDING_CLOTH_NAME = "Binding Cloth"
+local LAST_BREATH_NAME = "Last Breath"
 
 local TF_ALIGN_DURATION = 2.2
 local TF_BOUNDARY_SETTLE = 3.0
 local TF_ACTIVATION_TIMEOUT = 3.0
 local TF_RETRY_INTERVAL = 0.1
-local FALLBACK_TOOL_DURATION = 1.5
+local FALLBACK_TOOL_DURATION = 1
 local FALLBACK_NORMAL_DELAY = 0
 local LOW_TARGET_HP_THRESHOLD = 0.25
 local VOID_KILL_DELAY = 2.5
@@ -351,8 +351,11 @@ local HOTBAR_CACHE_TTL = 0.05
 local SPECIAL_ANIM_CACHE_TTL = 0.05
 local TARGET_CACHE_TTL = 0.03
 
--- Void detection threshold: anything at/below this Y counts as "near void"
 local VOID_Y_THRESHOLD = -9000
+
+local DRAGON_SOUND_NAME = "Dragon"
+local DRAGON_TIME_THRESHOLD = 45
+local LAST_BREATH_BLOCK_TIME = 1.5
 
 local G = _G
 
@@ -384,18 +387,18 @@ local function readConfig()
     if typeof(isfile) ~= "function" then return nil end
     if typeof(readfile) ~= "function" then return nil end
     if not isfile(CONFIG_PATH) then return nil end
-    local content = readfile(CONFIG_PATH)
-    if content == nil or content == "" then return nil end
-    local data = HttpService:JSONDecode(content)
-    if typeof(data) ~= "table" then return nil end
+    local ok, content = pcall(readfile, CONFIG_PATH)
+    if not ok or content == nil or content == "" then return nil end
+    local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
+    if not ok2 or typeof(data) ~= "table" then return nil end
     return data
 end
 
 local function writeConfig(data)
     if typeof(writefile) ~= "function" then return end
-    local encoded = HttpService:JSONEncode(data)
-    if encoded == nil then return end
-    writefile(CONFIG_PATH, encoded)
+    local ok, encoded = pcall(function() return HttpService:JSONEncode(data) end)
+    if not ok or encoded == nil then return end
+    pcall(writefile, CONFIG_PATH, encoded)
 end
 
 local function RUN()
@@ -717,6 +720,9 @@ local function RUN()
     local lastStatsUpdate = 0
     local lastStatusRefresh = 0
 
+    local lastBreathFired = false
+    local lastBreathBlockUntil = 0
+
     local characterConnections = {}
     local stripConnections = {}
     local permanentConnections = {}
@@ -896,7 +902,6 @@ local function RUN()
         return character:FindFirstChild("Ragdoll") ~= nil
     end
 
-    -- NEW: true when the local root is at/below the void detection Y level
     local function isNearVoid()
         local root = getRoot()
         if root == nil then return false end
@@ -1826,8 +1831,8 @@ local function RUN()
         local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
         local response = httpGet(url)
         if response == nil then return nil end
-        local data = HttpService:JSONDecode(response)
-        if typeof(data) ~= "table" then return nil end
+        local ok, data = pcall(function() return HttpService:JSONDecode(response) end)
+        if not ok or typeof(data) ~= "table" then return nil end
         if typeof(data.data) ~= "table" then return nil end
         return data.data
     end
@@ -2009,10 +2014,76 @@ local function RUN()
         genericSpam()
     end
 
-    -- NEW: fallback path requires the target to actually have a "Ragdoll" child
     local function isTargetRagdolled(target)
-        if target == nil or target.Character == nil then return false end
-        return target.Character:FindFirstChild("Ragdoll") ~= nil
+        if target == nil then return false end
+        local tc = target.Character
+        if tc == nil then return false end
+        return tc:FindFirstChild("Ragdoll") ~= nil
+    end
+
+    local function tryLastBreath(root)
+        if root == nil then return false end
+
+        local dragon = nil
+        local okFind, found = pcall(function()
+            return root:FindFirstChild(DRAGON_SOUND_NAME)
+        end)
+        if okFind then
+            dragon = found
+        end
+        if dragon == nil then
+            lastBreathFired = false
+            return false
+        end
+        local isSound = false
+        pcall(function()
+            isSound = dragon:IsA("Sound")
+        end)
+        if not isSound then
+            lastBreathFired = false
+            return false
+        end
+
+        local tp = 0
+        local okTp = pcall(function()
+            tp = dragon.TimePosition
+        end)
+        if not okTp then
+            lastBreathFired = false
+            return false
+        end
+        if typeof(tp) ~= "number" then
+            lastBreathFired = false
+            return false
+        end
+        if tp <= DRAGON_TIME_THRESHOLD then
+            lastBreathFired = false
+            return false
+        end
+        if lastBreathFired then
+            return clock() < lastBreathBlockUntil
+        end
+
+        local lbTool = findTool(LAST_BREATH_NAME)
+        if lbTool == nil then
+            return false
+        end
+
+        activateToolViaRemote(lbTool)
+
+        local comm = getCommunicate()
+        if comm ~= nil then
+            local mouseCF = getMouseCFrame()
+            if mouseCF ~= nil then
+                pcall(function()
+                    comm:FireServer({ Mobile = IS_MOBILE, Goal = "LeftClick", MousePos = mouseCF })
+                end)
+            end
+        end
+
+        lastBreathFired = true
+        lastBreathBlockUntil = clock() + LAST_BREATH_BLOCK_TIME
+        return true
     end
 
     local function rotationStep()
@@ -2040,8 +2111,7 @@ local function RUN()
 
         if not twinFangsExists() then
             local target = getTarget()
-            if target ~= nil and target.Character ~= nil then
-                -- Only run fallback tools when the target is ragdolled
+            if target ~= nil then
                 if isTargetRagdolled(target) then
                     runFallbackTools()
                 end
@@ -2224,7 +2294,10 @@ local function RUN()
         if ch ~= nil then
             hum = ch:FindFirstChildOfClass("Humanoid")
         end
-        local isSetup = (ch ~= nil and hum ~= nil and hum.Health > 0 and ch == lastSetupCharacter)
+        local isSetup = false
+        if ch ~= nil and hum ~= nil and hum.Health > 0 and ch == lastSetupCharacter then
+            isSetup = true
+        end
 
         if not isSetup then
             text = "Mode: Respawning..."
@@ -2340,6 +2413,9 @@ local function RUN()
         lastTargetPlayer = nil
         pendingTargetPlayer = nil
         targetSwitchLockUntil = 0
+
+        lastBreathFired = false
+        lastBreathBlockUntil = 0
 
         if cloneCharacter ~= nil and cloneCharacter ~= ch then
             pcall(function() cloneCharacter:Destroy() end)
@@ -2546,6 +2622,18 @@ local function RUN()
         rootCacheChar = character
         rootCacheV = root
 
+        if farmEnabled then
+            local blockedByLastBreath = tryLastBreath(root)
+            if blockedByLastBreath then
+                local sn = clock()
+                if sn - lastStatusRefresh >= 0.25 then
+                    lastStatusRefresh = sn
+                    refreshStatus()
+                end
+                return
+            end
+        end
+
         pcall(fireEmoteSpin)
         pcall(ensureInvisible)
 
@@ -2598,7 +2686,10 @@ local function RUN()
             end
         end
 
-        local protected = character:FindFirstChild("AbsoluteImmortal") ~= nil
+        local protected = false
+        if character:FindFirstChild("AbsoluteImmortal") ~= nil then
+            protected = true
+        end
         if protected and not protectionActive then
             protectionOrigin = root.CFrame
             protectionActive = true
@@ -2701,14 +2792,12 @@ local function RUN()
                 return
             end
 
-            -- NEW: near void -> clear PhysicsRepRootPart, but still escape the void
             if isNearVoid() then
                 setPhysRep(root, nil)
                 if not suppressHeartbeatTp and canAlignToTarget(target) then
                     root.CFrame = ALIGN_CF
                 end
             elseif not suppressHeartbeatTp and canAlignToTarget(target) then
-                -- Enforce PhysicsRepRootPart onto the current target
                 local tr = target.Character:FindFirstChild("HumanoidRootPart")
                 if tr ~= nil and tr:IsA("BasePart") then
                     setPhysRep(root, tr)
