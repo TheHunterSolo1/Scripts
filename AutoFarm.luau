@@ -1,11 +1,4 @@
 local StarterGui = game:GetService("StarterGui")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local Players = game:GetService("Players")
-
-local CONFIG_PATH = "autofarm_config.json"
-local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
-local HOP_QUEUE_FLAG = "autofarm_queued.flag"
 
 if _G.__AUTO_FARM_WRAPPER_ACTIVE == true then
     return
@@ -25,16 +18,12 @@ local function copyToClipboard(text)
     local clipped = false
     if type(toclipboard) == "function" then
         local ok = pcall(function() toclipboard(text) end)
-        if ok then
-            clipped = true
-        end
+        if ok then clipped = true end
     end
     if not clipped then
         if type(setclipboard) == "function" then
             local ok2 = pcall(function() setclipboard(text) end)
-            if ok2 then
-                clipped = true
-            end
+            if ok2 then clipped = true end
         end
     end
     return clipped
@@ -120,6 +109,8 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Stats = game:GetService("Stats")
 
+local CONFIG_PATH = "autofarm_config.json"
+local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
 local HOP_QUEUE_FLAG = "autofarm_queued.flag"
 
 if _G.__AUTO_FARM_INNER_ACTIVE == true then
@@ -141,19 +132,12 @@ local clock = os.clock
 local wait_ = task.wait
 local spawn_ = task.spawn
 local clamp_ = math.clamp
-local min_ = math.min
-local abs_ = math.abs
-local huge_ = math.huge
 local rad_ = math.rad
 local floor_ = math.floor
 local random_ = math.random
-local sort_ = table.sort
 local insert_ = table.insert
-local concat_ = table.concat
 local lower_ = string.lower
-local sub_ = string.sub
 local match_ = string.match
-local fmt_ = string.format
 
 local ALIGN_CF = CFrame.new(0, 0, 6)
 
@@ -277,26 +261,23 @@ LocalPlayer.CharacterAdded:Connect(function(Character)
     end)
 end)
 
-local CONFIG_PATH = "autofarm_config.json"
-local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
-
-local BOUND_POSITION = Vector3.new(0, -10000, 0)
-local SAFE_POSITION = Vector3.new(0, -9997, 0)
+local BOUND_POSITION = Vector3.new(0, -506, 0)
+local SAFE_POSITION = Vector3.new(0, -503, 0)
+local VOID_Y_THRESHOLD = -400
+local VOID_STAY_DURATION = 1
+local PIN_SAFE_Y_MAX = 350
 
 local TWIN_FANGS_NAME = "Twin Fangs"
 local TWIN_FANGS_SLOT = 2
 local CROWD_BUSTER_NAME = "Crowd Buster"
 local HAMMER_HEEL_NAME = "Hammer Heel"
 local BINDING_CLOTH_NAME = "Binding Cloth"
-local LAST_BREATH_NAME = "Last Breath"
+local GRAND_FISSURE_NAME = "Grand Fissure"
+local GRAND_FISSURE_SLOT = 1
 
 local TF_ALIGN_DURATION = 2.2
-local TF_BOUNDARY_SETTLE = 3.0
 local TF_ACTIVATION_TIMEOUT = 3.0
 local TF_RETRY_INTERVAL = 0.1
-local FALLBACK_TOOL_DURATION = 1
-local FALLBACK_NORMAL_DELAY = 0
-local LOW_TARGET_HP_THRESHOLD = 0.25
 local VOID_KILL_DELAY = 2.5
 local RESPAWN_G_GRACE = 1.5
 
@@ -318,7 +299,6 @@ local SPACE_HOLD_TIME = 0.03
 local RAGDOLL_COOLDOWN = 0.5
 
 local REMOTE_COOLDOWN = 0.03
-
 local EMOTE_SPIN_MIN_INTERVAL = 0.02
 
 local CAMERA_SENSITIVITY = 0.003
@@ -340,9 +320,7 @@ local HOP_CANDIDATE_TRY_COUNT = 3
 local FALLBACK_EXCLUDE = { TWIN_FANGS_NAME, "Grand Fissure" }
 
 local PROXIMITY_PRIORITY_RANGE = 50
-
 local ATTACK_POSITION_EPS = 0.01
-
 local MOBILE_UI_SCALE = 0.75
 
 local PROT_CACHE_TTL = 0.03
@@ -351,11 +329,9 @@ local HOTBAR_CACHE_TTL = 0.05
 local SPECIAL_ANIM_CACHE_TTL = 0.05
 local TARGET_CACHE_TTL = 0.03
 
-local VOID_Y_THRESHOLD = -9000
-
-local DRAGON_SOUND_NAME = "Dragon"
-local DRAGON_TIME_THRESHOLD = 45
-local LAST_BREATH_BLOCK_TIME = 1.5
+local GF_SPAM_TIMEOUT = 5.0
+local GF_STAY_TIMEOUT = 10.0
+local GF_MIN_STAY_AFTER_USE = 0.5
 
 local G = _G
 
@@ -377,10 +353,10 @@ local function randomString(length)
     local i = 1
     while i <= length do
         local idx = random_(1, count)
-        parts[i] = sub_(chars, idx, idx)
+        parts[i] = string.sub(chars, idx, idx)
         i = i + 1
     end
-    return concat_(parts)
+    return table.concat(parts)
 end
 
 local function readConfig()
@@ -709,7 +685,6 @@ local function RUN()
     local respawnGraceUntil = 0
     local lastSetupCharacter = nil
 
-    local protectionOrigin = nil
     local lastRemoteFire = 0
     local lastEmoteSpin = 0
     local lastFallbackFire = 0
@@ -720,14 +695,10 @@ local function RUN()
     local lastStatsUpdate = 0
     local lastStatusRefresh = 0
 
-    local lastBreathFired = false
-    local lastBreathBlockUntil = 0
-
     local characterConnections = {}
     local stripConnections = {}
     local permanentConnections = {}
     local watchedTools = {}
-    local targetStates = {}
     local fallbackIndex = 0
 
     local lastTargetPlayer = nil
@@ -767,6 +738,7 @@ local function RUN()
     local hopRequestedStop = false
 
     local suppressHeartbeatTp = false
+    local inOriginPhase = false
     local teleportFailedFlag = false
     local teleportFailConnection = nil
 
@@ -780,8 +752,6 @@ local function RUN()
     local forceVoidCacheV = false
     local crowdBusterCacheT = 0
     local crowdBusterCacheV = false
-    local hammerBindingCacheT = 0
-    local hammerBindingCacheV = false
     local protCache = setmetatable({}, {__mode = "k"})
     local targetCacheT = 0
     local targetCacheV = nil
@@ -793,7 +763,6 @@ local function RUN()
 
     local twinFangsExists = nil
     local crowdBusterExists = nil
-    local hammerOrBindingExists = nil
     local hotbarHasCooldown = nil
 
     local function disconnectStripConnections()
@@ -1081,7 +1050,7 @@ local function RUN()
             result = close
         else
             local lowestHpPlayer = nil
-            local lowestHealth = huge_
+            local lowestHealth = math.huge
             local players = Players:GetPlayers()
             local i = 1
             while i <= #players do
@@ -1148,6 +1117,8 @@ local function RUN()
 
     local function pinToSafeZone(root)
         if root == nil then return end
+        
+        if root.Position.Y > PIN_SAFE_Y_MAX then return end
         setPhysRep(root, nil)
         root.CFrame = CFrame.new(SAFE_POSITION)
         root.AssemblyLinearVelocity = Vector3.zero
@@ -1264,6 +1235,34 @@ local function RUN()
         return nil
     end
 
+    local function findToolExact(name)
+        local bp = getBackpack()
+        if bp ~= nil then
+            local children = bp:GetChildren()
+            local i = 1
+            while i <= #children do
+                local c = children[i]
+                if c:IsA("Tool") and c.Name == name then
+                    return c
+                end
+                i = i + 1
+            end
+        end
+        local ch = LocalPlayer.Character
+        if ch ~= nil then
+            local children = ch:GetChildren()
+            local i = 1
+            while i <= #children do
+                local c = children[i]
+                if c:IsA("Tool") and c.Name == name then
+                    return c
+                end
+                i = i + 1
+            end
+        end
+        return nil
+    end
+
     twinFangsExists = function()
         local now = clock()
         if now - tfCacheT < TF_CACHE_TTL then
@@ -1291,16 +1290,6 @@ local function RUN()
         crowdBusterCacheT = now
         crowdBusterCacheV = findTool(CROWD_BUSTER_NAME) ~= nil
         return crowdBusterCacheV
-    end
-
-    hammerOrBindingExists = function()
-        local now = clock()
-        if now - hammerBindingCacheT < TF_CACHE_TTL then
-            return hammerBindingCacheV
-        end
-        hammerBindingCacheT = now
-        hammerBindingCacheV = findTool(HAMMER_HEEL_NAME) ~= nil or findTool(BINDING_CLOTH_NAME) ~= nil
-        return hammerBindingCacheV
     end
 
     local function fireEmoteSpin()
@@ -1662,7 +1651,7 @@ local function RUN()
                             local w = track.WeightCurrent
                             if w < 0.01 then w = 0.01 end
                             m:AdjustWeight(w, 0)
-                            if abs_(m.Speed - track.Speed) > 0.001 then m:AdjustSpeed(track.Speed) end
+                            if math.abs(m.Speed - track.Speed) > 0.001 then m:AdjustSpeed(track.Speed) end
                             if m.TimePosition ~= track.TimePosition then m.TimePosition = track.TimePosition end
                         end)
                     end
@@ -1852,7 +1841,7 @@ local function RUN()
             end
             i = i + 1
         end
-        sort_(candidates, function(a, b) return a.playing > b.playing end)
+        table.sort(candidates, function(a, b) return a.playing > b.playing end)
         return candidates
     end
 
@@ -1913,7 +1902,7 @@ local function RUN()
             local servers = fetchServerList()
             if servers ~= nil then
                 local candidates = buildCandidates(servers)
-                local tryCount = min_(#candidates, HOP_CANDIDATE_TRY_COUNT)
+                local tryCount = math.min(#candidates, HOP_CANDIDATE_TRY_COUNT)
                 local ci = 1
                 while ci <= tryCount do
                     if not serverHopEnabled or hopRequestedStop then break end
@@ -2021,71 +2010,6 @@ local function RUN()
         return tc:FindFirstChild("Ragdoll") ~= nil
     end
 
-    local function tryLastBreath(root)
-        if root == nil then return false end
-
-        local dragon = nil
-        local okFind, found = pcall(function()
-            return root:FindFirstChild(DRAGON_SOUND_NAME)
-        end)
-        if okFind then
-            dragon = found
-        end
-        if dragon == nil then
-            lastBreathFired = false
-            return false
-        end
-        local isSound = false
-        pcall(function()
-            isSound = dragon:IsA("Sound")
-        end)
-        if not isSound then
-            lastBreathFired = false
-            return false
-        end
-
-        local tp = 0
-        local okTp = pcall(function()
-            tp = dragon.TimePosition
-        end)
-        if not okTp then
-            lastBreathFired = false
-            return false
-        end
-        if typeof(tp) ~= "number" then
-            lastBreathFired = false
-            return false
-        end
-        if tp <= DRAGON_TIME_THRESHOLD then
-            lastBreathFired = false
-            return false
-        end
-        if lastBreathFired then
-            return clock() < lastBreathBlockUntil
-        end
-
-        local lbTool = findTool(LAST_BREATH_NAME)
-        if lbTool == nil then
-            return false
-        end
-
-        activateToolViaRemote(lbTool)
-
-        local comm = getCommunicate()
-        if comm ~= nil then
-            local mouseCF = getMouseCFrame()
-            if mouseCF ~= nil then
-                pcall(function()
-                    comm:FireServer({ Mobile = IS_MOBILE, Goal = "LeftClick", MousePos = mouseCF })
-                end)
-            end
-        end
-
-        lastBreathFired = true
-        lastBreathBlockUntil = clock() + LAST_BREATH_BLOCK_TIME
-        return true
-    end
-
     local function rotationStep()
         if not farmEnabled then
             wait_(0.05)
@@ -2135,6 +2059,7 @@ local function RUN()
             wait_(0.05)
             return
         end
+
         frameAlignUntil(clock() + TF_ALIGN_DURATION, targetRootForAlign)
 
         if not farmEnabled then
@@ -2148,51 +2073,127 @@ local function RUN()
             end
         end
 
-        suppressHeartbeatTp = true
-
-        local settleEnd = clock() + TF_BOUNDARY_SETTLE
-        while farmEnabled do
-            if not specialAnimActive then
-                if protectionActive or lowHealthMode or selfRagdollActive then break end
-            end
-            if clock() >= settleEnd then break end
-            local r = getRoot()
-            if r ~= nil then
-                setPhysRep(r, nil)
-                r.CFrame = CFrame.new(SAFE_POSITION)
-                r.AssemblyLinearVelocity = Vector3.zero
-                r.AssemblyAngularVelocity = Vector3.zero
-            end
-            pressG()
-            wait_()
-        end
-
-        if not farmEnabled then
+        local r = getRoot()
+        if r == nil then
             wait_(0.05)
             return
         end
-        if not specialAnimActive then
-            if protectionActive or lowHealthMode or selfRagdollActive then
-                wait_(0.05)
-                return
-            end
-        end
 
-        while farmEnabled do
-            if not specialAnimActive then
-                if protectionActive or lowHealthMode or selfRagdollActive then break end
-            end
-            if not hotbarHasCooldown(TWIN_FANGS_SLOT) then break end
-            local r = getRoot()
-            if r ~= nil then
-                setPhysRep(r, nil)
-                r.CFrame = CFrame.new(SAFE_POSITION)
-                r.AssemblyLinearVelocity = Vector3.zero
-                r.AssemblyAngularVelocity = Vector3.zero
+        local originPos = Vector3.new(63, 441, 65)
+        local originCF = CFrame.new(originPos)
+
+        inOriginPhase = true
+        suppressHeartbeatTp = true
+
+        local _originChar = LocalPlayer.Character
+
+
+        local voidEnd = clock() + VOID_STAY_DURATION
+        while clock() < voidEnd and farmEnabled do
+            if LocalPlayer.Character ~= _originChar then break end
+            local rr = getRoot()
+            if rr ~= nil then
+                setPhysRep(rr, nil)
+                rr.CFrame = CFrame.new(SAFE_POSITION)
+                rr.AssemblyLinearVelocity = Vector3.zero
+                rr.AssemblyAngularVelocity = Vector3.zero
             end
             pressG()
             wait_()
         end
+
+       
+        local tpDeadline = clock() + 1.5
+        while farmEnabled and clock() < tpDeadline do
+            if LocalPlayer.Character ~= _originChar then break end
+            local rr = getRoot()
+            if rr ~= nil then
+                setPhysRep(rr, nil)
+                rr.AssemblyLinearVelocity = Vector3.zero
+                rr.AssemblyAngularVelocity = Vector3.zero
+                rr.CFrame = originCF
+                local p = rr.Position
+                local dx = p.X - originPos.X
+                local dy = p.Y - originPos.Y
+                local dz = p.Z - originPos.Z
+                if (dx * dx + dy * dy + dz * dz) < 4 then
+                    break
+                end
+            end
+            wait_()
+        end
+
+        
+        local gfDetected = false
+        local gfDetectedAt = 0
+        local originStartT = clock()
+
+        if hotbarHasCooldown(GRAND_FISSURE_SLOT) then
+            gfDetected = true
+            gfDetectedAt = originStartT
+        end
+
+        while farmEnabled do
+            if LocalPlayer.Character ~= _originChar then break end
+
+            local now = clock()
+            if not gfDetected then
+                if now - originStartT >= GF_SPAM_TIMEOUT then break end
+            else
+                if now - gfDetectedAt >= GF_STAY_TIMEOUT then break end
+            end
+
+            local rr = getRoot()
+            if rr ~= nil then
+                setPhysRep(rr, nil)
+                rr.CFrame = originCF
+                rr.AssemblyLinearVelocity = Vector3.zero
+                rr.AssemblyAngularVelocity = Vector3.zero
+            end
+            pressG()
+
+            if not specialAnimActive then
+                if protectionActive or lowHealthMode or selfRagdollActive then break end
+            end
+
+            local gf = findToolExact(GRAND_FISSURE_NAME)
+            if gf ~= nil then
+                local cdActive = hotbarHasCooldown(GRAND_FISSURE_SLOT)
+                if not gfDetected then
+                    if cdActive then
+                        gfDetected = true
+                        gfDetectedAt = clock()
+                    else
+                        activateToolViaRemote(gf)
+                        
+                        hotbarCacheT[GRAND_FISSURE_SLOT] = nil
+                        if hotbarHasCooldown(GRAND_FISSURE_SLOT) then
+                            gfDetected = true
+                            gfDetectedAt = clock()
+                        end
+                    end
+                else
+                    local stayElapsed = clock() - gfDetectedAt
+                    if not cdActive and stayElapsed >= GF_MIN_STAY_AFTER_USE then
+                        break
+                    end
+                end
+            else
+                
+                local tfTool = findTool(TWIN_FANGS_NAME)
+                if tfTool == nil then break end
+                if not hotbarHasCooldown(TWIN_FANGS_SLOT) then break end
+            end
+
+            wait_()
+        end
+
+        
+        hotbarCacheT = {}
+        hotbarCacheV = {}
+
+        inOriginPhase = false
+        suppressHeartbeatTp = false
     end
 
     local function runRotationLoop()
@@ -2201,13 +2202,20 @@ local function RUN()
         refreshStatus()
 
         while farmEnabled do
+            local ch = LocalPlayer.Character
+            if ch == nil or ch ~= lastSetupCharacter then break end
             if not specialAnimActive then
                 if protectionActive or lowHealthMode or selfRagdollActive then break end
             end
-            rotationStep()
+            local ok = pcall(rotationStep)
+            if not ok then
+                inOriginPhase = false
+                suppressHeartbeatTp = false
+            end
             task.wait()
         end
 
+        inOriginPhase = false
         suppressHeartbeatTp = false
         rotationRunning = false
         refreshStatus()
@@ -2231,7 +2239,6 @@ local function RUN()
 
     local function watchCharacter(character)
         disconnectCharacterConnections()
-        targetStates = {}
         cachedBackpack = nil
         cachedBackpackParent = nil
 
@@ -2382,7 +2389,7 @@ local function RUN()
             pingColor = "rgb(255,90,90)"
         end
 
-        StatsLabel.Text = fmt_(
+        StatsLabel.Text = string.format(
             'Ping <font color="%s">%d</font> ms  <font color="rgb(80,80,100)">|</font>  Fps <font color="%s">%d</font>',
             pingColor, ping, fpsColor, fps
         )
@@ -2399,9 +2406,8 @@ local function RUN()
         lastSetupCharacter = ch
         respawnGraceUntil = clock() + RESPAWN_G_GRACE
 
-        rotationRunning = false
+        inOriginPhase = false
         protectionActive = false
-        protectionOrigin = nil
         lowHealthMode = false
         selfRagdollActive = false
         attackingActive = false
@@ -2413,9 +2419,6 @@ local function RUN()
         lastTargetPlayer = nil
         pendingTargetPlayer = nil
         targetSwitchLockUntil = 0
-
-        lastBreathFired = false
-        lastBreathBlockUntil = 0
 
         if cloneCharacter ~= nil and cloneCharacter ~= ch then
             pcall(function() cloneCharacter:Destroy() end)
@@ -2438,6 +2441,7 @@ local function RUN()
         lastRagdollFire = 0
         killsValue = nil
         suppressHeartbeatTp = false
+        inOriginPhase = false
         rootCacheChar = nil
         rootCacheV = nil
         targetCacheT = 0
@@ -2448,7 +2452,6 @@ local function RUN()
         specialAnimCacheT = 0
         forceVoidCacheT = 0
         crowdBusterCacheT = 0
-        hammerBindingCacheT = 0
         protCache = setmetatable({}, {__mode = "k"})
         lastEmoteSpin = 0
         lastFallbackFire = 0
@@ -2483,6 +2486,7 @@ local function RUN()
         farmEnabled = not farmEnabled
         setToggle(FarmState, farmEnabled)
         if not farmEnabled then
+            inOriginPhase = false
             suppressHeartbeatTp = false
         end
         persistConfig()
@@ -2622,18 +2626,6 @@ local function RUN()
         rootCacheChar = character
         rootCacheV = root
 
-        if farmEnabled then
-            local blockedByLastBreath = tryLastBreath(root)
-            if blockedByLastBreath then
-                local sn = clock()
-                if sn - lastStatusRefresh >= 0.25 then
-                    lastStatusRefresh = sn
-                    refreshStatus()
-                end
-                return
-            end
-        end
-
         pcall(fireEmoteSpin)
         pcall(ensureInvisible)
 
@@ -2691,11 +2683,9 @@ local function RUN()
             protected = true
         end
         if protected and not protectionActive then
-            protectionOrigin = root.CFrame
             protectionActive = true
         elseif not protected and protectionActive then
             protectionActive = false
-            protectionOrigin = nil
         end
 
         if protectionActive and not specialAnimActive then
@@ -2773,7 +2763,7 @@ local function RUN()
             end
         end
 
-        if farmEnabled then
+        if farmEnabled and not inOriginPhase then
             pressG()
             genericSpam()
 
@@ -2805,6 +2795,9 @@ local function RUN()
                 end
             end
 
+            if not rotationRunning then spawn_(runRotationLoop) end
+        elseif farmEnabled and inOriginPhase then
+            
             if not rotationRunning then spawn_(runRotationLoop) end
         end
 
@@ -2890,10 +2883,6 @@ local function RUN()
         local ch = player.Character
         if ch == nil then return end
         protCache[ch] = nil
-        local root = ch:FindFirstChild("HumanoidRootPart")
-        if root ~= nil and root:IsA("BasePart") then
-            targetStates[root] = nil
-        end
     end))
 
     refreshKillsDisplay()
@@ -2937,6 +2926,30 @@ if not ok then
     end
     warn(fullMsg)
     return
+end
+
+if ok then 
+if hookfunction then
+    hookfunction(print, function(...)
+        return
+    end)
+    hookfunction(warn, function(...)
+        return
+    end)
+    hookfunction(error, function(...)
+        return
+    end)
+else
+    print = function(...)
+        return
+    end
+    warn = function(...)
+        return
+    end
+    error = function(...)
+        return
+    end
+end
 end
 
 notify("Auto Farm", "Loaded successfully. Config applied.", 5)
