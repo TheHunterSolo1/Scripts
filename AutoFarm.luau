@@ -98,6 +98,7 @@ local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Stats = game:GetService("Stats")
+local TweenService = game:GetService("TweenService")
 
 local CONFIG_PATH = "autofarm_config.json"
 local REEXEC_URL = "https://raw.githubusercontent.com/TheHunterSolo1/Scripts/main/AutoFarm.luau"
@@ -209,7 +210,6 @@ local HAMMER_HEEL_NAME = "Hammer Heel"
 local BINDING_CLOTH_NAME = "Binding Cloth"
 local GRAND_FISSURE_NAME = "Grand Fissure"
 local GRAND_FISSURE_SLOT = 1
-local HEAD_FIRST_NAME = "Head First"
 local TF_ALIGN_DURATION = 2.2
 local TF_ACTIVATION_TIMEOUT = 3.0
 local TF_RETRY_INTERVAL = 0.1
@@ -238,6 +238,7 @@ local LTM_PART_NAMES = {
 }
 local LTM_PART_SET = {}
 for _, n in ipairs(LTM_PART_NAMES) do LTM_PART_SET[n] = true end
+
 local G_INTERVAL = 0.01
 local JUMP_INTERVAL = 0.01
 local SPACE_HOLD_TIME = 0.03
@@ -251,9 +252,10 @@ local STEALTH_STREAK_THRESHOLD = 6
 local STEALTH_VOID_WAIT = 1.0
 local THROWN_CLEAR_DELAY = 0.06
 local HOP_CHECK_INTERVAL = 0.5
-local HOP_TELEPORT_VERIFY_WAIT = 6
+local HOP_TELEPORT_VERIFY_WAIT = 4
 local HOP_MAX_ATTEMPTS = 5
 local HOP_CANDIDATE_TRY_COUNT = 3
+local HOP_FAILURE_COOLDOWN = 30
 local PROXIMITY_PRIORITY_RANGE = 50
 local MOBILE_UI_SCALE = 0.75
 local PROT_CACHE_TTL = 0.03
@@ -360,7 +362,7 @@ local function RUN()
         lastRemoteFire = 0, lastEmoteSpin = 0, lastFallbackFire = 0,
         lastGPress = 0, lastJumpPress = 0, lastRagdollFire = 0,
         lastKillsLabelUpdate = 0, lastStatsUpdate = 0, lastStatusRefresh = 0,
-        fallbackIndex = 0, lastHopCheck = 0, spaceDownAt = 0,
+        fallbackIndex = 0, lastHopCheck = 0, lastHopAttempt = 0, spaceDownAt = 0,
         currentFps = 60, fpsCounter = 0, lastFpsSample = 0,
         cameraYaw = 0, cameraPitch = rad_(-8), cameraDistance = 20,
         lastSetupCharacter = nil, lastTargetPlayer = nil, pendingTargetPlayer = nil,
@@ -452,6 +454,18 @@ local function RUN()
     sg.Rotation = 45
     sg.Parent = ms
 
+    spawn_(function()
+        while Main.Parent ~= nil do
+            sg.Rotation = (sg.Rotation + 2) % 360
+            task.wait(0.05)
+        end
+    end)
+
+    local mainScale = Instance.new("UIScale")
+    mainScale.Scale = 0.9
+    mainScale.Parent = Main
+    TweenService:Create(mainScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+
     local Pad = Instance.new("UIPadding")
     Pad.PaddingTop = UDim.new(0, 10)
     Pad.PaddingBottom = UDim.new(0, 10)
@@ -470,17 +484,39 @@ local function RUN()
     Title.Parent = Main
     Gu.Title = Title
 
+    local titleStroke = Instance.new("UIStroke")
+    titleStroke.Color = Color3.fromRGB(110, 200, 255)
+    titleStroke.Thickness = 1
+    titleStroke.Transparency = 0.55
+    titleStroke.Parent = Title
+
     local Status = Instance.new("TextLabel")
     Status.Size = UDim2.new(1, 0, 0, 16)
     Status.Position = UDim2.fromOffset(0, 28)
     Status.BackgroundTransparency = 1
-    Status.Text = "Mode: Idle"
+    Status.RichText = true
+    Status.Text = '<font color="rgb(170,170,180)">●</font> Mode: Idle'
     Status.TextColor3 = DEFAULT_MODE_COLOR
     Status.TextSize = 11
     Status.Font = Enum.Font.Gotham
     Status.TextXAlignment = Enum.TextXAlignment.Left
     Status.Parent = Main
     Gu.Status = Status
+
+    spawn_(function()
+        while Status.Parent ~= nil do
+            local txt = St.lastStatusText or "Mode: Idle"
+            local c = St.lastStatusColor or DEFAULT_MODE_COLOR
+            local pulse = 0.8 + math.sin(clock() * 2.5) * 0.2
+            local r = floor_(c.R * 255 * pulse + 0.5)
+            local g = floor_(c.G * 255 * pulse + 0.5)
+            local b = floor_(c.B * 255 * pulse + 0.5)
+            Status.Text = string.format('<font color="rgb(%d,%d,%d)">●</font> %s', r, g, b, txt)
+            task.wait(0.06)
+        end
+    end)
+
+    local badgeStrokes = {}
 
     local function makeToggle(name, text, pos)
         local btn = Instance.new("TextButton")
@@ -493,6 +529,13 @@ local function RUN()
         btn.Text = ""
         btn.Parent = Main
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(62, 62, 74)
+        stroke.Thickness = 1
+        stroke.Transparency = 0.4
+        stroke.Parent = btn
+
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(1, -60, 1, 0)
         lbl.Position = UDim2.fromOffset(12, 0)
@@ -503,6 +546,7 @@ local function RUN()
         lbl.Font = Enum.Font.GothamMedium
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.Parent = btn
+
         local state = Instance.new("TextLabel")
         state.Name = "State"
         state.Size = UDim2.fromOffset(46, 22)
@@ -515,6 +559,33 @@ local function RUN()
         state.Font = Enum.Font.GothamBold
         state.Parent = btn
         Instance.new("UICorner", state).CornerRadius = UDim.new(0, 6)
+
+        local badgeStroke = Instance.new("UIStroke")
+        badgeStroke.Color = Color3.fromRGB(80, 220, 140)
+        badgeStroke.Thickness = 0
+        badgeStroke.Transparency = 1
+        badgeStroke.Parent = state
+        badgeStrokes[state] = badgeStroke
+
+        local baseBg = Color3.fromRGB(32, 32, 40)
+        local hoverBg = Color3.fromRGB(44, 44, 54)
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = hoverBg}):Play()
+        end)
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = baseBg}):Play()
+        end)
+
+        local pressScale = Instance.new("UIScale")
+        pressScale.Scale = 1
+        pressScale.Parent = btn
+        btn.MouseButton1Down:Connect(function()
+            TweenService:Create(pressScale, TweenInfo.new(0.08), {Scale = 0.96}):Play()
+        end)
+        btn.MouseButton1Up:Connect(function()
+            TweenService:Create(pressScale, TweenInfo.new(0.12), {Scale = 1}):Play()
+        end)
+
         return btn, state
     end
 
@@ -538,7 +609,7 @@ local function RUN()
     local KillsLabel = Instance.new("TextLabel")
     KillsLabel.Size = UDim2.new(0.55, 0, 1, 0)
     KillsLabel.BackgroundTransparency = 1
-    KillsLabel.Text = "Target Kills:"
+    KillsLabel.Text = "Hop Kills:"
     KillsLabel.TextColor3 = Color3.fromRGB(210, 210, 220)
     KillsLabel.TextSize = 12
     KillsLabel.Font = Enum.Font.GothamMedium
@@ -559,7 +630,25 @@ local function RUN()
     KillsBox.ClearTextOnFocus = false
     KillsBox.Parent = KillsRow
     Instance.new("UICorner", KillsBox).CornerRadius = UDim.new(0, 6)
+    local killsStroke = Instance.new("UIStroke")
+    killsStroke.Color = Color3.fromRGB(62, 62, 74)
+    killsStroke.Thickness = 1
+    killsStroke.Transparency = 0.4
+    killsStroke.Parent = KillsBox
     Gu.KillsBox = KillsBox
+
+    KillsBox.Focused:Connect(function()
+        TweenService:Create(KillsBox, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(46, 46, 58)}):Play()
+        TweenService:Create(killsStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(120, 200, 255), Transparency = 0.1}):Play()
+    end)
+    KillsBox.FocusLost:Connect(function()
+        TweenService:Create(KillsBox, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(32, 32, 40)}):Play()
+        TweenService:Create(killsStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(62, 62, 74), Transparency = 0.4}):Play()
+        local n = tonumber(KillsBox.Text)
+        if n ~= nil and n > 0 then Cfg.targetKills = floor_(n) end
+        KillsBox.Text = tostring(Cfg.targetKills)
+        persistConfig()
+    end)
 
     local ShowsLabel = Instance.new("TextLabel")
     ShowsLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -622,10 +711,26 @@ local function RUN()
         if ok then Lt.applied[part] = true end
     end
 
+    local function isInAccessory(part, character)
+        local p = part.Parent
+        while p ~= nil and p ~= character do
+            if p:IsA("Accessory") or p:IsA("Hat") then return true end
+            p = p.Parent
+        end
+        return false
+    end
+
+    local function shouldApplyLTM(part, character)
+        if part == nil or not part:IsA("BasePart") then return false end
+        if LTM_PART_SET[part.Name] then return true end
+        if character ~= nil and isInAccessory(part, character) then return true end
+        return false
+    end
+
     local function scanAndApplyLTM(character)
         if character == nil then return end
         for _, d in ipairs(character:GetDescendants()) do
-            if d:IsA("BasePart") and LTM_PART_SET[d.Name] then applyLTMToPart(d) end
+            if shouldApplyLTM(d, character) then applyLTMToPart(d) end
         end
     end
 
@@ -642,7 +747,7 @@ local function RUN()
         if Lt.descConn ~= nil then Lt.descConn:Disconnect() Lt.descConn = nil end
         if character == nil then return end
         Lt.descConn = character.DescendantAdded:Connect(function(d)
-            if d:IsA("BasePart") and LTM_PART_SET[d.Name] then
+            if shouldApplyLTM(d, character) then
                 task.defer(function() applyLTMToPart(d) end)
             end
         end)
@@ -654,7 +759,7 @@ local function RUN()
             local ch = LocalPlayer.Character
             if ch == nil then return end
             for _, d in ipairs(ch:GetDescendants()) do
-                if d:IsA("BasePart") and LTM_PART_SET[d.Name] then
+                if shouldApplyLTM(d, ch) then
                     if d.LocalTransparencyModifier ~= LTM_VALUE then
                         pcall(function() d.LocalTransparencyModifier = LTM_VALUE end)
                     end
@@ -802,6 +907,16 @@ local function RUN()
             label.Text = "OFF"
             label.TextColor3 = Color3.fromRGB(190, 190, 195)
             label.BackgroundColor3 = Color3.fromRGB(55, 55, 62)
+        end
+        local bs = badgeStrokes[label]
+        if bs ~= nil then
+            if on then
+                bs.Thickness = 1.5
+                bs.Transparency = 0.3
+            else
+                bs.Thickness = 0
+                bs.Transparency = 1
+            end
         end
     end
 
@@ -1313,19 +1428,9 @@ local function RUN()
             local ok, res = pcall(F.crowdBusterExists)
             if ok then cbActive = res end
         end
-        local skipHeadFirst = false
-        local tgt = getTarget()
-        if tgt ~= nil and tgt.Character ~= nil then
-            local hum = tgt.Character:FindFirstChildOfClass("Humanoid")
-            if hum ~= nil and hum.MaxHealth > 0 and hum.Health > 0 then
-                if (hum.Health / hum.MaxHealth) < LOW_HP_TARGET_FALLBACK_THRESHOLD then skipHeadFirst = true end
-            end
-        end
         local excl = { TWIN_FANGS_NAME, "Grand Fissure" }
-        if skipHeadFirst then table.insert(excl, HEAD_FIRST_NAME) end
         local hhTarget = lower_(HAMMER_HEEL_NAME)
         local bcTarget = lower_(BINDING_CLOTH_NAME)
-        local hfTarget = lower_(HEAD_FIRST_NAME)
         local result = {}
         local hh = findTool(HAMMER_HEEL_NAME)
         local bc = findTool(BINDING_CLOTH_NAME)
@@ -1344,7 +1449,7 @@ local function RUN()
             local c = others[i]
             local ln = lower_(c.Name)
             if ln ~= hhTarget and ln ~= bcTarget then
-                if not (skipHeadFirst and ln == hfTarget) then insert_(result, c) end
+                insert_(result, c)
             end
             i = i + 1
         end
@@ -1536,7 +1641,22 @@ local function RUN()
     local function attemptTeleport(jobId, originalJob)
         St.teleportFailedFlag = false
         ensureTeleportFailListener()
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
+
+        local usedAsync = false
+        if typeof(TeleportService.TeleportAsync) == "function" then
+            local okAsync = pcall(function()
+                local opts = Instance.new("TeleportOptions")
+                opts.ServerInstanceId = jobId
+                TeleportService:TeleportAsync(game.PlaceId, {LocalPlayer}, opts)
+            end)
+            if okAsync then usedAsync = true end
+        end
+        if not usedAsync then
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
+            end)
+        end
+
         local t0 = clock()
         while clock() - t0 < HOP_TELEPORT_VERIFY_WAIT do
             if not Cfg.serverHopEnabled or St.hopRequestedStop then return false end
@@ -1549,9 +1669,8 @@ local function RUN()
     end
 
     local function queueReexec()
-        if typeof(isfile) == "function" and isfile(HOP_QUEUE_FLAG) then return end
         if typeof(writefile) == "function" then pcall(function() writefile(HOP_QUEUE_FLAG, "1") end) end
-        local code = "loadstring(game:HttpGet(\"" .. REEXEC_URL .. "\"))()"
+        local code = "_G.__AUTO_FARM_WRAPPER_ACTIVE=nil _G.__AUTO_FARM_INNER_ACTIVE=nil loadstring(game:HttpGet(\"" .. REEXEC_URL .. "\"))()"
         if typeof(queue_on_teleport) == "function" then queue_on_teleport(code)
         elseif typeof(queueonteleport) == "function" then queueonteleport(code)
         elseif typeof(QueueOnTeleport) == "function" then QueueOnTeleport(code)
@@ -1564,7 +1683,9 @@ local function RUN()
         St.hopInProgress = true
         St.hopRequestedStop = false
         refreshStatus()
+
         queueReexec()
+
         local originalJob = game.JobId
         local attempt = 0
         while Cfg.serverHopEnabled and not St.hopRequestedStop and St.hopInProgress and attempt < HOP_MAX_ATTEMPTS do
@@ -1584,7 +1705,7 @@ local function RUN()
             end
             if not Cfg.serverHopEnabled or St.hopRequestedStop then break end
             if typeof(serverhop) == "function" then
-                serverhop()
+                pcall(serverhop)
                 local t0 = clock()
                 while clock() - t0 < HOP_TELEPORT_VERIFY_WAIT do
                     if not Cfg.serverHopEnabled or St.hopRequestedStop then break end
@@ -1594,7 +1715,7 @@ local function RUN()
             end
             if not Cfg.serverHopEnabled or St.hopRequestedStop then break end
             if typeof(ServerHop) == "function" then
-                ServerHop()
+                pcall(ServerHop)
                 local t0 = clock()
                 while clock() - t0 < HOP_TELEPORT_VERIFY_WAIT do
                     if not Cfg.serverHopEnabled or St.hopRequestedStop then break end
@@ -1605,6 +1726,7 @@ local function RUN()
             if not Cfg.serverHopEnabled or St.hopRequestedStop then break end
             wait_(1)
         end
+
         St.hopInProgress = false
         refreshStatus()
     end
@@ -1926,8 +2048,9 @@ local function RUN()
         else
             text = "Mode: Getting Ultimate and Kills" color = DEFAULT_MODE_COLOR
         end
-        if text ~= St.lastStatusText then St.lastStatusText = text Status.Text = text end
-        if color ~= St.lastStatusColor then St.lastStatusColor = color Status.TextColor3 = color end
+        St.lastStatusText = text
+        St.lastStatusColor = color
+        Status.TextColor3 = color
     end
 
     function refreshKillsDisplay()
@@ -2062,13 +2185,6 @@ local function RUN()
         end
     end)
 
-    KillsBox.FocusLost:Connect(function()
-        local n = tonumber(KillsBox.Text)
-        if n ~= nil and n > 0 then Cfg.targetKills = floor_(n) end
-        KillsBox.Text = tostring(Cfg.targetKills)
-        persistConfig()
-    end)
-
     setToggle(FarmState, Cfg.farmEnabled)
     setToggle(PerfState, Cfg.performanceMode)
     setToggle(NoRenderState, Cfg.noRenderEnabled)
@@ -2151,6 +2267,32 @@ local function RUN()
                 pcall(function() CurrentLabel.Text = "Current Kills: " .. tostring(St.killsValue.Value) end)
             end
         end
+        pcall(updateKillsFromLeaderstats)
+
+        do
+            local hopNow = clock()
+            if Cfg.serverHopEnabled and St.killsValue ~= nil and not St.hopInProgress then
+                if hopNow - St.lastHopCheck >= HOP_CHECK_INTERVAL then
+                    St.lastHopCheck = hopNow
+                    local live = St.killsValue.Value
+                    if live < Cfg.showsKills then
+                        Cfg.showsKills = live
+                        persistConfig()
+                        refreshKillsDisplay()
+                    end
+                    if (live - Cfg.showsKills) >= Cfg.targetKills then
+                        if hopNow - St.lastHopAttempt >= HOP_FAILURE_COOLDOWN then
+                            St.lastHopAttempt = hopNow
+                            spawn_(function()
+                                doServerHop()
+                            end)
+                        end
+                        return
+                    end
+                end
+            end
+        end
+
         if St.lastSetupCharacter ~= LocalPlayer.Character then
             local sn = clock()
             if sn - St.lastStatusRefresh >= 0.25 then
@@ -2168,7 +2310,6 @@ local function RUN()
         St.rootCacheV = root
         pcall(fireEmoteSpin)
         pcall(ensureInvisible)
-        pcall(updateKillsFromLeaderstats)
         pcall(function()
             St.specialAnimActive = isSpecialAnimationPlaying()
             St.forceVoidActive = isForceVoidAnimationPlaying()
@@ -2254,29 +2395,6 @@ local function RUN()
                 return
             elseif St.stealthResetPhase then
                 St.stealthResetPhase = false St.stealthResetAt = 0
-            end
-        end
-        local hopNow = clock()
-        if Cfg.serverHopEnabled and St.killsValue ~= nil and not St.hopInProgress then
-            if hopNow - St.lastHopCheck >= HOP_CHECK_INTERVAL then
-                St.lastHopCheck = hopNow
-                local live = St.killsValue.Value
-                if live < Cfg.showsKills then
-                    Cfg.showsKills = live
-                    persistConfig()
-                    refreshKillsDisplay()
-                end
-                if (live - Cfg.showsKills) >= Cfg.targetKills then
-                    spawn_(function()
-                        doServerHop()
-                        if St.killsValue ~= nil then
-                            Cfg.showsKills = St.killsValue.Value
-                            persistConfig()
-                            refreshKillsDisplay()
-                        end
-                    end)
-                    return
-                end
             end
         end
         if Cfg.farmEnabled and not St.inOriginPhase then
