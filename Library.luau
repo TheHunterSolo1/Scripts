@@ -1,14 +1,9 @@
---!strict
-
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
-
-type Callback = (...any) -> ()
-type Options = { [string]: any }
 
 local Colors = {
 	Background = Color3.fromRGB(15, 17, 23),
@@ -36,8 +31,8 @@ Library.Toggles = {}
 Library.Options = {}
 Library.KeybindsShown = false
 
-local keybindRegistry: {[string]: {Name: string, KeyCode: Enum.KeyCode, Callback: Callback?}} = {}
-local keybindOverlay: Frame? = nil
+local keybindRegistry = {}
+local keybindOverlay = nil
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local SaveManager = {}
@@ -54,7 +49,7 @@ local function EnsureFolder()
 	end
 end
 
-function SaveManager.List(): {string}
+function SaveManager.List()
 	EnsureFolder()
 	local list = {}
 	if listfiles then
@@ -69,7 +64,7 @@ function SaveManager.List(): {string}
 	return list
 end
 
-function SaveManager.Save(name: string): boolean
+function SaveManager.Save(name)
 	if not writefile then return false end
 	EnsureFolder()
 	local data = { Toggles = {}, Options = {} }
@@ -80,7 +75,7 @@ function SaveManager.Save(name: string): boolean
 	return pcall(function() writefile(Library.FolderName .. "/Configs/" .. name .. ".json", encoded) end)
 end
 
-function SaveManager.Load(name: string): boolean
+function SaveManager.Load(name)
 	if not readfile or not isfile then return false end
 	local path = Library.FolderName .. "/Configs/" .. name .. ".json"
 	if not isfile(path) then return false end
@@ -99,7 +94,7 @@ function SaveManager.Load(name: string): boolean
 	return true
 end
 
-function SaveManager.Delete(name: string): boolean
+function SaveManager.Delete(name)
 	if not delfile then return false end
 	local path = Library.FolderName .. "/Configs/" .. name .. ".json"
 	if isfile and isfile(path) then
@@ -110,7 +105,7 @@ end
 
 Library.SaveManager = SaveManager
 
-local function GenerateRandomString(length: number): string
+local function GenerateRandomString(length)
 	local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	local result = table.create(length)
 	for i = 1, length do
@@ -120,7 +115,7 @@ local function GenerateRandomString(length: number): string
 	return table.concat(result)
 end
 
-local function GetUIParent(): Instance
+local function GetUIParent()
 	if gethui then
 		local ok, hui = pcall(gethui)
 		if ok and hui then return hui end
@@ -130,11 +125,11 @@ local function GetUIParent(): Instance
 	return LocalPlayer:WaitForChild("PlayerGui")
 end
 
-local function Create(className: string, properties: Options?, children: { Instance }?): any
+local function Create(className, properties, children)
 	local instance = Instance.new(className)
 	if properties then
 		for property, value in pairs(properties) do
-			(instance :: any)[property] = value
+			instance[property] = value
 		end
 	end
 	if children then
@@ -145,11 +140,11 @@ local function Create(className: string, properties: Options?, children: { Insta
 	return instance
 end
 
-local function Tween(instance: Instance, properties: Options)
+local function Tween(instance, properties)
 	TweenService:Create(instance, TweenInfoFast, properties):Play()
 end
 
-local function GetKeyName(keyCode: Enum.KeyCode): string
+local function GetKeyName(keyCode)
 	local name = keyCode.Name
 	if name:sub(1, 6) == "Keypad" then return name:sub(7) end
 	if name:sub(1, 3) == "Key" then return name:sub(4) end
@@ -169,7 +164,7 @@ local function RefreshKeybindOverlay()
 			Text = "",
 			AutoButtonColor = false,
 			Parent = keybindOverlay
-		}) :: TextButton
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = row })
 		Create("TextLabel", {
 			Text = name,
@@ -199,7 +194,7 @@ local function RefreshKeybindOverlay()
 	end
 end
 
-local function RegisterKeybind(name: string, keyCode: Enum.KeyCode, callback: Callback?)
+local function RegisterKeybind(name, keyCode, callback)
 	keybindRegistry[name] = { Name = name, KeyCode = keyCode, Callback = callback }
 	if keybindOverlay then RefreshKeybindOverlay() end
 end
@@ -213,7 +208,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
-local function CreateKeybindOverlay(screenGui: ScreenGui)
+local function CreateKeybindOverlay(screenGui)
 	local overlay = Create("Frame", {
 		Name = "KeybindOverlay",
 		Size = UDim2.fromOffset(200, 0),
@@ -224,7 +219,7 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 		BorderSizePixel = 0,
 		Visible = Library.KeybindsShown,
 		Parent = screenGui
-	}) :: Frame
+	})
 	keybindOverlay = overlay
 	Create("UIScale", { Parent = overlay })
 	Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = overlay })
@@ -277,17 +272,17 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 	end)
 end
 
-local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui, main: Frame): any
+local function CreateElementFactory(parentContainer, screenGui, main)
 	local api = {}
 
-	function api:AddToggle(name: string, callback: Callback?, default: boolean?)
+	function api:AddToggle(name, callback, default)
 		local value = default or false
 		Library.Toggles[name] = { Value = value }
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		Create("TextLabel", {
 			Text = name,
@@ -305,22 +300,22 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Position = UDim2.new(1, -46, 0.5, -10),
 			BackgroundColor3 = value and Colors.Accent or Colors.Stroke,
 			Parent = bg
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = switchBg })
 		local dot = Create("Frame", {
 			Size = UDim2.fromOffset(16, 16),
 			Position = UDim2.fromOffset(value and 18 or 2, 2),
 			BackgroundColor3 = Colors.Text,
 			Parent = switchBg
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = dot })
 		local btn = Create("TextButton", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
 			Text = "",
 			Parent = bg
-		}) :: TextButton
-		local function setValue(v: boolean)
+		})
+		local function setValue(v)
 			Library.Toggles[name].Value = v
 			Tween(switchBg, { BackgroundColor3 = v and Colors.Accent or Colors.Stroke })
 			Tween(dot, { Position = UDim2.fromOffset(v and 18 or 2, 2) })
@@ -331,7 +326,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		return Library.Toggles[name]
 	end
 
-	function api:AddSlider(name: string, callback: Callback?, min: number?, max: number?, default: number?)
+	function api:AddSlider(name, callback, min, max, default)
 		min = min or 0
 		max = max or 100
 		if max <= min then max = min + 1 end
@@ -341,7 +336,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Size = UDim2.new(1, 0, 0, 45),
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local label = Create("TextLabel", {
 			Text = name .. ": " .. tostring(default),
@@ -353,31 +348,31 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Position = UDim2.fromOffset(10, 5),
 			Size = UDim2.new(1, -20, 0, 20),
 			Parent = bg
-		}) :: TextLabel
+		})
 		
 		local hitbox = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 30),
 			Position = UDim2.new(0, 0, 1, -30),
 			BackgroundTransparency = 1,
 			Parent = bg
-		}) :: Frame
+		})
 		
 		local visualBar = Create("Frame", {
 			Size = UDim2.new(1, -20, 0, 4),
 			Position = UDim2.new(0, 10, 0.5, -2),
 			BackgroundColor3 = Colors.Stroke,
 			Parent = hitbox
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = visualBar })
 		local fill = Create("Frame", {
 			Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
 			BackgroundColor3 = Colors.Accent,
 			Parent = visualBar
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 		
 		local dragging = false
-		local function update(input: InputObject)
+		local function update(input)
 			local barPos = visualBar.AbsolutePosition.X
 			local barSize = visualBar.AbsoluteSize.X
 			local relative = math.clamp((input.Position.X - barPos) / barSize, 0, 1)
@@ -405,7 +400,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			end
 		end)
 		
-		Library.Options[name].Set = function(v: number)
+		Library.Options[name].Set = function(v)
 			v = math.clamp(v, min, max)
 			Library.Options[name].Value = v
 			label.Text = name .. ": " .. tostring(v)
@@ -415,13 +410,13 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		return Library.Options[name]
 	end
 
-	function api:AddButton(name: string, callback: Callback?)
+	function api:AddButton(name, callback)
 		local btn = Create("TextButton", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
 			Text = "",
 			Parent = parentContainer
-		}) :: TextButton
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = btn })
 		Create("TextLabel", {
 			Text = name,
@@ -437,13 +432,13 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 	end
 
-	function api:AddKeybind(name: string, keyCode: Enum.KeyCode, callback: Callback?)
+	function api:AddKeybind(name, keyCode, callback)
 		RegisterKeybind(name, keyCode, callback)
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		Create("TextLabel", {
 			Text = name,
@@ -465,7 +460,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Position = UDim2.new(1, -50, 0.5, -12),
 			Size = UDim2.fromOffset(40, 24),
 			Parent = bg
-		}) :: TextButton
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = keyBtn })
 		keyBtn.MouseButton1Click:Connect(function()
 			local entry = keybindRegistry[name]
@@ -473,12 +468,12 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		end)
 	end
 
-	function api:AddLabel(text: string)
+	function api:AddLabel(text)
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 24),
 			BackgroundTransparency = 1,
 			Parent = parentContainer
-		}) :: Frame
+		})
 		Create("TextLabel", {
 			Text = text,
 			Font = Fonts.Regular,
@@ -492,13 +487,13 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		})
 	end
 
-	function api:AddImage(image: string, height: number?)
+	function api:AddImage(image, height)
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, height or 120),
 			BackgroundColor3 = Colors.Element,
 			ClipsDescendants = true,
 			Parent = parentContainer
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		Create("ImageLabel", {
 			Image = image,
@@ -509,12 +504,12 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		})
 	end
 
-	function api:AddTextBox(name: string, callback: Callback?, default: string?)
+	function api:AddTextBox(name, callback, default)
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local box = Create("TextBox", {
 			Text = default or "",
@@ -529,14 +524,14 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			TextXAlignment = Enum.TextXAlignment.Left,
 			ClearTextOnFocus = false,
 			Parent = bg
-		}) :: TextBox
+		})
 		box.FocusLost:Connect(function()
 			if callback then callback(box.Text) end
 		end)
 		return box
 	end
 
-	function api:AddDropdown(name: string, options: {string}, callback: Callback?, default: string?)
+	function api:AddDropdown(name, options, callback, default)
 		local selected = default or options[1] or ""
 		Library.Options[name] = { Value = selected }
 		local currentOptions = options
@@ -546,14 +541,14 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer,
 			ZIndex = 2
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local btn = Create("TextButton", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
 			Text = "",
 			Parent = bg
-		}) :: TextButton
+		})
 		local displayLabel = Create("TextLabel", {
 			Text = name .. ": " .. selected,
 			Font = Fonts.Medium,
@@ -564,7 +559,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Position = UDim2.fromOffset(10, 0),
 			Size = UDim2.new(1, -30, 1, 0),
 			Parent = bg
-		}) :: TextLabel
+		})
 		local arrow = Create("TextLabel", {
 			Text = "v",
 			Font = Fonts.Bold,
@@ -574,7 +569,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Position = UDim2.new(1, -20, 0, 0),
 			Size = UDim2.fromOffset(20, 35),
 			Parent = bg
-		}) :: TextLabel
+		})
 		
 		local listBg = Create("ScrollingFrame", {
 			Size = UDim2.new(0, 0, 0, 0),
@@ -588,13 +583,13 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			ScrollBarImageColor3 = Colors.Accent,
 			Parent = screenGui,
 			ZIndex = 100
-		}) :: ScrollingFrame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listBg })
 		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = listBg })
 		Create("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listBg })
 		Create("UIPadding", { PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = listBg })
 
-		local function populate(opts: {string})
+		local function populate(opts)
 			for _, child in ipairs(listBg:GetChildren()) do
 				if child:IsA("TextButton") then child:Destroy() end
 			end
@@ -608,7 +603,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 					TextColor3 = Colors.Text,
 					LayoutOrder = i,
 					Parent = listBg
-				}) :: TextButton
+				})
 				Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = optBtn })
 				optBtn.MouseEnter:Connect(function() Tween(optBtn, { BackgroundColor3 = Colors.Accent }) end)
 				optBtn.MouseLeave:Connect(function() Tween(optBtn, { BackgroundColor3 = Colors.Element }) end)
@@ -647,13 +642,13 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			end
 		end)
 
-		Library.Options[name].Set = function(v: string)
+		Library.Options[name].Set = function(v)
 			selected = v
 			Library.Options[name].Value = v
 			displayLabel.Text = name .. ": " .. v
 		end
 		
-		Library.Options[name].Refresh = function(newOptions: {string})
+		Library.Options[name].Refresh = function(newOptions)
 			currentOptions = newOptions
 			populate(currentOptions)
 			if #currentOptions > 0 and not table.find(currentOptions, selected) then
@@ -669,7 +664,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 	return api
 end
 
-function Library.new(windowInfo: Options)
+function Library.new(windowInfo)
 	local self = setmetatable({}, Library)
 	
 	Library.FolderName = windowInfo.FolderName or windowInfo.Title or "UILibrary"
@@ -681,7 +676,7 @@ function Library.new(windowInfo: Options)
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		IgnoreGuiInset = true,
 		Parent = GetUIParent()
-	}) :: ScreenGui
+	})
 	Library.ScreenGui = screenGui
 
 	CreateKeybindOverlay(screenGui)
@@ -694,7 +689,7 @@ function Library.new(windowInfo: Options)
 		BackgroundColor3 = Colors.Background,
 		BorderSizePixel = 0,
 		Parent = screenGui
-	}) :: Frame
+	})
 	Library.Main = main
 	
 	Create("UIScale", { Parent = main })
@@ -706,15 +701,17 @@ function Library.new(windowInfo: Options)
 		Size = UDim2.new(1, 0, 0, 40),
 		BackgroundTransparency = 1,
 		Parent = main
-	}) :: Frame
-	
-	Create("ImageLabel", {
-		Image = windowInfo.Icon or "",
-		Size = UDim2.fromOffset(24, 24),
-		Position = UDim2.fromOffset(20, 8),
-		BackgroundTransparency = 1,
-		Parent = topBar
 	})
+	
+	if windowInfo.Icon and windowInfo.Icon ~= "" then
+		Create("ImageLabel", {
+			Image = windowInfo.Icon,
+			Size = UDim2.fromOffset(24, 24),
+			Position = UDim2.fromOffset(20, 8),
+			BackgroundTransparency = 1,
+			Parent = topBar
+		})
+	end
 	
 	Create("TextLabel", {
 		Text = windowInfo.Title or "Example Hub",
@@ -723,7 +720,7 @@ function Library.new(windowInfo: Options)
 		TextColor3 = Colors.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(windowInfo.Icon and windowInfo.Icon ~= "" and 52 or 20, 0),
+		Position = UDim2.fromOffset((windowInfo.Icon and windowInfo.Icon ~= "") and 52 or 20, 0),
 		Size = UDim2.new(1, -160, 1, 0),
 		Parent = topBar
 	})
@@ -737,7 +734,7 @@ function Library.new(windowInfo: Options)
 		Position = UDim2.new(1, -120, 0, 8),
 		Size = UDim2.fromOffset(28, 28),
 		Parent = topBar
-	}) :: TextButton
+	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = keybindBtn })
 	local lockBtn = Create("TextButton", {
 		Text = "U",
@@ -748,7 +745,7 @@ function Library.new(windowInfo: Options)
 		Position = UDim2.new(1, -85, 0, 8),
 		Size = UDim2.fromOffset(28, 28),
 		Parent = topBar
-	}) :: TextButton
+	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = lockBtn })
 	local closeBtn = Create("TextButton", {
 		Text = "×",
@@ -759,7 +756,7 @@ function Library.new(windowInfo: Options)
 		Position = UDim2.new(1, -50, 0, 0),
 		Size = UDim2.fromOffset(40, 40),
 		Parent = topBar
-	}) :: TextButton
+	})
 	
 	local toggleBtn = Create("TextButton", {
 		Name = "ToggleUI",
@@ -772,7 +769,7 @@ function Library.new(windowInfo: Options)
 		Size = UDim2.fromOffset(100, 30),
 		Visible = false,
 		Parent = screenGui
-	}) :: TextButton
+	})
 	Create("UIScale", { Parent = toggleBtn })
 	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = toggleBtn })
 	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = toggleBtn })
@@ -783,7 +780,7 @@ function Library.new(windowInfo: Options)
 		Tween(keybindBtn, { TextColor3 = Library.KeybindsShown and Colors.Text or Colors.SubText })
 		Tween(keybindBtn, { BackgroundColor3 = Library.KeybindsShown and Colors.Accent or Colors.Element })
 	end
-	local function setKeybindsShown(value: boolean)
+	local function setKeybindsShown(value)
 		Library.KeybindsShown = value
 		updateKeybindBtn()
 	end
@@ -815,14 +812,14 @@ function Library.new(windowInfo: Options)
 		BackgroundColor3 = Colors.Sidebar,
 		BorderSizePixel = 0,
 		Parent = main
-	}) :: Frame
+	})
 	local tabContainer = Create("Frame", {
 		Name = "TabContainer",
 		Size = UDim2.new(1, -150, 1, footerOffset),
 		Position = UDim2.fromOffset(150, 40),
 		BackgroundTransparency = 1,
 		Parent = main
-	}) :: Frame
+	})
 	
 	if windowInfo.Footer then
 		local footer = Create("Frame", {
@@ -831,7 +828,7 @@ function Library.new(windowInfo: Options)
 			Position = UDim2.new(0, 0, 1, -25),
 			BackgroundTransparency = 1,
 			Parent = main
-		}) :: Frame
+		})
 		Create("TextLabel", {
 			Text = windowInfo.Footer,
 			Font = Fonts.Medium,
@@ -891,8 +888,8 @@ function Library.new(windowInfo: Options)
 		end
 	end)
 	
-	function Library:SetDPI(scale: string | number)
-		local num: number?
+	function Library:SetDPI(scale)
+		local num
 		if type(scale) == "number" then
 			num = scale
 		elseif type(scale) == "string" then
@@ -928,7 +925,7 @@ function Library.new(windowInfo: Options)
 	return self
 end
 
-function Library:CreateTab(tabInfo: Options)
+function Library:CreateTab(tabInfo)
 	local tabButton = Create("TextButton", {
 		Size = UDim2.new(1, -20, 0, 35),
 		Position = UDim2.fromOffset(10, (#self.Tabs * 40) + 10),
@@ -936,7 +933,7 @@ function Library:CreateTab(tabInfo: Options)
 		BackgroundTransparency = 1,
 		Text = "",
 		Parent = self.Sidebar
-	}) :: TextButton
+	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = tabButton })
 	local tabLabel = Create("TextLabel", {
 		Text = tabInfo.Name,
@@ -948,7 +945,7 @@ function Library:CreateTab(tabInfo: Options)
 		Position = UDim2.fromOffset(10, 0),
 		Size = UDim2.new(1, -10, 1, 0),
 		Parent = tabButton
-	}) :: TextLabel
+	})
 	local container = Create("ScrollingFrame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
@@ -959,7 +956,7 @@ function Library:CreateTab(tabInfo: Options)
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		Visible = false,
 		Parent = self.TabContainer
-	}) :: ScrollingFrame
+	})
 	Create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		Padding = UDim.new(0, 10),
@@ -979,7 +976,7 @@ function Library:CreateTab(tabInfo: Options)
 		BackgroundTransparency = 1,
 		LayoutOrder = 1,
 		Parent = container
-	}) :: Frame
+	})
 	Create("UIListLayout", {
 		Padding = UDim.new(0, 10),
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -991,7 +988,7 @@ function Library:CreateTab(tabInfo: Options)
 		BackgroundTransparency = 1,
 		LayoutOrder = 2,
 		Parent = container
-	}) :: Frame
+	})
 	Create("UIListLayout", {
 		Padding = UDim.new(0, 10),
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -1014,14 +1011,14 @@ function Library:CreateTab(tabInfo: Options)
 	tabButton.MouseButton1Click:Connect(select)
 	if #self.Tabs == 1 then select() end
 	local api = CreateElementFactory(leftCol, self.ScreenGui, self.Main)
-	function api:AddGroupbox(name: string, side: string?)
+	function api:AddGroupbox(name, side)
 		local column = (side == "Right") and rightCol or leftCol
 		local gb = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundColor3 = Colors.Element,
 			Parent = column
-		}) :: Frame
+		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = gb })
 		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = gb })
 		Create("UIPadding", {
@@ -1052,7 +1049,7 @@ function Library:CreateTab(tabInfo: Options)
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
 			Parent = gb
-		}) :: Frame
+		})
 		Create("UIListLayout", {
 			Padding = UDim.new(0, 6),
 			SortOrder = Enum.SortOrder.LayoutOrder,
