@@ -49,49 +49,58 @@ local function EnsureFolder()
 	end
 end
 
+function SaveManager.List(): {string}
+	EnsureFolder()
+	local list = {}
+	if listfiles then
+		local ok, files = pcall(function() return listfiles(SaveManager.Folder) end)
+		if ok and files then
+			for _, file in ipairs(files) do
+				local name = file:match("([^/]+)%.json$")
+				if name then table.insert(list, name) end
+			end
+		end
+	end
+	return list
+end
+
 function SaveManager.Save(name: string): boolean
 	if not writefile then return false end
 	EnsureFolder()
 	local data = { Toggles = {}, Options = {} }
-	for k, v in pairs(Library.Toggles) do
-		data.Toggles[k] = v.Value
-	end
-	for k, v in pairs(Library.Options) do
-		data.Options[k] = v.Value
-	end
-	local ok, encoded = pcall(function()
-		return HttpService:JSONEncode(data)
-	end)
+	for k, v in pairs(Library.Toggles) do data.Toggles[k] = v.Value end
+	for k, v in pairs(Library.Options) do data.Options[k] = v.Value end
+	local ok, encoded = pcall(function() return HttpService:JSONEncode(data) end)
 	if not ok then return false end
-	local success = pcall(function()
-		writefile(SaveManager.Folder .. "/" .. name .. ".json", encoded)
-	end)
-	return success
+	return pcall(function() writefile(SaveManager.Folder .. "/" .. name .. ".json", encoded) end)
 end
 
 function SaveManager.Load(name: string): boolean
 	if not readfile or not isfile then return false end
 	local path = SaveManager.Folder .. "/" .. name .. ".json"
 	if not isfile(path) then return false end
-	local ok, data = pcall(function()
-		return HttpService:JSONDecode(readfile(path))
-	end)
+	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(path)) end)
 	if not ok or not data then return false end
 	if data.Toggles then
 		for k, v in pairs(data.Toggles) do
-			if Library.Toggles[k] and Library.Toggles[k].Set then
-				Library.Toggles[k].Set(v)
-			end
+			if Library.Toggles[k] and Library.Toggles[k].Set then Library.Toggles[k].Set(v) end
 		end
 	end
 	if data.Options then
 		for k, v in pairs(data.Options) do
-			if Library.Options[k] and Library.Options[k].Set then
-				Library.Options[k].Set(v)
-			end
+			if Library.Options[k] and Library.Options[k].Set then Library.Options[k].Set(v) end
 		end
 	end
 	return true
+end
+
+function SaveManager.Delete(name: string): boolean
+	if not delfile then return false end
+	local path = SaveManager.Folder .. "/" .. name .. ".json"
+	if isfile and isfile(path) then
+		return pcall(function() delfile(path) end)
+	end
+	return false
 end
 
 Library.SaveManager = SaveManager
@@ -186,11 +195,7 @@ local function RefreshKeybindOverlay()
 end
 
 local function RegisterKeybind(name: string, keyCode: Enum.KeyCode, callback: Callback?)
-	keybindRegistry[name] = {
-		Name = name,
-		KeyCode = keyCode,
-		Callback = callback
-	}
+	keybindRegistry[name] = { Name = name, KeyCode = keyCode, Callback = callback }
 	if keybindOverlay then RefreshKeybindOverlay() end
 end
 
@@ -204,7 +209,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 local function CreateKeybindOverlay(screenGui: ScreenGui)
-	keybindOverlay = Create("Frame", {
+	local overlay = Create("Frame", {
 		Name = "KeybindOverlay",
 		Size = UDim2.fromOffset(200, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
@@ -215,21 +220,23 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 		Visible = Library.KeybindsShown,
 		Parent = screenGui
 	}) :: Frame
-	Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = keybindOverlay })
-	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = keybindOverlay })
+	keybindOverlay = overlay
+	Create("UIScale", { Parent = overlay })
+	Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = overlay })
+	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = overlay })
 	Create("UIListLayout", {
 		Padding = UDim.new(0, 4),
 		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = keybindOverlay
+		Parent = overlay
 	})
 	Create("UIPadding", {
 		PaddingTop = UDim.new(0, 8),
 		PaddingBottom = UDim.new(0, 8),
 		PaddingLeft = UDim.new(0, 8),
 		PaddingRight = UDim.new(0, 8),
-		Parent = keybindOverlay
+		Parent = overlay
 	})
-	Create("TextLabel", {
+	local header = Create("TextLabel", {
 		Text = "Keybinds",
 		Font = Fonts.Bold,
 		TextSize = 12,
@@ -238,8 +245,33 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 		Size = UDim2.new(1, 0, 0, 20),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		LayoutOrder = -1,
-		Parent = keybindOverlay
+		Parent = overlay
 	})
+	
+	local dragging, dragInput, dragStart, startPos
+	overlay.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = overlay.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+	overlay.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			overlay.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
 end
 
 local function CreateElementFactory(parentContainer: Frame): any
@@ -292,9 +324,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 			if callback then callback(v) end
 		end
 		Library.Toggles[name].Set = setValue
-		btn.MouseButton1Click:Connect(function()
-			setValue(not Library.Toggles[name].Value)
-		end)
+		btn.MouseButton1Click:Connect(function() setValue(not Library.Toggles[name].Value) end)
 		return Library.Toggles[name]
 	end
 
@@ -390,9 +420,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 		})
 		btn.MouseEnter:Connect(function() Tween(btn, { BackgroundColor3 = Colors.Accent }) end)
 		btn.MouseLeave:Connect(function() Tween(btn, { BackgroundColor3 = Colors.Element }) end)
-		btn.MouseButton1Click:Connect(function()
-			if callback then callback() end
-		end)
+		btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 	end
 
 	function api:AddKeybind(name: string, keyCode: Enum.KeyCode, callback: Callback?)
@@ -467,6 +495,139 @@ local function CreateElementFactory(parentContainer: Frame): any
 		})
 	end
 
+	function api:AddTextBox(name: string, callback: Callback?, default: string?)
+		local bg = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 35),
+			BackgroundColor3 = Colors.Element,
+			Parent = parentContainer
+		}) :: Frame
+		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
+		local box = Create("TextBox", {
+			Text = default or "",
+			PlaceholderText = name,
+			Font = Fonts.Medium,
+			TextSize = 14,
+			TextColor3 = Colors.Text,
+			PlaceholderColor3 = Colors.SubText,
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(10, 0),
+			Size = UDim2.new(1, -20, 1, 0),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ClearTextOnFocus = false,
+			Parent = bg
+		}) :: TextBox
+		box.FocusLost:Connect(function()
+			if callback then callback(box.Text) end
+		end)
+		return box
+	end
+
+	function api:AddDropdown(name: string, options: {string}, callback: Callback?, default: string?)
+		local selected = default or options[1] or ""
+		Library.Options[name] = { Value = selected }
+		local bg = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 35),
+			BackgroundColor3 = Colors.Element,
+			Parent = parentContainer,
+			ZIndex = 2
+		}) :: Frame
+		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
+		local btn = Create("TextButton", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = "",
+			Parent = bg
+		}) :: TextButton
+		Create("TextLabel", {
+			Text = name .. ": " .. selected,
+			Font = Fonts.Medium,
+			TextSize = 14,
+			TextColor3 = Colors.Text,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(10, 0),
+			Size = UDim2.new(1, -30, 1, 0),
+			Parent = bg
+		})
+		local arrow = Create("TextLabel", {
+			Text = "v",
+			Font = Fonts.Bold,
+			TextSize = 12,
+			TextColor3 = Colors.SubText,
+			BackgroundTransparency = 1,
+			Position = UDim2.new(1, -20, 0, 0),
+			Size = UDim2.fromOffset(20, 35),
+			Parent = bg
+		}) :: TextLabel
+		local listBg = Create("ScrollingFrame", {
+			Size = UDim2.new(1, 0, 0, 0),
+			Position = UDim2.new(0, 0, 1, 5),
+			BackgroundColor3 = Colors.Background,
+			BorderSizePixel = 0,
+			Visible = false,
+			CanvasSize = UDim2.new(0, 0, 0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollBarThickness = 2,
+			ScrollBarImageColor3 = Colors.Accent,
+			Parent = bg,
+			ZIndex = 10
+		}) :: ScrollingFrame
+		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listBg })
+		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = listBg })
+		Create("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listBg })
+		Create("UIPadding", { PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = listBg })
+
+		local function populate(opts: {string})
+			for _, child in ipairs(listBg:GetChildren()) do
+				if child:IsA("TextButton") then child:Destroy() end
+			end
+			for i, opt in ipairs(opts) do
+				local optBtn = Create("TextButton", {
+					Size = UDim2.new(1, 0, 0, 25),
+					BackgroundColor3 = Colors.Element,
+					Text = opt,
+					Font = Fonts.Medium,
+					TextSize = 13,
+					TextColor3 = Colors.Text,
+					LayoutOrder = i,
+					Parent = listBg
+				}) :: TextButton
+				Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = optBtn })
+				optBtn.MouseEnter:Connect(function() Tween(optBtn, { BackgroundColor3 = Colors.Accent }) end)
+				optBtn.MouseLeave:Connect(function() Tween(optBtn, { BackgroundColor3 = Colors.Element }) end)
+				optBtn.MouseButton1Click:Connect(function()
+					selected = opt
+					Library.Options[name].Value = opt
+					bg:FindFirstChildOfClass("TextLabel").Text = name .. ": " .. opt
+					listBg.Visible = false
+					Tween(bg, { Size = UDim2.new(1, 0, 0, 35) })
+					if callback then callback(opt) end
+				end)
+			end
+			listBg.CanvasSize = UDim2.new(0, 0, 0, listBg.UIListLayout.AbsoluteContentSize.Y + 10)
+		end
+
+		populate(options)
+
+		btn.MouseButton1Click:Connect(function()
+			local isVisible = not listBg.Visible
+			listBg.Visible = isVisible
+			Tween(bg, { Size = isVisible and UDim2.new(1, 0, 0, 35 + math.min(#options * 27 + 10, 150)) or UDim2.new(1, 0, 0, 35) })
+			Tween(arrow, { Rotation = isVisible and 180 or 0 })
+		end)
+
+		Library.Options[name].Set = function(v: string)
+			selected = v
+			Library.Options[name].Value = v
+			bg:FindFirstChildOfClass("TextLabel").Text = name .. ": " .. v
+		end
+		Library.Options[name].Refresh = function(newOptions: {string})
+			options = newOptions
+			populate(options)
+		end
+		return Library.Options[name]
+	end
+
 	return api
 end
 
@@ -488,6 +649,7 @@ function Library.new(windowInfo: Options)
 		BorderSizePixel = 0,
 		Parent = screenGui
 	}) :: Frame
+	Create("UIScale", { Parent = main })
 	Create("UICorner", { CornerRadius = UDim.new(0, 12), Parent = main })
 	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = main })
 	local topBar = Create("Frame", {
@@ -550,8 +712,10 @@ function Library.new(windowInfo: Options)
 		Visible = false,
 		Parent = screenGui
 	}) :: TextButton
+	Create("UIScale", { Parent = toggleBtn })
 	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = toggleBtn })
 	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = toggleBtn })
+	
 	local locked = false
 	local function updateKeybindBtn()
 		if keybindOverlay then keybindOverlay.Visible = Library.KeybindsShown end
@@ -563,9 +727,7 @@ function Library.new(windowInfo: Options)
 		updateKeybindBtn()
 	end
 	Library.SetKeybindsShown = setKeybindsShown
-	keybindBtn.MouseButton1Click:Connect(function()
-		setKeybindsShown(not Library.KeybindsShown)
-	end)
+	keybindBtn.MouseButton1Click:Connect(function() setKeybindsShown(not Library.KeybindsShown) end)
 	lockBtn.MouseButton1Click:Connect(function()
 		locked = not locked
 		lockBtn.Text = locked and "L" or "U"
@@ -597,6 +759,7 @@ function Library.new(windowInfo: Options)
 		BackgroundTransparency = 1,
 		Parent = main
 	}) :: Frame
+	
 	local dragging, dragInput, dragStart, startPos
 	topBar.InputBegan:Connect(function(input)
 		if locked then return end
@@ -620,6 +783,28 @@ function Library.new(windowInfo: Options)
 			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 		end
 	end)
+	
+	function Library:SetDPI(scale: string | number)
+		local num: number?
+		if type(scale) == "number" then
+			num = scale
+		elseif type(scale) == "string" then
+			local match = scale:match("%d+")
+			if match then num = tonumber(match) end
+		end
+		if num then
+			local factor = math.clamp(num / 100, 0.25, 2.0)
+			local mainScale = main:FindFirstChildOfClass("UIScale")
+			if mainScale then mainScale.Scale = factor end
+			local toggleScale = toggleBtn:FindFirstChildOfClass("UIScale")
+			if toggleScale then toggleScale.Scale = factor end
+			if keybindOverlay then
+				local kbScale = keybindOverlay:FindFirstChildOfClass("UIScale")
+				if kbScale then kbScale.Scale = factor end
+			end
+		end
+	end
+
 	updateKeybindBtn()
 	self.ScreenGui = screenGui
 	self.Main = main
