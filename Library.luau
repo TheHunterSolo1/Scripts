@@ -35,21 +35,22 @@ Library.__index = Library
 Library.Toggles = {}
 Library.Options = {}
 Library.KeybindsShown = false
-Library.DropdownOverlay = nil
 
 local keybindRegistry: {[string]: {Name: string, KeyCode: Enum.KeyCode, Callback: Callback?}} = {}
 local keybindOverlay: Frame? = nil
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local SaveManager = {}
-SaveManager.Folder = "HunterHub/Configs"
 
 local function EnsureFolder()
 	if makefolder then
-		pcall(function()
-			if not isfolder("HunterHub") then makefolder("HunterHub") end
-			if not isfolder(SaveManager.Folder) then makefolder(SaveManager.Folder) end
-		end)
+		local folder = Library.FolderName
+		if folder then
+			pcall(function()
+				if not isfolder(folder) then makefolder(folder) end
+				if not isfolder(folder .. "/Configs") then makefolder(folder .. "/Configs") end
+			end)
+		end
 	end
 end
 
@@ -57,7 +58,7 @@ function SaveManager.List(): {string}
 	EnsureFolder()
 	local list = {}
 	if listfiles then
-		local ok, files = pcall(function() return listfiles(SaveManager.Folder) end)
+		local ok, files = pcall(function() return listfiles(Library.FolderName .. "/Configs") end)
 		if ok and files then
 			for _, file in ipairs(files) do
 				local name = file:match("([^/\\]+)%.json$")
@@ -76,12 +77,12 @@ function SaveManager.Save(name: string): boolean
 	for k, v in pairs(Library.Options) do data.Options[k] = v.Value end
 	local ok, encoded = pcall(function() return HttpService:JSONEncode(data) end)
 	if not ok then return false end
-	return pcall(function() writefile(SaveManager.Folder .. "/" .. name .. ".json", encoded) end)
+	return pcall(function() writefile(Library.FolderName .. "/Configs/" .. name .. ".json", encoded) end)
 end
 
 function SaveManager.Load(name: string): boolean
 	if not readfile or not isfile then return false end
-	local path = SaveManager.Folder .. "/" .. name .. ".json"
+	local path = Library.FolderName .. "/Configs/" .. name .. ".json"
 	if not isfile(path) then return false end
 	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(path)) end)
 	if not ok or not data then return false end
@@ -100,7 +101,7 @@ end
 
 function SaveManager.Delete(name: string): boolean
 	if not delfile then return false end
-	local path = SaveManager.Folder .. "/" .. name .. ".json"
+	local path = Library.FolderName .. "/Configs/" .. name .. ".json"
 	if isfile and isfile(path) then
 		return pcall(function() delfile(path) end)
 	end
@@ -276,7 +277,7 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 	end)
 end
 
-local function CreateElementFactory(parentContainer: Frame): any
+local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui): any
 	local api = {}
 
 	function api:AddToggle(name: string, callback: Callback?, default: boolean?)
@@ -353,17 +354,19 @@ local function CreateElementFactory(parentContainer: Frame): any
 			Size = UDim2.new(1, -20, 0, 20),
 			Parent = bg
 		}) :: TextLabel
-		local barBg = Create("Frame", {
-			Size = UDim2.new(1, -20, 0, 20),
-			Position = UDim2.new(0, 10, 1, -20),
+		
+		local hitbox = Create("Frame", {
+			Size = UDim2.new(1, -20, 0, 24),
+			Position = UDim2.new(0, 10, 1, -28),
 			BackgroundTransparency = 1,
 			Parent = bg
 		}) :: Frame
+		
 		local visualBar = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 4),
 			Position = UDim2.new(0, 0, 0.5, -2),
 			BackgroundColor3 = Colors.Stroke,
-			Parent = barBg
+			Parent = hitbox
 		}) :: Frame
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = visualBar })
 		local fill = Create("Frame", {
@@ -372,10 +375,11 @@ local function CreateElementFactory(parentContainer: Frame): any
 			Parent = visualBar
 		}) :: Frame
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
+		
 		local dragging = false
 		local function update(input: InputObject)
-			local barPos = barBg.AbsolutePosition.X
-			local barSize = barBg.AbsoluteSize.X
+			local barPos = hitbox.AbsolutePosition.X
+			local barSize = hitbox.AbsoluteSize.X
 			local relative = math.clamp((input.Position.X - barPos) / barSize, 0, 1)
 			local v = math.floor(min + (max - min) * relative + 0.5)
 			Library.Options[name].Value = v
@@ -383,13 +387,14 @@ local function CreateElementFactory(parentContainer: Frame): any
 			fill.Size = UDim2.new(relative, 0, 1, 0)
 			if callback then callback(v) end
 		end
-		barBg.InputBegan:Connect(function(input)
+		
+		hitbox.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = true
 				update(input)
 			end
 		end)
-		barBg.InputEnded:Connect(function(input)
+		hitbox.InputEnded:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = false
 			end
@@ -399,6 +404,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 				update(input)
 			end
 		end)
+		
 		Library.Options[name].Set = function(v: number)
 			v = math.clamp(v, min, max)
 			Library.Options[name].Value = v
@@ -571,8 +577,8 @@ local function CreateElementFactory(parentContainer: Frame): any
 		}) :: TextLabel
 		
 		local listBg = Create("ScrollingFrame", {
-			Size = UDim2.new(1, 0, 0, 0),
-			Position = UDim2.new(0, 0, 1, 5),
+			Size = UDim2.new(0, bg.AbsoluteSize.X, 0, 0),
+			Position = UDim2.fromOffset(0, 0),
 			BackgroundColor3 = Colors.Background,
 			BorderSizePixel = 0,
 			Visible = false,
@@ -580,8 +586,8 @@ local function CreateElementFactory(parentContainer: Frame): any
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollBarThickness = 2,
 			ScrollBarImageColor3 = Colors.Accent,
-			Parent = Library.DropdownOverlay,
-			ZIndex = 10
+			Parent = screenGui,
+			ZIndex = 100
 		}) :: ScrollingFrame
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listBg })
 		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = listBg })
@@ -611,7 +617,6 @@ local function CreateElementFactory(parentContainer: Frame): any
 					Library.Options[name].Value = opt
 					displayLabel.Text = name .. ": " .. opt
 					listBg.Visible = false
-					Library.DropdownOverlay.Visible = false
 					Tween(arrow, { Rotation = 0 })
 					if callback then callback(opt) end
 				end)
@@ -624,19 +629,19 @@ local function CreateElementFactory(parentContainer: Frame): any
 		btn.MouseButton1Click:Connect(function()
 			if listBg.Visible then
 				listBg.Visible = false
-				Library.DropdownOverlay.Visible = false
 				Tween(arrow, { Rotation = 0 })
 			else
-				for _, otherList in ipairs(Library.DropdownOverlay:GetChildren()) do
-					if otherList:IsA("ScrollingFrame") then otherList.Visible = false end
+				for _, child in ipairs(screenGui:GetChildren()) do
+					if child:IsA("ScrollingFrame") and child.ZIndex == 100 then
+						child.Visible = false
+					end
 				end
 				
-				Library.DropdownOverlay.Visible = true
 				local absPos = bg.AbsolutePosition
-				local scale = Library.Main:FindFirstChildOfClass("UIScale").Scale
+				local absSize = bg.AbsoluteSize
 				
-				listBg.Position = UDim2.fromOffset(absPos.X / scale, (absPos.Y + bg.AbsoluteSize.Y) / scale + 5)
-				listBg.Size = UDim2.new(0, bg.AbsoluteSize.X / scale, 0, math.min(#currentOptions * 27 + 10, 150))
+				listBg.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y + 5)
+				listBg.Size = UDim2.new(0, absSize.X, 0, math.min(#currentOptions * 27 + 10, 150))
 				listBg.Visible = true
 				Tween(arrow, { Rotation = 180 })
 			end
@@ -666,30 +671,18 @@ end
 
 function Library.new(windowInfo: Options)
 	local self = setmetatable({}, Library)
+	
+	Library.FolderName = windowInfo.FolderName or windowInfo.Title or "UILibrary"
+	Library.FolderName = Library.FolderName:gsub("%s+", "")
+	
 	local screenGui = Create("ScreenGui", {
 		Name = GenerateRandomString(10),
 		ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		IgnoreGuiInset = true,
 		Parent = GetUIParent()
 	}) :: ScreenGui
-	
-	local dropdownOverlay = Create("TextButton", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Text = "",
-		Visible = false,
-		ZIndex = 50,
-		Parent = screenGui
-	}) :: TextButton
-	Create("UIScale", { Parent = dropdownOverlay })
-	Library.DropdownOverlay = dropdownOverlay
-	
-	dropdownOverlay.MouseButton1Click:Connect(function()
-		dropdownOverlay.Visible = false
-		for _, child in ipairs(dropdownOverlay:GetChildren()) do
-			if child:IsA("ScrollingFrame") then child.Visible = false end
-		end
-	end)
+	Library.ScreenGui = screenGui
 
 	CreateKeybindOverlay(screenGui)
 	
@@ -714,6 +707,15 @@ function Library.new(windowInfo: Options)
 		BackgroundTransparency = 1,
 		Parent = main
 	}) :: Frame
+	
+	local icon = Create("ImageLabel", {
+		Image = windowInfo.Icon or "",
+		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.fromOffset(20, 8),
+		BackgroundTransparency = 1,
+		Parent = topBar
+	}) :: ImageLabel
+	
 	Create("TextLabel", {
 		Text = windowInfo.Title or "Example Hub",
 		Font = Fonts.Bold,
@@ -721,10 +723,11 @@ function Library.new(windowInfo: Options)
 		TextColor3 = Colors.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(20, 0),
+		Position = UDim2.fromOffset(windowInfo.Icon and 52 or 20, 0),
 		Size = UDim2.new(1, -160, 1, 0),
 		Parent = topBar
 	})
+	
 	local keybindBtn = Create("TextButton", {
 		Text = "K",
 		Font = Fonts.Bold,
@@ -757,6 +760,7 @@ function Library.new(windowInfo: Options)
 		Size = UDim2.fromOffset(40, 40),
 		Parent = topBar
 	}) :: TextButton
+	
 	local toggleBtn = Create("TextButton", {
 		Text = "Toggle UI",
 		Font = Fonts.Bold,
@@ -841,6 +845,22 @@ function Library.new(windowInfo: Options)
 		end
 	end)
 	
+	UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			local mousePos = UserInputService:GetMouseLocation()
+			for _, child in ipairs(screenGui:GetChildren()) do
+				if child:IsA("ScrollingFrame") and child.ZIndex == 100 and child.Visible then
+					local pos = child.AbsolutePosition
+					local size = child.AbsoluteSize
+					local inList = mousePos.X >= pos.X and mousePos.X <= pos.X + size.X and mousePos.Y >= pos.Y and mousePos.Y <= pos.Y + size.Y
+					if not inList then
+						child.Visible = false
+					end
+				end
+			end
+		end
+	end)
+	
 	function Library:SetDPI(scale: string | number)
 		local num: number?
 		if type(scale) == "number" then
@@ -859,16 +879,10 @@ function Library.new(windowInfo: Options)
 				local kbScale = keybindOverlay:FindFirstChildOfClass("UIScale")
 				if kbScale then kbScale.Scale = factor end
 			end
-			if Library.DropdownOverlay then
-				local ddScale = Library.DropdownOverlay:FindFirstChildOfClass("UIScale")
-				if ddScale then ddScale.Scale = factor end
-			end
 		end
 	end
 
 	updateKeybindBtn()
-	self.ScreenGui = screenGui
-	self.Main = main
 	self.TabContainer = tabContainer
 	self.Sidebar = sidebar
 	self.CurrentTab = nil
@@ -961,7 +975,7 @@ function Library:CreateTab(tabInfo: Options)
 	end
 	tabButton.MouseButton1Click:Connect(select)
 	if #self.Tabs == 1 then select() end
-	local api = CreateElementFactory(leftCol)
+	local api = CreateElementFactory(leftCol, self.ScreenGui)
 	function api:AddGroupbox(name: string, side: string?)
 		local column = (side == "Right") and rightCol or leftCol
 		local gb = Create("Frame", {
@@ -1006,7 +1020,7 @@ function Library:CreateTab(tabInfo: Options)
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = content
 		})
-		return CreateElementFactory(content)
+		return CreateElementFactory(content, self.ScreenGui)
 	end
 	return api
 end
