@@ -35,6 +35,7 @@ Library.__index = Library
 Library.Toggles = {}
 Library.Options = {}
 Library.KeybindsShown = false
+Library.DropdownOverlay = nil
 
 local keybindRegistry: {[string]: {Name: string, KeyCode: Enum.KeyCode, Callback: Callback?}} = {}
 local keybindOverlay: Frame? = nil
@@ -44,8 +45,11 @@ local SaveManager = {}
 SaveManager.Folder = "HunterHub/Configs"
 
 local function EnsureFolder()
-	if makefolder and not isfolder(SaveManager.Folder) then
-		makefolder(SaveManager.Folder)
+	if makefolder then
+		pcall(function()
+			if not isfolder("HunterHub") then makefolder("HunterHub") end
+			if not isfolder(SaveManager.Folder) then makefolder(SaveManager.Folder) end
+		end)
 	end
 end
 
@@ -56,7 +60,7 @@ function SaveManager.List(): {string}
 		local ok, files = pcall(function() return listfiles(SaveManager.Folder) end)
 		if ok and files then
 			for _, file in ipairs(files) do
-				local name = file:match("([^/]+)%.json$")
+				local name = file:match("([^/\\]+)%.json$")
 				if name then table.insert(list, name) end
 			end
 		end
@@ -236,7 +240,7 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 		PaddingRight = UDim.new(0, 8),
 		Parent = overlay
 	})
-	local header = Create("TextLabel", {
+	Create("TextLabel", {
 		Text = "Keybinds",
 		Font = Fonts.Bold,
 		TextSize = 12,
@@ -255,9 +259,7 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 			dragStart = input.Position
 			startPos = overlay.Position
 			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
 			end)
 		end
 	end)
@@ -352,16 +354,22 @@ local function CreateElementFactory(parentContainer: Frame): any
 			Parent = bg
 		}) :: TextLabel
 		local barBg = Create("Frame", {
-			Size = UDim2.new(1, -20, 0, 4),
-			Position = UDim2.new(0, 10, 1, -12),
-			BackgroundColor3 = Colors.Stroke,
+			Size = UDim2.new(1, -20, 0, 20),
+			Position = UDim2.new(0, 10, 1, -20),
+			BackgroundTransparency = 1,
 			Parent = bg
 		}) :: Frame
-		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = barBg })
+		local visualBar = Create("Frame", {
+			Size = UDim2.new(1, 0, 0, 4),
+			Position = UDim2.new(0, 0, 0.5, -2),
+			BackgroundColor3 = Colors.Stroke,
+			Parent = barBg
+		}) :: Frame
+		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = visualBar })
 		local fill = Create("Frame", {
 			Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
 			BackgroundColor3 = Colors.Accent,
-			Parent = barBg
+			Parent = visualBar
 		}) :: Frame
 		Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = fill })
 		local dragging = false
@@ -525,6 +533,8 @@ local function CreateElementFactory(parentContainer: Frame): any
 	function api:AddDropdown(name: string, options: {string}, callback: Callback?, default: string?)
 		local selected = default or options[1] or ""
 		Library.Options[name] = { Value = selected }
+		local currentOptions = options
+		
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
@@ -538,7 +548,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 			Text = "",
 			Parent = bg
 		}) :: TextButton
-		Create("TextLabel", {
+		local displayLabel = Create("TextLabel", {
 			Text = name .. ": " .. selected,
 			Font = Fonts.Medium,
 			TextSize = 14,
@@ -548,7 +558,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 			Position = UDim2.fromOffset(10, 0),
 			Size = UDim2.new(1, -30, 1, 0),
 			Parent = bg
-		})
+		}) :: TextLabel
 		local arrow = Create("TextLabel", {
 			Text = "v",
 			Font = Fonts.Bold,
@@ -559,6 +569,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 			Size = UDim2.fromOffset(20, 35),
 			Parent = bg
 		}) :: TextLabel
+		
 		local listBg = Create("ScrollingFrame", {
 			Size = UDim2.new(1, 0, 0, 0),
 			Position = UDim2.new(0, 0, 1, 5),
@@ -569,7 +580,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollBarThickness = 2,
 			ScrollBarImageColor3 = Colors.Accent,
-			Parent = bg,
+			Parent = Library.DropdownOverlay,
 			ZIndex = 10
 		}) :: ScrollingFrame
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listBg })
@@ -598,33 +609,55 @@ local function CreateElementFactory(parentContainer: Frame): any
 				optBtn.MouseButton1Click:Connect(function()
 					selected = opt
 					Library.Options[name].Value = opt
-					bg:FindFirstChildOfClass("TextLabel").Text = name .. ": " .. opt
+					displayLabel.Text = name .. ": " .. opt
 					listBg.Visible = false
-					Tween(bg, { Size = UDim2.new(1, 0, 0, 35) })
+					Library.DropdownOverlay.Visible = false
+					Tween(arrow, { Rotation = 0 })
 					if callback then callback(opt) end
 				end)
 			end
 			listBg.CanvasSize = UDim2.new(0, 0, 0, listBg.UIListLayout.AbsoluteContentSize.Y + 10)
 		end
 
-		populate(options)
+		populate(currentOptions)
 
 		btn.MouseButton1Click:Connect(function()
-			local isVisible = not listBg.Visible
-			listBg.Visible = isVisible
-			Tween(bg, { Size = isVisible and UDim2.new(1, 0, 0, 35 + math.min(#options * 27 + 10, 150)) or UDim2.new(1, 0, 0, 35) })
-			Tween(arrow, { Rotation = isVisible and 180 or 0 })
+			if listBg.Visible then
+				listBg.Visible = false
+				Library.DropdownOverlay.Visible = false
+				Tween(arrow, { Rotation = 0 })
+			else
+				for _, otherList in ipairs(Library.DropdownOverlay:GetChildren()) do
+					if otherList:IsA("ScrollingFrame") then otherList.Visible = false end
+				end
+				
+				Library.DropdownOverlay.Visible = true
+				local absPos = bg.AbsolutePosition
+				local scale = Library.Main:FindFirstChildOfClass("UIScale").Scale
+				
+				listBg.Position = UDim2.fromOffset(absPos.X / scale, (absPos.Y + bg.AbsoluteSize.Y) / scale + 5)
+				listBg.Size = UDim2.new(0, bg.AbsoluteSize.X / scale, 0, math.min(#currentOptions * 27 + 10, 150))
+				listBg.Visible = true
+				Tween(arrow, { Rotation = 180 })
+			end
 		end)
 
 		Library.Options[name].Set = function(v: string)
 			selected = v
 			Library.Options[name].Value = v
-			bg:FindFirstChildOfClass("TextLabel").Text = name .. ": " .. v
+			displayLabel.Text = name .. ": " .. v
 		end
+		
 		Library.Options[name].Refresh = function(newOptions: {string})
-			options = newOptions
-			populate(options)
+			currentOptions = newOptions
+			populate(currentOptions)
+			if #currentOptions > 0 and not table.find(currentOptions, selected) then
+				selected = currentOptions[1]
+				Library.Options[name].Value = selected
+				displayLabel.Text = name .. ": " .. selected
+			end
 		end
+		
 		return Library.Options[name]
 	end
 
@@ -639,7 +672,27 @@ function Library.new(windowInfo: Options)
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = GetUIParent()
 	}) :: ScreenGui
+	
+	local dropdownOverlay = Create("TextButton", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Text = "",
+		Visible = false,
+		ZIndex = 50,
+		Parent = screenGui
+	}) :: TextButton
+	Create("UIScale", { Parent = dropdownOverlay })
+	Library.DropdownOverlay = dropdownOverlay
+	
+	dropdownOverlay.MouseButton1Click:Connect(function()
+		dropdownOverlay.Visible = false
+		for _, child in ipairs(dropdownOverlay:GetChildren()) do
+			if child:IsA("ScrollingFrame") then child.Visible = false end
+		end
+	end)
+
 	CreateKeybindOverlay(screenGui)
+	
 	local main = Create("Frame", {
 		Name = GenerateRandomString(8),
 		Size = UDim2.fromOffset(650, 450),
@@ -649,9 +702,12 @@ function Library.new(windowInfo: Options)
 		BorderSizePixel = 0,
 		Parent = screenGui
 	}) :: Frame
+	Library.Main = main
+	
 	Create("UIScale", { Parent = main })
 	Create("UICorner", { CornerRadius = UDim.new(0, 12), Parent = main })
 	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = main })
+	
 	local topBar = Create("Frame", {
 		Name = "TopBar",
 		Size = UDim2.new(1, 0, 0, 40),
@@ -744,6 +800,7 @@ function Library.new(windowInfo: Options)
 		main.Visible = true
 		toggleBtn.Visible = false
 	end)
+	
 	local sidebar = Create("Frame", {
 		Name = "Sidebar",
 		Size = UDim2.new(0, 150, 1, -40),
@@ -801,6 +858,10 @@ function Library.new(windowInfo: Options)
 			if keybindOverlay then
 				local kbScale = keybindOverlay:FindFirstChildOfClass("UIScale")
 				if kbScale then kbScale.Scale = factor end
+			end
+			if Library.DropdownOverlay then
+				local ddScale = Library.DropdownOverlay:FindFirstChildOfClass("UIScale")
+				if ddScale then ddScale.Scale = factor end
 			end
 		end
 	end
