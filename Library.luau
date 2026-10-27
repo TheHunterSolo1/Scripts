@@ -277,7 +277,7 @@ local function CreateKeybindOverlay(screenGui: ScreenGui)
 	end)
 end
 
-local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui): any
+local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui, main: Frame): any
 	local api = {}
 
 	function api:AddToggle(name: string, callback: Callback?, default: boolean?)
@@ -577,7 +577,7 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		}) :: TextLabel
 		
 		local listBg = Create("ScrollingFrame", {
-			Size = UDim2.new(0, bg.AbsoluteSize.X, 0, 0),
+			Size = UDim2.new(0, 0, 0, 0),
 			Position = UDim2.fromOffset(0, 0),
 			BackgroundColor3 = Colors.Background,
 			BorderSizePixel = 0,
@@ -589,14 +589,15 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Parent = screenGui,
 			ZIndex = 100
 		}) :: ScrollingFrame
-		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listBg })
+		Create("UIScale", { Parent = listBg })
+Children())		Create("UICorner do", { CornerRadius = UDim.new(0
+			, 6), Parent = listBg })
 		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = listBg })
 		Create("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listBg })
 		Create("UIPadding", { PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = listBg })
 
 		local function populate(opts: {string})
-			for _, child in ipairs(listBg:GetChildren()) do
-				if child:IsA("TextButton") then child:Destroy() end
+			for _, child in ipairs(listBg:Get	if child:IsA("TextButton") then child:Destroy() end
 			end
 			for i, opt in ipairs(opts) do
 				local optBtn = Create("TextButton", {
@@ -639,9 +640,13 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 				
 				local absPos = bg.AbsolutePosition
 				local absSize = bg.AbsoluteSize
+				local scaleFactor = main:FindFirstChildOfClass("UIScale").Scale
+				
+				local listScale = listBg:FindFirstChildOfClass("UIScale")
+				if listScale then listScale.Scale = scaleFactor end
 				
 				listBg.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y + 5)
-				listBg.Size = UDim2.new(0, absSize.X, 0, math.min(#currentOptions * 27 + 10, 150))
+				listBg.Size = UDim2.new(0, absSize.X / scaleFactor, 0, math.min(#currentOptions * 27 + 10, 150))
 				listBg.Visible = true
 				Tween(arrow, { Rotation = 180 })
 			end
@@ -708,13 +713,13 @@ function Library.new(windowInfo: Options)
 		Parent = main
 	}) :: Frame
 	
-	local icon = Create("ImageLabel", {
+	Create("ImageLabel", {
 		Image = windowInfo.Icon or "",
 		Size = UDim2.fromOffset(24, 24),
 		Position = UDim2.fromOffset(20, 8),
 		BackgroundTransparency = 1,
 		Parent = topBar
-	}) :: ImageLabel
+	})
 	
 	Create("TextLabel", {
 		Text = windowInfo.Title or "Example Hub",
@@ -805,9 +810,11 @@ function Library.new(windowInfo: Options)
 		toggleBtn.Visible = false
 	end)
 	
+	local footerOffset = windowInfo.Footer and -65 or -40
+	
 	local sidebar = Create("Frame", {
 		Name = "Sidebar",
-		Size = UDim2.new(0, 150, 1, -40),
+		Size = UDim2.new(0, 150, 1, footerOffset),
 		Position = UDim2.fromOffset(0, 40),
 		BackgroundColor3 = Colors.Sidebar,
 		BorderSizePixel = 0,
@@ -815,11 +822,31 @@ function Library.new(windowInfo: Options)
 	}) :: Frame
 	local tabContainer = Create("Frame", {
 		Name = "TabContainer",
-		Size = UDim2.new(1, -150, 1, -40),
+		Size = UDim2.new(1, -150, 1, footerOffset),
 		Position = UDim2.fromOffset(150, 40),
 		BackgroundTransparency = 1,
 		Parent = main
 	}) :: Frame
+	
+	if windowInfo.Footer then
+		local footer = Create("Frame", {
+			Name = "Footer",
+			Size = UDim2.new(1, 0, 0, 25),
+			Position = UDim2.new(0, 0, 1, -25),
+			BackgroundTransparency = 1,
+			Parent = main
+		}) :: Frame
+		Create("TextLabel", {
+			Text = windowInfo.Footer,
+			Font = Fonts.Medium,
+			TextSize = 12,
+			TextColor3 = Colors.SubText,
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			Parent = footer
+		})
+	end
 	
 	local dragging, dragInput, dragStart, startPos
 	topBar.InputBegan:Connect(function(input)
@@ -828,6 +855,11 @@ function Library.new(windowInfo: Options)
 			dragging = true
 			dragStart = input.Position
 			startPos = main.Position
+			for _, child in ipairs(screenGui:GetChildren()) do
+				if child:IsA("ScrollingFrame") and child.ZIndex == 100 then
+					child.Visible = false
+				end
+			end
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then dragging = false end
 			end)
@@ -841,7 +873,9 @@ function Library.new(windowInfo: Options)
 	UserInputService.InputChanged:Connect(function(input)
 		if input == dragInput and dragging and not locked then
 			local delta = input.Position - dragStart
-			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			local scale = main:FindFirstChildOfClass("UIScale")
+			local s = scale and scale.Scale or 1
+			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + (delta.X / s), startPos.Y.Scale, startPos.Y.Offset + (delta.Y / s))
 		end
 	end)
 	
@@ -975,7 +1009,7 @@ function Library:CreateTab(tabInfo: Options)
 	end
 	tabButton.MouseButton1Click:Connect(select)
 	if #self.Tabs == 1 then select() end
-	local api = CreateElementFactory(leftCol, self.ScreenGui)
+	local api = CreateElementFactory(leftCol, self.ScreenGui, self.Main)
 	function api:AddGroupbox(name: string, side: string?)
 		local column = (side == "Right") and rightCol or leftCol
 		local gb = Create("Frame", {
@@ -1020,7 +1054,7 @@ function Library:CreateTab(tabInfo: Options)
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Parent = content
 		})
-		return CreateElementFactory(content, self.ScreenGui)
+		return CreateElementFactory(content, self.ScreenGui, self.Main)
 	end
 	return api
 end
