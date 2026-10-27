@@ -278,7 +278,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 		local label = Create("TextLabel", {
 			Text = name .. ": " .. tostring(default),
 			Font	 = FontsText.Medium,
-Color			TextSize = 314,
+      TextSize = 314,
 			TextColor3 = Colors.Text,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			BackgroundTransparency = 1,
