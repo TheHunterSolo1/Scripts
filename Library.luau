@@ -269,7 +269,7 @@ local function CreateElementFactory(parentContainer: Frame): any
 		default = default or min
 		Library.Options[name] = { Value = default }
 		local bg = Create("Frame", {
-			Size = UDim2.new(1, 0,,
+			Size = UDim2.new(1, 0,
  0, 45),
 			BackgroundColor3 =		 Colors.Element,
 			Parent = parentContainer
