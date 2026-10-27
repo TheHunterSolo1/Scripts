@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local Colors = {
 	Background = Color3.fromRGB(15, 17, 23),
@@ -33,7 +34,6 @@ Library.KeybindsShown = false
 
 local keybindRegistry = {}
 local keybindOverlay = nil
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local SaveManager = {}
 
@@ -758,21 +758,24 @@ function Library.new(windowInfo)
 		Parent = topBar
 	})
 	
-	local toggleBtn = Create("TextButton", {
-		Name = "ToggleUI",
-		Text = "Toggle UI",
-		Font = Fonts.Bold,
-		TextSize = 13,
-		TextColor3 = Colors.Text,
-		BackgroundColor3 = Colors.Background,
-		Position = UDim2.fromOffset(20, 20),
-		Size = UDim2.fromOffset(100, 30),
-		Visible = false,
-		Parent = screenGui
-	})
-	Create("UIScale", { Parent = toggleBtn })
-	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = toggleBtn })
-	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = toggleBtn })
+	local toggleBtn = nil
+	if isMobile then
+		toggleBtn = Create("TextButton", {
+			Name = "ToggleUI",
+			Text = "Toggle UI",
+			Font = Fonts.Bold,
+			TextSize = 13,
+			TextColor3 = Colors.Text,
+			BackgroundColor3 = Colors.Background,
+			Position = UDim2.fromOffset(20, 60),
+			Size = UDim2.fromOffset(100, 30),
+			Visible = false,
+			Parent = screenGui
+		})
+		Create("UIScale", { Parent = toggleBtn })
+		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = toggleBtn })
+		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = toggleBtn })
+	end
 	
 	local locked = false
 	local function updateKeybindBtn()
@@ -796,12 +799,14 @@ function Library.new(windowInfo)
 	closeBtn.MouseLeave:Connect(function() Tween(closeBtn, { TextColor3 = Colors.SubText }) end)
 	closeBtn.MouseButton1Click:Connect(function()
 		main.Visible = false
-		toggleBtn.Visible = true
+		if toggleBtn then toggleBtn.Visible = true end
 	end)
-	toggleBtn.MouseButton1Click:Connect(function()
-		main.Visible = true
-		toggleBtn.Visible = false
-	end)
+	if toggleBtn then
+		toggleBtn.MouseButton1Click:Connect(function()
+			main.Visible = true
+			toggleBtn.Visible = false
+		end)
+	end
 	
 	local footerOffset = windowInfo.Footer and -65 or -40
 	
@@ -901,10 +906,12 @@ function Library.new(windowInfo)
 			local mainScale = main:FindFirstChildOfClass("UIScale")
 			if mainScale then mainScale.Scale = factor end
 			
-			local toggleScale = toggleBtn:FindFirstChildOfClass("UIScale")
-			if toggleScale then 
-				toggleScale.Scale = factor 
-				toggleBtn.Position = UDim2.fromOffset(20 / factor, 20 / factor)
+			if toggleBtn then
+				local toggleScale = toggleBtn:FindFirstChildOfClass("UIScale")
+				if toggleScale then 
+					toggleScale.Scale = factor 
+					toggleBtn.Position = UDim2.fromOffset(20 / factor, 60 / factor)
+				end
 			end
 			
 			if keybindOverlay then
@@ -918,6 +925,13 @@ function Library.new(windowInfo)
 	end
 
 	updateKeybindBtn()
+	
+	if isMobile then
+		Library:SetDPI("75%")
+	else
+		Library:SetDPI("100%")
+	end
+	
 	self.TabContainer = tabContainer
 	self.Sidebar = sidebar
 	self.CurrentTab = nil
