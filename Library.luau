@@ -356,15 +356,15 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		}) :: TextLabel
 		
 		local hitbox = Create("Frame", {
-			Size = UDim2.new(1, -20, 0, 24),
-			Position = UDim2.new(0, 10, 1, -28),
+			Size = UDim2.new(1, 0, 0, 30),
+			Position = UDim2.new(0, 0, 1, -30),
 			BackgroundTransparency = 1,
 			Parent = bg
 		}) :: Frame
 		
 		local visualBar = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 4),
-			Position = UDim2.new(0, 0, 0.5, -2),
+			Size = UDim2.new(1, -20, 0, 4),
+			Position = UDim2.new(0, 10, 0.5, -2),
 			BackgroundColor3 = Colors.Stroke,
 			Parent = hitbox
 		}) :: Frame
@@ -378,8 +378,8 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 		
 		local dragging = false
 		local function update(input: InputObject)
-			local barPos = hitbox.AbsolutePosition.X
-			local barSize = hitbox.AbsoluteSize.X
+			local barPos = visualBar.AbsolutePosition.X
+			local barSize = visualBar.AbsoluteSize.X
 			local relative = math.clamp((input.Position.X - barPos) / barSize, 0, 1)
 			local v = math.floor(min + (max - min) * relative + 0.5)
 			Library.Options[name].Value = v
@@ -589,15 +589,14 @@ local function CreateElementFactory(parentContainer: Frame, screenGui: ScreenGui
 			Parent = screenGui,
 			ZIndex = 100
 		}) :: ScrollingFrame
-		Create("UIScale", { Parent = listBg })
-Children())		Create("UICorner do", { CornerRadius = UDim.new(0
-			, 6), Parent = listBg })
+		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listBg })
 		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = listBg })
 		Create("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listBg })
 		Create("UIPadding", { PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = listBg })
 
 		local function populate(opts: {string})
-			for _, child in ipairs(listBg:Get	if child:IsA("TextButton") then child:Destroy() end
+			for _, child in ipairs(listBg:GetChildren()) do
+				if child:IsA("TextButton") then child:Destroy() end
 			end
 			for i, opt in ipairs(opts) do
 				local optBtn = Create("TextButton", {
@@ -640,13 +639,9 @@ Children())		Create("UICorner do", { CornerRadius = UDim.new(0
 				
 				local absPos = bg.AbsolutePosition
 				local absSize = bg.AbsoluteSize
-				local scaleFactor = main:FindFirstChildOfClass("UIScale").Scale
-				
-				local listScale = listBg:FindFirstChildOfClass("UIScale")
-				if listScale then listScale.Scale = scaleFactor end
 				
 				listBg.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y + 5)
-				listBg.Size = UDim2.new(0, absSize.X / scaleFactor, 0, math.min(#currentOptions * 27 + 10, 150))
+				listBg.Size = UDim2.fromOffset(absSize.X, math.min(#currentOptions * 27 + 10, 150))
 				listBg.Visible = true
 				Tween(arrow, { Rotation = 180 })
 			end
@@ -728,7 +723,7 @@ function Library.new(windowInfo: Options)
 		TextColor3 = Colors.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(windowInfo.Icon and 52 or 20, 0),
+		Position = UDim2.fromOffset(windowInfo.Icon and windowInfo.Icon ~= "" and 52 or 20, 0),
 		Size = UDim2.new(1, -160, 1, 0),
 		Parent = topBar
 	})
@@ -767,6 +762,7 @@ function Library.new(windowInfo: Options)
 	}) :: TextButton
 	
 	local toggleBtn = Create("TextButton", {
+		Name = "ToggleUI",
 		Text = "Toggle UI",
 		Font = Fonts.Bold,
 		TextSize = 13,
@@ -907,11 +903,19 @@ function Library.new(windowInfo: Options)
 			local factor = math.clamp(num / 100, 0.25, 2.0)
 			local mainScale = main:FindFirstChildOfClass("UIScale")
 			if mainScale then mainScale.Scale = factor end
+			
 			local toggleScale = toggleBtn:FindFirstChildOfClass("UIScale")
-			if toggleScale then toggleScale.Scale = factor end
+			if toggleScale then 
+				toggleScale.Scale = factor 
+				toggleBtn.Position = UDim2.fromOffset(20 / factor, 20 / factor)
+			end
+			
 			if keybindOverlay then
 				local kbScale = keybindOverlay:FindFirstChildOfClass("UIScale")
-				if kbScale then kbScale.Scale = factor end
+				if kbScale then 
+					kbScale.Scale = factor
+					keybindOverlay.Position = UDim2.new(0, 20 / factor, 0.5, 0)
+				end
 			end
 		end
 	end
