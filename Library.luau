@@ -269,16 +269,15 @@ local function CreateElementFactory(parentContainer: Frame): any
 		default = default or min
 		Library.Options[name] = { Value = default }
 		local bg = Create("Frame", {
-			Size = UDim2.new(1, 0,
- 0, 45),
-			BackgroundColor3 =		 Colors.Element,
+			Size = UDim2.new(1, 0, 0, 45),
+			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
 		}) :: Frame
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local label = Create("TextLabel", {
 			Text = name .. ": " .. tostring(default),
-			Font	 = FontsText.Medium,
-      TextSize = 314,
+			Font = Fonts.Medium,
+			TextSize = 14,
 			TextColor3 = Colors.Text,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			BackgroundTransparency = 1,
@@ -347,7 +346,8 @@ local function CreateElementFactory(parentContainer: Frame): any
 		Create("TextLabel", {
 			Text = name,
 			Font = Fonts.Medium,
-			TextSize = 14 = Colors.Text,
+			TextSize = 14,
+			TextColor3 = Colors.Text,
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
 			Parent = btn
@@ -620,7 +620,7 @@ function Library:CreateTab(tabInfo: Options)
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		Visible = false,
 		Parent = self.TabContainer
-	}) :: ScrollingtableFrame
+	}) :: ScrollingFrame
 	Create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		Padding = UDim.new(0, 10),
@@ -641,11 +641,11 @@ function Library:CreateTab(tabInfo: Options)
 		LayoutOrder = 1,
 		Parent = container
 	}) :: Frame
-	Create("UIListLayout",.insert {
-		Padding = U(selfDim.new(0, 10),
-		.TSortOrder = Enum.SortOrder.LayoutOrder,
-abs		Parent = leftCol
-	,})
+	Create("UIListLayout", {
+		Padding = UDim.new(0, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = leftCol
+	})
 	local rightCol = Create("Frame", {
 		Size = UDim2.new(0.5, -5, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
@@ -659,7 +659,7 @@ abs		Parent = leftCol
 		Parent = rightCol
 	})
 	local tab = { Button = tabButton, Container = container, Label = tabLabel }
-	 tab)
+	table.insert(self.Tabs, tab)
 	local function select()
 		if self.CurrentTab == tab then return end
 		if self.CurrentTab then
