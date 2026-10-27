@@ -3,6 +3,7 @@
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -35,10 +36,65 @@ Library.Toggles = {}
 Library.Options = {}
 Library.KeybindsShown = false
 
-local keybindRegistry: {[string]: {Name: string, KeyCode: Enum.KeyCode, Callback: Callback?, Listening: boolean}} = {}
-local keybindTabLabels: {[string]: TextButton} = {}
+local keybindRegistry: {[string]: {Name: string, KeyCode: Enum.KeyCode, Callback: Callback?}} = {}
 local keybindOverlay: Frame? = nil
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local SaveManager = {}
+SaveManager.Folder = "HunterHub/Configs"
+
+local function EnsureFolder()
+	if makefolder and not isfolder(SaveManager.Folder) then
+		makefolder(SaveManager.Folder)
+	end
+end
+
+function SaveManager.Save(name: string): boolean
+	if not writefile then return false end
+	EnsureFolder()
+	local data = { Toggles = {}, Options = {} }
+	for k, v in pairs(Library.Toggles) do
+		data.Toggles[k] = v.Value
+	end
+	for k, v in pairs(Library.Options) do
+		data.Options[k] = v.Value
+	end
+	local ok, encoded = pcall(function()
+		return HttpService:JSONEncode(data)
+	end)
+	if not ok then return false end
+	local success = pcall(function()
+		writefile(SaveManager.Folder .. "/" .. name .. ".json", encoded)
+	end)
+	return success
+end
+
+function SaveManager.Load(name: string): boolean
+	if not readfile or not isfile then return false end
+	local path = SaveManager.Folder .. "/" .. name .. ".json"
+	if not isfile(path) then return false end
+	local ok, data = pcall(function()
+		return HttpService:JSONDecode(readfile(path))
+	end)
+	if not ok or not data then return false end
+	if data.Toggles then
+		for k, v in pairs(data.Toggles) do
+			if Library.Toggles[k] and Library.Toggles[k].Set then
+				Library.Toggles[k].Set(v)
+			end
+		end
+	end
+	if data.Options then
+		for k, v in pairs(data.Options) do
+			if Library.Options[k] and Library.Options[k].Set then
+				Library.Options[k].Set(v)
+			end
+		end
+	end
+	return true
+end
+
+Library.SaveManager = SaveManager
 
 local function GenerateRandomString(length: number): string
 	local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -133,32 +189,12 @@ local function RegisterKeybind(name: string, keyCode: Enum.KeyCode, callback: Ca
 	keybindRegistry[name] = {
 		Name = name,
 		KeyCode = keyCode,
-		Callback = callback,
-		Listening = false
+		Callback = callback
 	}
 	if keybindOverlay then RefreshKeybindOverlay() end
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	for name, entry in pairs(keybindRegistry) do
-		if entry.Listening then
-			entry.Listening = false
-			if input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode ~= Enum.KeyCode.Escape then
-				entry.KeyCode = input.KeyCode
-				if keybindTabLabels[name] then
-					keybindTabLabels[name].Text = GetKeyName(input.KeyCode)
-					keybindTabLabels[name].TextColor3 = Colors.Accent
-				end
-				RefreshKeybindOverlay()
-			else
-				if keybindTabLabels[name] then
-					keybindTabLabels[name].Text = GetKeyName(entry.KeyCode)
-					keybindTabLabels[name].TextColor3 = Colors.Accent
-				end
-			end
-			return
-		end
-	end
 	if gameProcessed then return end
 	for _, entry in pairs(keybindRegistry) do
 		if entry.KeyCode == input.KeyCode and entry.Callback then
@@ -389,21 +425,10 @@ local function CreateElementFactory(parentContainer: Frame): any
 			Parent = bg
 		}) :: TextButton
 		Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = keyBtn })
-		keybindTabLabels[name] = keyBtn
-		if isMobile then
-			keyBtn.MouseButton1Click:Connect(function()
-				local entry = keybindRegistry[name]
-				if entry.Callback then entry.Callback() end
-			end)
-		else
-			keyBtn.MouseButton1Click:Connect(function()
-				local entry = keybindRegistry[name]
-				if not entry then return end
-				entry.Listening = true
-				keyBtn.Text = "..."
-				keyBtn.TextColor3 = Colors.Success
-			end)
-		end
+		keyBtn.MouseButton1Click:Connect(function()
+			local entry = keybindRegistry[name]
+			if entry.Callback then entry.Callback() end
+		end)
 	end
 
 	function api:AddLabel(text: string)
@@ -514,6 +539,19 @@ function Library.new(windowInfo: Options)
 		Size = UDim2.fromOffset(40, 40),
 		Parent = topBar
 	}) :: TextButton
+	local toggleBtn = Create("TextButton", {
+		Text = "Toggle UI",
+		Font = Fonts.Bold,
+		TextSize = 13,
+		TextColor3 = Colors.Text,
+		BackgroundColor3 = Colors.Background,
+		Position = UDim2.fromOffset(20, 20),
+		Size = UDim2.fromOffset(100, 30),
+		Visible = false,
+		Parent = screenGui
+	}) :: TextButton
+	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = toggleBtn })
+	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = toggleBtn })
 	local locked = false
 	local function updateKeybindBtn()
 		if keybindOverlay then keybindOverlay.Visible = Library.KeybindsShown end
@@ -537,9 +575,12 @@ function Library.new(windowInfo: Options)
 	closeBtn.MouseEnter:Connect(function() Tween(closeBtn, { TextColor3 = Colors.Danger }) end)
 	closeBtn.MouseLeave:Connect(function() Tween(closeBtn, { TextColor3 = Colors.SubText }) end)
 	closeBtn.MouseButton1Click:Connect(function()
-		for name in pairs(keybindRegistry) do keybindRegistry[name] = nil end
-		for name in pairs(keybindTabLabels) do keybindTabLabels[name] = nil end
-		screenGui:Destroy()
+		main.Visible = false
+		toggleBtn.Visible = true
+	end)
+	toggleBtn.MouseButton1Click:Connect(function()
+		main.Visible = true
+		toggleBtn.Visible = false
 	end)
 	local sidebar = Create("Frame", {
 		Name = "Sidebar",
