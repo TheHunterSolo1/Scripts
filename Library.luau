@@ -1265,7 +1265,7 @@ local function CreateElementFactory(self, parentContainer)
 			local relX = (absPos.X  - mainAbs.X) / scale
 			local relY = (dropY     - mainAbs.Y) / scale
 
-			listBg.P Color3.fromosition = UDim2.fromOffset(relX, relY)
+			listBg.Position = UDim2.fromOffset(relX, relY)
 			listBg.Size     = UDim2.fromOffset(absSize.X / scale, listVisualH / scale)
 			listBg.Visible  = true
 			Tween(arrow, { Rotation = 180 }):Play()
@@ -1318,7 +1318,7 @@ local function CreateElementFactory(self, parentContainer)
 	end
 
 	function api:AddColorPicker(name, callback, default)
-		default = default orRGB(255, 255, 255)
+		default = default or Color3.fromRGB(255, 255, 255)
 		self.Options[name] = { Value = default }
 
 		local bg = Create("Frame", {
