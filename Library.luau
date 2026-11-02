@@ -474,7 +474,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			BackgroundTransparency = 1,
 			Parent = parentContainer
 		})
-		Create("TextLabel", {
+		return Create("TextLabel", {
 			Text = text,
 			Font = Fonts.Regular,
 			TextSize = 13,
@@ -1072,6 +1072,12 @@ function Library:CreateTab(tabInfo)
 		return CreateElementFactory(content, self.ScreenGui, self.Main)
 	end
 	return api
+end
+
+function Library:ChangeLabelText(label, newText)
+	if typeof(label) == "Instance" and label:IsA("TextLabel") then
+		label.Text = newText
+	end
 end
 
 function Library:Destroy()
