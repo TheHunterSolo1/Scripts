@@ -275,12 +275,15 @@ end
 local function CreateElementFactory(parentContainer, screenGui, main)
 	local api = {}
 
-	function api:AddToggle(name, callback, default)
+	function api:AddToggle(name, callback, default, tooltip)
 		local value = default or false
+		if type(tooltip) == "table" then tooltip = tooltip.Tooltip end
 		Library.Toggles[name] = { Value = value }
 		local bg = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 35),
+			Size = UDim2.new(1, 0, 0, tooltip and 0 or 35),
+			AutomaticSize = tooltip and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
 			BackgroundColor3 = Colors.Element,
+			ClipsDescendants = true,
 			Parent = parentContainer
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
@@ -292,12 +295,28 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			TextXAlignment = Enum.TextXAlignment.Left,
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(10, 0),
-			Size = UDim2.new(1, -60, 1, 0),
+			Size = UDim2.new(1, -60, 0, 35),
 			Parent = bg
 		})
+		if tooltip and tooltip ~= "" then
+			Create("TextLabel", {
+				Text = tostring(tooltip),
+				Font = Fonts.Regular,
+				TextSize = 12,
+				TextColor3 = Colors.SubText,
+				TextWrapped = true,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(10, 35),
+				Size = UDim2.new(1, -20, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Parent = bg
+			})
+		end
 		local switchBg = Create("Frame", {
 			Size = UDim2.fromOffset(36, 20),
-			Position = UDim2.new(1, -46, 0.5, -10),
+			Position = UDim2.new(1, -46, 0, 7),
 			BackgroundColor3 = value and Colors.Accent or Colors.Stroke,
 			Parent = bg
 		})
@@ -470,7 +489,8 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 
 	function api:AddLabel(text)
 		local bg = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 24),
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
 			Parent = parentContainer
 		})
@@ -481,8 +501,10 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			TextColor3 = Colors.SubText,
 			TextWrapped = true,
 			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
 			BackgroundTransparency = 1,
-			Size = UDim2.fromScale(1, 1),
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
 			Parent = bg
 		})
 	end
