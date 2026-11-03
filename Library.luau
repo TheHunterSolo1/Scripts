@@ -847,6 +847,81 @@ function Library.new(windowInfo)
 		BackgroundTransparency = 1,
 		Parent = main
 	})
+
+	local profile = Create("Frame", {
+		Name = "LocalPlayerProfile",
+		Size = UDim2.new(1, -16, 0, 94),
+		Position = UDim2.new(0, 8, 1, -102),
+		BackgroundColor3 = Colors.Element,
+		BorderSizePixel = 0,
+		Parent = sidebar
+	})
+	Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = profile })
+	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = profile })
+
+	local avatarImage = Create("ImageLabel", {
+		Name = "Avatar",
+		Size = UDim2.fromOffset(38, 38),
+		Position = UDim2.fromOffset(8, 9),
+		BackgroundColor3 = Colors.Stroke,
+		BorderSizePixel = 0,
+		ScaleType = Enum.ScaleType.Crop,
+		Parent = profile
+	})
+	Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = avatarImage })
+
+	local thumbnailSuccess, thumbnail = pcall(function()
+		return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+	end)
+	if thumbnailSuccess and type(thumbnail) == "string" and thumbnail ~= "" then
+		avatarImage.Image = thumbnail
+	end
+
+	local profileUsername = Create("TextLabel", {
+		Name = "Username",
+		Text = "Username: " .. LocalPlayer.Name .. " [" .. LocalPlayer.DisplayName .. "]",
+		Font = Fonts.Medium,
+		TextSize = 9,
+		TextColor3 = Colors.Text,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(52, 5),
+		Size = UDim2.new(1, -58, 0, 43),
+		Parent = profile
+	})
+	Create("TextLabel", {
+		Name = "UserId",
+		Text = "UserId: " .. LocalPlayer.UserId,
+		Font = Fonts.Regular,
+		TextSize = 9,
+		TextColor3 = Colors.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(8, 53),
+		Size = UDim2.new(1, -16, 0, 14),
+		Parent = profile
+	})
+	local gameInfoSuccess, gameInfo = pcall(function()
+		return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+	end)
+	local gameName = gameInfoSuccess and gameInfo and gameInfo.Name or "Unknown"
+
+	Create("TextLabel", {
+		Name = "Game",
+		Text = "Game: " .. gameName,
+		Font = Fonts.Regular,
+		TextSize = 9,
+		TextColor3 = Colors.SubText,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(8, 69),
+		Size = UDim2.new(1, -16, 0, 21),
+		Parent = profile
+	})
 	
 	if windowInfo.Footer then
 		local footer = Create("Frame", {
