@@ -31,6 +31,8 @@ Library.__index = Library
 Library.Toggles = {}
 Library.Options = {}
 Library.KeybindsShown = false
+Library.NotifySide = "Right"
+Library.Notifications = {}
 
 local keybindRegistry = {}
 local keybindOverlay = nil
@@ -160,7 +162,7 @@ local function RefreshKeybindOverlay()
 	for name, entry in pairs(keybindRegistry) do
 		local row = Create("TextButton", {
 			Size = UDim2.new(1, 0, 0, 26),
-			BackgroundColor3 = Colors.Element,
+			BackgroundColor3 = entry.Active and Colors.Accent or Colors.Background,
 			Text = "",
 			AutoButtonColor = false,
 			Parent = keybindOverlay
@@ -189,13 +191,15 @@ local function RefreshKeybindOverlay()
 			Parent = row
 		})
 		row.MouseButton1Click:Connect(function()
+			entry.Active = not entry.Active
+			Tween(row, { BackgroundColor3 = entry.Active and Colors.Accent or Colors.Background })
 			if entry.Callback then entry.Callback() end
 		end)
 	end
 end
 
 local function RegisterKeybind(name, keyCode, callback)
-	keybindRegistry[name] = { Name = name, KeyCode = keyCode, Callback = callback }
+	keybindRegistry[name] = { Name = name, KeyCode = keyCode, Callback = callback, Active = false }
 	if keybindOverlay then RefreshKeybindOverlay() end
 end
 
@@ -203,7 +207,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	for _, entry in pairs(keybindRegistry) do
 		if entry.KeyCode == input.KeyCode and entry.Callback then
+			entry.Active = not entry.Active
 			entry.Callback()
+			RefreshKeybindOverlay()
 		end
 	end
 end)
@@ -1013,11 +1019,12 @@ function Library.new(windowInfo)
 			
 			if keybindOverlay then
 				local kbScale = keybindOverlay:FindFirstChildOfClass("UIScale")
-				if kbScale then 
+				if kbScale then
 					kbScale.Scale = factor
 					keybindOverlay.Position = UDim2.new(0, 20 / factor, 0.5, 0)
 				end
 			end
+			if self.NotificationScale then self.NotificationScale.Scale = factor end
 		end
 	end
 
@@ -1029,6 +1036,27 @@ function Library.new(windowInfo)
 		Library:SetDPI("100%")
 	end
 	
+	local notificationHolder = Create("Frame", {
+		Name = "Notifications",
+		Size = UDim2.fromOffset(320, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Position = UDim2.new(1, -16, 0, 16),
+		AnchorPoint = Vector2.new(1, 0),
+		BackgroundTransparency = 1,
+		ZIndex = 200,
+		Parent = screenGui
+	})
+	local notificationScale = Create("UIScale", { Parent = notificationHolder })
+	local notificationLayout = Create("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		Parent = notificationHolder
+	})
+	self.NotificationHolder = notificationHolder
+	self.NotificationScale = notificationScale
+	self.NotificationLayout = notificationLayout
+
 	self.TabContainer = tabContainer
 	self.Sidebar = sidebar
 	self.CurrentTab = nil
@@ -1171,6 +1199,113 @@ function Library:CreateTab(tabInfo)
 	return api
 end
 
+function Library:Notify(title, description, duration)
+	if not self.NotificationHolder or not self.NotificationHolder.Parent then return end
+	duration = type(duration) == "number" and math.max(duration, 0.1) or 5
+
+	local holder = self.NotificationHolder
+	local side = self.NotifySide == "Left" and "Left" or "Right"
+	holder.AnchorPoint = Vector2.new(side == "Right" and 1 or 0, 0)
+	holder.Position = UDim2.new(side == "Right" and 1 or 0, side == "Right" and -16 or 16, 0, 16)
+	self.NotificationLayout.HorizontalAlignment = side == "Right" and Enum.HorizontalAlignment.Right or Enum.HorizontalAlignment.Left
+
+	local notification = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		BackgroundColor3 = Colors.Background,
+		BackgroundTransparency = 0.05,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		ZIndex = 201,
+		Parent = holder
+	})
+	Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = notification })
+	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = notification })
+
+	local content = Create("Frame", {
+		Size = UDim2.new(1, 0, 1, -4),
+		Position = UDim2.fromOffset(0, -10),
+		BackgroundTransparency = 1,
+		ZIndex = 202,
+		Parent = notification
+	})
+	Create("TextLabel", {
+		Text = tostring(title or "Notification"),
+		Font = Fonts.Bold,
+		TextSize = 14,
+		TextColor3 = Colors.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(12, 9),
+		Size = UDim2.new(1, -24, 0, 20),
+		ZIndex = 203,
+		Parent = content
+	})
+	Create("TextLabel", {
+		Text = tostring(description or ""),
+		Font = Fonts.Regular,
+		TextSize = 12,
+		TextColor3 = Colors.SubText,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(12, 32),
+		Size = UDim2.new(1, -24, 0, 30),
+		ZIndex = 203,
+		Parent = content
+	})
+
+	local progress = Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 3),
+		Position = UDim2.new(0, 0, 1, -3),
+		BackgroundColor3 = Colors.Accent,
+		BorderSizePixel = 0,
+		ZIndex = 204,
+		Parent = notification
+	})
+	local clickArea = Create("TextButton", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = 205,
+		Parent = notification
+	})
+
+	local dismissed = false
+	local function dismiss()
+		if dismissed then return end
+		dismissed = true
+		local exitTween = TweenService:Create(notification, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Size = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1
+		})
+		TweenService:Create(content, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.fromOffset(0, -18)
+		}):Play()
+		exitTween:Play()
+		exitTween.Completed:Once(function()
+			notification:Destroy()
+			for index, activeNotification in ipairs(self.Notifications) do
+				if activeNotification == notification then
+					table.remove(self.Notifications, index)
+					break
+				end
+			end
+		end)
+	end
+
+	table.insert(self.Notifications, notification)
+	clickArea.MouseButton1Click:Connect(dismiss)
+	Tween(notification, { Size = UDim2.new(1, 0, 0, 76) })
+	Tween(content, { Position = UDim2.fromOffset(0, 0) })
+	TweenService:Create(progress, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+		Size = UDim2.new(0, 0, 0, 3)
+	}):Play()
+	task.delay(duration, dismiss)
+	return notification
+end
+
 function Library:ChangeLabelText(label, newText)
 	if typeof(label) == "Instance" and label:IsA("TextLabel") then
 		label.Text = newText
@@ -1178,7 +1313,11 @@ function Library:ChangeLabelText(label, newText)
 end
 
 function Library:Destroy()
-	self.ScreenGui:Destroy()
+	for _, notification in ipairs(self.Notifications or {}) do
+		if notification and notification.Parent then notification:Destroy() end
+	end
+	table.clear(self.Notifications or {})
+	if self.ScreenGui then self.ScreenGui:Destroy() end
 end
 
 return Library
