@@ -2,6 +2,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -162,7 +163,7 @@ local function RefreshKeybindOverlay()
 	for name, entry in pairs(keybindRegistry) do
 		local row = Create("TextButton", {
 			Size = UDim2.new(1, 0, 0, 26),
-			BackgroundColor3 = entry.Active and Colors.Accent or Colors.Background,
+			BackgroundColor3 = (entry.Toggle and entry.Toggle.Value or entry.Active) and Colors.Accent or Colors.Background,
 			Text = "",
 			AutoButtonColor = false,
 			Parent = keybindOverlay
@@ -191,24 +192,33 @@ local function RefreshKeybindOverlay()
 			Parent = row
 		})
 		row.MouseButton1Click:Connect(function()
-			entry.Active = not entry.Active
-			Tween(row, { BackgroundColor3 = entry.Active and Colors.Accent or Colors.Background })
-			if entry.Callback then entry.Callback() end
+			if entry.Callback then
+				entry.Callback()
+			elseif entry.Toggle then
+				entry.Toggle.Value = not entry.Toggle.Value
+			end
+			if not entry.Toggle then entry.Active = not entry.Active end
+			RefreshKeybindOverlay()
 		end)
 	end
 end
 
-local function RegisterKeybind(name, keyCode, callback)
-	keybindRegistry[name] = { Name = name, KeyCode = keyCode, Callback = callback, Active = false }
+local function RegisterKeybind(name, keyCode, callback, toggle)
+	local linkedToggle = type(toggle) == "table" and toggle or (type(toggle) == "string" and Library.Toggles[toggle] or Library.Toggles[name])
+	keybindRegistry[name] = { Name = name, KeyCode = keyCode, Callback = callback, Toggle = linkedToggle, Active = false }
 	if keybindOverlay then RefreshKeybindOverlay() end
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	for _, entry in pairs(keybindRegistry) do
-		if entry.KeyCode == input.KeyCode and entry.Callback then
-			entry.Active = not entry.Active
-			entry.Callback()
+		if entry.KeyCode == input.KeyCode then
+			if entry.Callback then
+				entry.Callback()
+			elseif entry.Toggle then
+				entry.Toggle.Value = not entry.Toggle.Value
+			end
+			if not entry.Toggle then entry.Active = not entry.Active end
 			RefreshKeybindOverlay()
 		end
 	end
@@ -278,20 +288,53 @@ local function CreateKeybindOverlay(screenGui)
 	end)
 end
 
+local SearchableItems = {}
+local function MarkSearchable(instance)
+	instance:SetAttribute("LibrarySearchItem", true)
+	table.insert(SearchableItems, instance)
+	return instance
+end
+
+local function MatchesSearch(instance, query)
+	if query == "" then return true end
+	if string.find(string.lower(instance.Name), query, 1, true) then return true end
+	local extra = instance:GetAttribute("LibrarySearchExtra")
+	if type(extra) == "string" and string.find(string.lower(extra), query, 1, true) then return true end
+	for _, descendant in ipairs(instance:GetDescendants()) do
+		if descendant:IsA("TextLabel") or descendant:IsA("TextButton") or descendant:IsA("TextBox") then
+			if string.find(string.lower(descendant.Text), query, 1, true) then return true end
+		end
+	end
+	return false
+end
+
 local function CreateElementFactory(parentContainer, screenGui, main)
 	local api = {}
 
 	function api:AddToggle(name, callback, default, tooltip)
 		local value = default or false
 		if type(tooltip) == "table" then tooltip = tooltip.Tooltip end
-		Library.Toggles[name] = { Value = value }
-		local bg = Create("Frame", {
+		local toggleObject = { _Value = value }
+		setmetatable(toggleObject, {
+			__index = function(object, key)
+				if key == "Value" then return rawget(object, "_Value") end
+			end,
+			__newindex = function(object, key, newValue)
+				if key == "Value" then
+					object.Set(newValue)
+				else
+					rawset(object, key, newValue)
+				end
+			end
+		})
+		Library.Toggles[name] = toggleObject
+		local bg = MarkSearchable(Create("Frame", {
 			Size = UDim2.new(1, 0, 0, tooltip and 0 or 35),
 			AutomaticSize = tooltip and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
 			BackgroundColor3 = Colors.Element,
 			ClipsDescendants = true,
 			Parent = parentContainer
-		})
+		}))
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		Create("TextLabel", {
 			Text = name,
@@ -341,14 +384,15 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			Parent = bg
 		})
 		local function setValue(v)
-			Library.Toggles[name].Value = v
+			toggleObject._Value = not not v
 			Tween(switchBg, { BackgroundColor3 = v and Colors.Accent or Colors.Stroke })
 			Tween(dot, { Position = UDim2.fromOffset(v and 18 or 2, 2) })
 			if callback then callback(v) end
+			RefreshKeybindOverlay()
 		end
-		Library.Toggles[name].Set = setValue
-		btn.MouseButton1Click:Connect(function() setValue(not Library.Toggles[name].Value) end)
-		return Library.Toggles[name]
+		toggleObject.Set = setValue
+		btn.MouseButton1Click:Connect(function() toggleObject.Value = not toggleObject.Value end)
+		return toggleObject
 	end
 
 	function api:AddSlider(name, callback, min, max, default)
@@ -362,6 +406,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
 		})
+		if not bg:GetAttribute("LibrarySearchItem") then MarkSearchable(bg) end
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local label = Create("TextLabel", {
 			Text = name .. ": " .. tostring(default),
@@ -442,6 +487,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			Text = "",
 			Parent = parentContainer
 		})
+		MarkSearchable(btn)
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = btn })
 		Create("TextLabel", {
 			Text = name,
@@ -457,13 +503,14 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 		btn.MouseButton1Click:Connect(function() if callback then callback() end end)
 	end
 
-	function api:AddKeybind(name, keyCode, callback)
-		RegisterKeybind(name, keyCode, callback)
+	function api:AddKeybind(name, keyCode, callback, toggle)
+		RegisterKeybind(name, keyCode, callback, toggle)
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
 		})
+		if not bg:GetAttribute("LibrarySearchItem") then MarkSearchable(bg) end
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		Create("TextLabel", {
 			Text = name,
@@ -489,7 +536,8 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 		Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = keyBtn })
 		keyBtn.MouseButton1Click:Connect(function()
 			local entry = keybindRegistry[name]
-			if entry.Callback then entry.Callback() end
+			if entry and entry.Callback then entry.Callback() end
+			RefreshKeybindOverlay()
 		end)
 	end
 
@@ -500,6 +548,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			BackgroundTransparency = 1,
 			Parent = parentContainer
 		})
+		MarkSearchable(bg)
 		return Create("TextLabel", {
 			Text = text,
 			Font = Fonts.Regular,
@@ -522,6 +571,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			ClipsDescendants = true,
 			Parent = parentContainer
 		})
+		if not bg:GetAttribute("LibrarySearchItem") then MarkSearchable(bg) end
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		Create("ImageLabel", {
 			Image = image,
@@ -538,6 +588,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
 		})
+		if not bg:GetAttribute("LibrarySearchItem") then MarkSearchable(bg) end
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local box = Create("TextBox", {
 			Text = default or "",
@@ -570,6 +621,8 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			Parent = parentContainer,
 			ZIndex = 2
 		})
+		bg:SetAttribute("LibrarySearchExtra", table.concat(options, " "))
+		if not bg:GetAttribute("LibrarySearchItem") then MarkSearchable(bg) end
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local btn = Create("TextButton", {
 			Size = UDim2.fromScale(1, 1),
@@ -678,6 +731,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 		
 		Library.Options[name].Refresh = function(newOptions)
 			currentOptions = newOptions
+			bg:SetAttribute("LibrarySearchExtra", table.concat(newOptions, " "))
 			populate(currentOptions)
 			if #currentOptions > 0 and not table.find(currentOptions, selected) then
 				selected = currentOptions[1]
@@ -705,6 +759,7 @@ function Library.new(windowInfo)
 		IgnoreGuiInset = true,
 		Parent = GetUIParent()
 	})
+	self.ScreenGui = screenGui
 	Library.ScreenGui = screenGui
 
 	CreateKeybindOverlay(screenGui)
@@ -718,9 +773,13 @@ function Library.new(windowInfo)
 		BorderSizePixel = 0,
 		Parent = screenGui
 	})
+	self.Main = main
 	Library.Main = main
 	
 	Create("UIScale", { Parent = main })
+	local blur = Lighting:FindFirstChild("UILibraryBlur") or Create("BlurEffect", { Name = "UILibraryBlur", Size = 0, Parent = Lighting })
+	self.Blur = blur
+	TweenService:Create(blur, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = 18 }):Play()
 	Create("UICorner", { CornerRadius = UDim.new(0, 12), Parent = main })
 	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = main })
 	
@@ -825,16 +884,33 @@ function Library.new(windowInfo)
 	end)
 	closeBtn.MouseEnter:Connect(function() Tween(closeBtn, { TextColor3 = Colors.Danger }) end)
 	closeBtn.MouseLeave:Connect(function() Tween(closeBtn, { TextColor3 = Colors.SubText }) end)
-	closeBtn.MouseButton1Click:Connect(function()
-		main.Visible = false
-		if toggleBtn then toggleBtn.Visible = true end
-	end)
-	if toggleBtn then
-		toggleBtn.MouseButton1Click:Connect(function()
+	local uiVisible = true
+	local visibilityTween
+	local function setUIVisible(value)
+		if uiVisible == value then return end
+		uiVisible = value
+		if visibilityTween then visibilityTween:Cancel() end
+		if value then
 			main.Visible = true
-			toggleBtn.Visible = false
-		end)
+			main.Size = UDim2.fromOffset(610, 420)
+			blur.Enabled = true
+			visibilityTween = TweenService:Create(main, TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(650, 450) })
+			visibilityTween:Play()
+			Tween(blur, { Size = 18 })
+			if toggleBtn then toggleBtn.Visible = false end
+		else
+			visibilityTween = TweenService:Create(main, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = UDim2.fromOffset(610, 420) })
+			visibilityTween:Play()
+			Tween(blur, { Size = 0 })
+			visibilityTween.Completed:Once(function()
+				if not uiVisible then main.Visible = false end
+			end)
+			if toggleBtn then toggleBtn.Visible = true end
+		end
 	end
+	closeBtn.MouseButton1Click:Connect(function() setUIVisible(false) end)
+	if toggleBtn then toggleBtn.MouseButton1Click:Connect(function() setUIVisible(true) end) end
+	self.SetVisible = setUIVisible
 	
 	local footerOffset = windowInfo.Footer and -65 or -40
 	
@@ -848,11 +924,31 @@ function Library.new(windowInfo)
 	})
 	local tabContainer = Create("Frame", {
 		Name = "TabContainer",
-		Size = UDim2.new(1, -150, 1, footerOffset),
-		Position = UDim2.fromOffset(150, 40),
+		Size = UDim2.new(1, -150, 1, footerOffset - 38),
+		Position = UDim2.fromOffset(150, 78),
 		BackgroundTransparency = 1,
 		Parent = main
 	})
+
+	local searchBox = Create("TextBox", {
+		Name = "LibrarySearch",
+		PlaceholderText = "Search tabs, toggles, buttons, dropdowns...",
+		Text = "",
+		Font = Fonts.Medium,
+		TextSize = 12,
+		TextColor3 = Colors.Text,
+		PlaceholderColor3 = Colors.SubText,
+		ClearTextOnFocus = false,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BackgroundColor3 = Colors.Element,
+		Position = UDim2.fromOffset(165, 45),
+		Size = UDim2.new(1, -180, 0, 26),
+		Parent = main
+	})
+	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = searchBox })
+	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = searchBox })
+	Create("UIPadding", { PaddingLeft = UDim.new(0, 9), Parent = searchBox })
+	self.SearchBox = searchBox
 
 	local profile = Create("Frame", {
 		Name = "LocalPlayerProfile",
@@ -867,8 +963,8 @@ function Library.new(windowInfo)
 
 	local avatarImage = Create("ImageLabel", {
 		Name = "Avatar",
-		Size = UDim2.fromOffset(38, 38),
-		Position = UDim2.fromOffset(8, 9),
+		Size = UDim2.fromOffset(46, 46),
+		Position = UDim2.fromOffset(8, 7),
 		BackgroundColor3 = Colors.Stroke,
 		BorderSizePixel = 0,
 		ScaleType = Enum.ScaleType.Crop,
@@ -893,8 +989,8 @@ function Library.new(windowInfo)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Center,
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(52, 5),
-		Size = UDim2.new(1, -58, 0, 43),
+		Position = UDim2.fromOffset(62, 5),
+		Size = UDim2.new(1, -68, 0, 43),
 		Parent = profile
 	})
 	Create("TextLabel", {
@@ -1061,6 +1157,33 @@ function Library.new(windowInfo)
 	self.Sidebar = sidebar
 	self.CurrentTab = nil
 	self.Tabs = {}
+	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		local query = string.lower(searchBox.Text)
+		for _, searchable in ipairs(SearchableItems) do
+			if searchable and searchable.Parent and searchable:IsDescendantOf(screenGui) then
+				searchable.Visible = MatchesSearch(searchable, query)
+			end
+		end
+		for _, existingTab in ipairs(self.Tabs) do
+			local tabMatches = string.find(string.lower(existingTab.Name), query, 1, true) ~= nil
+			local contentMatches = false
+			for _, searchable in ipairs(SearchableItems) do
+				if searchable and searchable.Parent and searchable:IsDescendantOf(existingTab.Container) and MatchesSearch(searchable, query) then
+					contentMatches = true
+					break
+				end
+			end
+			existingTab.Button.Visible = query == "" or tabMatches or contentMatches
+			if query ~= "" and contentMatches and self.CurrentTab ~= existingTab then
+				for _, candidate in ipairs(self.Tabs) do
+					candidate.Container.Visible = candidate == existingTab
+					Tween(candidate.Button, { BackgroundTransparency = candidate == existingTab and 0 or 1 })
+					Tween(candidate.Label, { TextColor3 = candidate == existingTab and Colors.Text or Colors.SubText })
+				end
+				self.CurrentTab = existingTab
+			end
+		end
+	end)
 	return self
 end
 
@@ -1133,31 +1256,41 @@ function Library:CreateTab(tabInfo)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = rightCol
 	})
-	local tab = { Button = tabButton, Container = container, Label = tabLabel }
+	local tab = { Button = tabButton, Container = container, Label = tabLabel, Name = tabInfo.Name }
 	table.insert(self.Tabs, tab)
 	local function select()
 		if self.CurrentTab == tab then return end
 		if self.CurrentTab then
-			Tween(self.CurrentTab.Button, { BackgroundTransparency = 1 })
-			Tween(self.CurrentTab.Label, { TextColor3 = Colors.SubText })
-			self.CurrentTab.Container.Visible = false
+			local previousTab = self.CurrentTab
+			Tween(previousTab.Button, { BackgroundTransparency = 1 })
+			Tween(previousTab.Label, { TextColor3 = Colors.SubText })
+			local fadeOut = TweenService:Create(previousTab.Container, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = UDim2.fromOffset(8, 0) })
+			fadeOut:Play()
+			fadeOut.Completed:Once(function()
+				if self.CurrentTab ~= previousTab then
+					previousTab.Container.Visible = false
+					previousTab.Container.Position = UDim2.fromOffset(0, 0)
+				end
+			end)
 		end
 		self.CurrentTab = tab
 		Tween(tabButton, { BackgroundTransparency = 0, BackgroundColor3 = Colors.Accent })
 		Tween(tabLabel, { TextColor3 = Colors.Text })
 		container.Visible = true
+		container.Position = UDim2.fromOffset(-8, 0)
+		Tween(container, { Position = UDim2.fromOffset(0, 0) })
 	end
 	tabButton.MouseButton1Click:Connect(select)
 	if #self.Tabs == 1 then select() end
 	local api = CreateElementFactory(leftCol, self.ScreenGui, self.Main)
 	function api:AddGroupbox(name, side)
 		local column = (side == "Right") and rightCol or leftCol
-		local gb = Create("Frame", {
+		local gb = MarkSearchable(Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundColor3 = Colors.Element,
 			Parent = column
-		})
+		}))
 		Create("UICorner", { CornerRadius = UDim.new(0, 8), Parent = gb })
 		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = gb })
 		Create("UIPadding", {
@@ -1318,6 +1451,11 @@ function Library:Destroy()
 	end
 	table.clear(self.Notifications or {})
 	if self.ScreenGui then self.ScreenGui:Destroy() end
+	if self.Blur then
+		local blurTween = TweenService:Create(self.Blur, TweenInfo.new(0.2), { Size = 0 })
+		blurTween:Play()
+		blurTween.Completed:Once(function() if self.Blur then self.Blur:Destroy() end end)
+	end
 end
 
 return Library
