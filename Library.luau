@@ -2,7 +2,6 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -611,17 +610,41 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 	end
 
 	function api:AddDropdown(name, options, callback, default)
-		local selected = default or options[1] or ""
+		local currentOptions = options or {}
+		local function normalize(Option)
+			if typeof(Option) == "table" then
+				local Text = tostring(Option.Text or Option.Name or Option.Value or "")
+				return { Text = Text, Value = Option.Value ~= nil and Option.Value or Text, Image = Option.Image or Option.Icon }
+			end
+			local Text = tostring(Option)
+			return { Text = Text, Value = Option, Image = nil }
+		end
+		local function findOption(Value)
+			for _, Option in ipairs(currentOptions) do
+				local Normalized = normalize(Option)
+				if Normalized.Value == Value then return Normalized end
+			end
+		end
+		local selected = default
+		if selected == nil and currentOptions[1] ~= nil then selected = normalize(currentOptions[1]).Value end
+		selected = selected or ""
+		local SelectedOption = findOption(selected)
 		Library.Options[name] = { Value = selected }
-		local currentOptions = options
-		
+
 		local bg = Create("Frame", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer,
 			ZIndex = 2
 		})
-		bg:SetAttribute("LibrarySearchExtra", table.concat(options, " "))
+		local function updateSearchText()
+			local SearchValues = {}
+			for _, Option in ipairs(currentOptions) do
+				table.insert(SearchValues, normalize(Option).Text)
+			end
+			bg:SetAttribute("LibrarySearchExtra", table.concat(SearchValues, " "))
+		end
+		updateSearchText()
 		if not bg:GetAttribute("LibrarySearchItem") then MarkSearchable(bg) end
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = bg })
 		local btn = Create("TextButton", {
@@ -631,7 +654,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			Parent = bg
 		})
 		local displayLabel = Create("TextLabel", {
-			Text = name .. ": " .. selected,
+			Text = name .. ": " .. (SelectedOption and SelectedOption.Text or tostring(selected)),
 			Font = Fonts.Medium,
 			TextSize = 14,
 			TextColor3 = Colors.Text,
@@ -651,95 +674,130 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			Size = UDim2.fromOffset(20, 35),
 			Parent = bg
 		})
-		
 		local listBg = Create("ScrollingFrame", {
-			Size = UDim2.new(0, 0, 0, 0),
-			Position = UDim2.fromOffset(0, 0),
+			Size = UDim2.fromOffset(0, 0),
 			BackgroundColor3 = Colors.Background,
 			BorderSizePixel = 0,
 			Visible = false,
-			CanvasSize = UDim2.new(0, 0, 0, 0),
+			CanvasSize = UDim2.fromOffset(0, 0),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
-			ScrollBarThickness = 2,
+			ScrollBarThickness = 3,
 			ScrollBarImageColor3 = Colors.Accent,
 			Parent = screenGui,
 			ZIndex = 100
 		})
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = listBg })
 		Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = listBg })
-		Create("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listBg })
+		local listLayout = Create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder, Parent = listBg })
 		Create("UIPadding", { PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = listBg })
 
-		local function populate(opts)
-			for _, child in ipairs(listBg:GetChildren()) do
-				if child:IsA("TextButton") then child:Destroy() end
+		local function positionList()
+			local Camera = workspace.CurrentCamera
+			if not Camera then return end
+			local Viewport = Camera.ViewportSize
+			local AbsolutePosition = bg.AbsolutePosition
+			local AbsoluteSize = bg.AbsoluteSize
+			local DesiredHeight = math.min(#currentOptions * 45 + 13, 240)
+			local BelowSpace = Viewport.Y - (AbsolutePosition.Y + AbsoluteSize.Y + 6)
+			local AboveSpace = AbsolutePosition.Y - 6
+			local OpenBelow = BelowSpace >= math.min(DesiredHeight, 90) or BelowSpace >= AboveSpace
+			local AvailableHeight = math.max(80, OpenBelow and BelowSpace or AboveSpace)
+			local ListHeight = math.min(DesiredHeight, AvailableHeight)
+			local ListWidth = math.min(AbsoluteSize.X, Viewport.X - 16)
+			local ListX = math.clamp(AbsolutePosition.X, 8, math.max(8, Viewport.X - ListWidth - 8))
+			local ListY = OpenBelow and (AbsolutePosition.Y + AbsoluteSize.Y + 5) or (AbsolutePosition.Y - ListHeight - 5)
+			listBg.Position = UDim2.fromOffset(ListX, math.clamp(ListY, 4, math.max(4, Viewport.Y - ListHeight - 4)))
+			listBg.Size = UDim2.fromOffset(ListWidth, ListHeight)
+		end
+
+		local function populate(Options)
+			for _, Child in ipairs(listBg:GetChildren()) do
+				if Child:IsA("TextButton") then Child:Destroy() end
 			end
-			for i, opt in ipairs(opts) do
-				local optBtn = Create("TextButton", {
-					Size = UDim2.new(1, 0, 0, 25),
+			for Index, RawOption in ipairs(Options) do
+				local Option = normalize(RawOption)
+				local OptionButton = Create("TextButton", {
+					Size = UDim2.new(1, 0, 0, 42),
 					BackgroundColor3 = Colors.Element,
-					Text = opt,
+					Text = "",
+					AutoButtonColor = false,
+					LayoutOrder = Index,
+					Parent = listBg,
+					ZIndex = 101
+				})
+				Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = OptionButton })
+				local TextOffset = 10
+				if Option.Image and Option.Image ~= "" then
+					Create("ImageLabel", {
+						Image = Option.Image,
+						Size = UDim2.fromOffset(32, 32),
+						Position = UDim2.fromOffset(5, 5),
+						BackgroundTransparency = 1,
+						ScaleType = Enum.ScaleType.Crop,
+						ZIndex = 102,
+						Parent = OptionButton
+					})
+					TextOffset = 44
+				end
+				Create("TextLabel", {
+					Text = Option.Text,
 					Font = Fonts.Medium,
 					TextSize = 13,
 					TextColor3 = Colors.Text,
-					LayoutOrder = i,
-					Parent = listBg
+					TextXAlignment = Enum.TextXAlignment.Left,
+					BackgroundTransparency = 1,
+					Position = UDim2.fromOffset(TextOffset, 0),
+					Size = UDim2.new(1, -TextOffset - 8, 1, 0),
+					ZIndex = 102,
+					Parent = OptionButton
 				})
-				Create("UICorner", { CornerRadius = UDim.new(0, 4), Parent = optBtn })
-				optBtn.MouseEnter:Connect(function() Tween(optBtn, { BackgroundColor3 = Colors.Accent }) end)
-				optBtn.MouseLeave:Connect(function() Tween(optBtn, { BackgroundColor3 = Colors.Element }) end)
-				optBtn.MouseButton1Click:Connect(function()
-					selected = opt
-					Library.Options[name].Value = opt
-					displayLabel.Text = name .. ": " .. opt
+				OptionButton.Activated:Connect(function()
+					selected = Option.Value
+					Library.Options[name].Value = selected
+					displayLabel.Text = name .. ": " .. Option.Text
 					listBg.Visible = false
 					Tween(arrow, { Rotation = 0 })
-					if callback then callback(opt) end
+					if callback then callback(selected) end
 				end)
+				OptionButton.MouseEnter:Connect(function() Tween(OptionButton, { BackgroundColor3 = Colors.Accent }) end)
+				OptionButton.MouseLeave:Connect(function() Tween(OptionButton, { BackgroundColor3 = Colors.Element }) end)
 			end
-			listBg.CanvasSize = UDim2.new(0, 0, 0, listBg.UIListLayout.AbsoluteContentSize.Y + 10)
+			listBg.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y + 10)
+			if listBg.Visible then positionList() end
 		end
 
 		populate(currentOptions)
-
-		btn.MouseButton1Click:Connect(function()
+		btn.Activated:Connect(function()
 			if listBg.Visible then
 				listBg.Visible = false
 				Tween(arrow, { Rotation = 0 })
-			else
-				for _, child in ipairs(screenGui:GetChildren()) do
-					if child:IsA("ScrollingFrame") and child.ZIndex == 100 then
-						child.Visible = false
-					end
-				end
-				
-				local absPos = bg.AbsolutePosition
-				local absSize = bg.AbsoluteSize
-				
-				listBg.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y + 5)
-				listBg.Size = UDim2.fromOffset(absSize.X, math.min(#currentOptions * 27 + 10, 150))
-				listBg.Visible = true
-				Tween(arrow, { Rotation = 180 })
+				return
 			end
+			for _, Child in ipairs(screenGui:GetChildren()) do
+				if Child:IsA("ScrollingFrame") and Child.ZIndex == 100 then Child.Visible = false end
+			end
+			positionList()
+			listBg.Visible = true
+			Tween(arrow, { Rotation = 180 })
 		end)
 
-		Library.Options[name].Set = function(v)
-			selected = v
-			Library.Options[name].Value = v
-			displayLabel.Text = name .. ": " .. v
+		Library.Options[name].Set = function(Value)
+			selected = Value
+			Library.Options[name].Value = Value
+			local Option = findOption(Value)
+			displayLabel.Text = name .. ": " .. (Option and Option.Text or tostring(Value))
 		end
-		
-		Library.Options[name].Refresh = function(newOptions)
-			currentOptions = newOptions
-			bg:SetAttribute("LibrarySearchExtra", table.concat(newOptions, " "))
+		Library.Options[name].Refresh = function(NewOptions)
+			currentOptions = NewOptions or {}
+			updateSearchText()
 			populate(currentOptions)
-			if #currentOptions > 0 and not table.find(currentOptions, selected) then
-				selected = currentOptions[1]
+			if not findOption(selected) then
+				selected = currentOptions[1] and normalize(currentOptions[1]).Value or ""
 				Library.Options[name].Value = selected
-				displayLabel.Text = name .. ": " .. selected
+				local Option = findOption(selected)
+				displayLabel.Text = name .. ": " .. (Option and Option.Text or tostring(selected))
 			end
 		end
-		
 		return Library.Options[name]
 	end
 
@@ -777,9 +835,6 @@ function Library.new(windowInfo)
 	Library.Main = main
 	
 	Create("UIScale", { Parent = main })
-	local blur = Lighting:FindFirstChild("UILibraryBlur") or Create("BlurEffect", { Name = "UILibraryBlur", Size = 0, Parent = Lighting })
-	self.Blur = blur
-	TweenService:Create(blur, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = 18 }):Play()
 	Create("UICorner", { CornerRadius = UDim.new(0, 12), Parent = main })
 	Create("UIStroke", { Color = Colors.Stroke, Thickness = 1, Parent = main })
 	
@@ -893,15 +948,12 @@ function Library.new(windowInfo)
 		if value then
 			main.Visible = true
 			main.Size = UDim2.fromOffset(610, 420)
-			blur.Enabled = true
 			visibilityTween = TweenService:Create(main, TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(650, 450) })
 			visibilityTween:Play()
-			Tween(blur, { Size = 18 })
 			if toggleBtn then toggleBtn.Visible = false end
 		else
 			visibilityTween = TweenService:Create(main, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Size = UDim2.fromOffset(610, 420) })
 			visibilityTween:Play()
-			Tween(blur, { Size = 0 })
 			visibilityTween.Completed:Once(function()
 				if not uiVisible then main.Visible = false end
 			end)
@@ -1451,11 +1503,6 @@ function Library:Destroy()
 	end
 	table.clear(self.Notifications or {})
 	if self.ScreenGui then self.ScreenGui:Destroy() end
-	if self.Blur then
-		local blurTween = TweenService:Create(self.Blur, TweenInfo.new(0.2), { Size = 0 })
-		blurTween:Play()
-		blurTween.Completed:Once(function() if self.Blur then self.Blur:Destroy() end end)
-	end
 end
 
 return Library
