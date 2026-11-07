@@ -1327,7 +1327,7 @@ function Library.new(windowInfo)
 
 	local ServerTab = self:CreateTab({ Name = "Server", Icon = "lucide:server", BuiltIn = true })
 	self.ServerTab = self.Tabs[#self.Tabs]
-	self.ServerTab.Button.Position = UDim2.new(0, 10, 1, -145)
+	self.ServerTab.Button.Position = UDim2.new(0, 10, 1, -147)
 	local ServerInfo = ServerTab:AddGroupbox("Server Information")
 	local MarketplaceService = game:GetService("MarketplaceService")
 	local GameNameLabel = ServerInfo:AddLabel("Game Name: Loading...")
@@ -1336,7 +1336,13 @@ function Library.new(windowInfo)
 	local JobIdLabel = ServerInfo:AddLabel("Server JobId: " .. JobId)
 	local PlaceIdLabel = ServerInfo:AddLabel("Game Place ID: " .. PlaceId)
 	local GameIcon = ServerInfo:AddImage("", 110)
+	if GameIcon then
+		GameIcon.Size = UDim2.fromOffset(110, 110)
+	end
 	local GameIconImage = GameIcon and GameIcon:FindFirstChildWhichIsA("ImageLabel", true)
+	if GameIconImage then
+		GameIconImage.ScaleType = Enum.ScaleType.Fit
+	end
 
 	task.spawn(function()
 		local Success, ProductInfo = pcall(function()
@@ -1544,7 +1550,7 @@ function Library:CreateTab(tabInfo)
 	local UserTabIndex = 0
 	for _, ExistingTab in ipairs(self.Tabs) do
 		if ExistingTab == self.ServerTab then
-			ExistingTab.Button.Position = UDim2.new(0, 10, 1, -145)
+			ExistingTab.Button.Position = UDim2.new(0, 10, 1, -147)
 		else
 			UserTabIndex += 1
 			ExistingTab.Button.Position = UDim2.fromOffset(10, (UserTabIndex - 1) * 40 + 10)
