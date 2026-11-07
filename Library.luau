@@ -31,6 +31,7 @@ local Library = {}
 Library.__index = Library
 Library.Toggles = {}
 Library.Options = {}
+Library.Buttons = {}
 Library.KeybindsShown = false
 Library.NotifySide = "Right"
 Library.Notifications = {}
@@ -313,7 +314,10 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 
 	function api:AddToggle(name, callback, default, tooltip)
 		local value = default or false
-		if type(tooltip) == "table" then tooltip = tooltip.Tooltip end
+		local config = type(tooltip) == "table" and tooltip or {}
+		local disabled = config.Disabled == true
+		local disabledTooltip = config.DisabledTooltip
+		if type(tooltip) == "table" then tooltip = config.Tooltip end
 		local toggleObject = { _Value = value }
 		setmetatable(toggleObject, {
 			__index = function(object, key)
@@ -329,8 +333,8 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 		})
 		Library.Toggles[name] = toggleObject
 		local bg = MarkSearchable(Create("Frame", {
-			Size = UDim2.new(1, 0, 0, tooltip and 0 or 35),
-			AutomaticSize = tooltip and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
+			Size = UDim2.new(1, 0, 0, (tooltip or (disabledTooltip and disabledTooltip ~= "")) and 0 or 35),
+			AutomaticSize = (tooltip or (disabledTooltip and disabledTooltip ~= "")) and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
 			BackgroundColor3 = Colors.Element,
 			ClipsDescendants = true,
 			Parent = parentContainer
@@ -384,6 +388,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			Parent = bg
 		})
 		local function setValue(v)
+			if toggleObject.Disabled then return end
 			toggleObject._Value = not not v
 			Tween(switchBg, { BackgroundColor3 = v and Colors.Accent or Colors.Stroke })
 			Tween(dot, { Position = UDim2.fromOffset(v and 18 or 2, 2) })
@@ -391,18 +396,45 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			RefreshKeybindOverlay()
 		end
 		toggleObject.Set = setValue
-		btn.MouseButton1Click:Connect(function() toggleObject.Value = not toggleObject.Value end)
+		toggleObject.Disabled = disabled
+		local disabledLabel
+		if disabledTooltip and disabledTooltip ~= "" then
+			disabledLabel = Create("TextLabel", {
+				Text = tostring(disabledTooltip), Font = Fonts.Regular, TextSize = 11,
+				TextColor3 = Colors.SubText, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+				BackgroundTransparency = 1, Position = UDim2.fromOffset(10, tooltip and 52 or 35),
+				Size = UDim2.new(1, -20, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+				Visible = disabled, Parent = bg
+			})
+		end
+		toggleObject.SetDisabled = function(state)
+			toggleObject.Disabled = state == true
+			btn.Active = not toggleObject.Disabled
+			Tween(bg, { BackgroundColor3 = toggleObject.Disabled and Colors.Stroke or Colors.Element })
+			Tween(switchBg, { BackgroundColor3 = toggleObject.Disabled and Colors.Stroke or (toggleObject.Value and Colors.Accent or Colors.Stroke) })
+			Tween(dot, { BackgroundColor3 = toggleObject.Disabled and Colors.SubText or Colors.Text })
+			for _, child in ipairs(bg:GetChildren()) do
+				if child:IsA("TextLabel") and child ~= disabledLabel then child.TextColor3 = toggleObject.Disabled and Colors.SubText or Colors.Text end
+			end
+			if disabledLabel then disabledLabel.Visible = toggleObject.Disabled end
+		end
+		if disabled then toggleObject.SetDisabled(true) end
+		btn.MouseButton1Click:Connect(function()
+			if not toggleObject.Disabled then toggleObject.Value = not toggleObject.Value end
+		end)
 		return toggleObject
 	end
 
-	function api:AddSlider(name, callback, min, max, default)
+	function api:AddSlider(name, callback, min, max, default, config)
+		config = type(config) == "table" and config or {}
+		local disabled = config.Disabled == true
 		min = min or 0
 		max = max or 100
 		if max <= min then max = min + 1 end
 		default = default or min
 		Library.Options[name] = { Value = default }
 		local bg = Create("Frame", {
-			Size = UDim2.new(1, 0, 0, 45),
+			Size = UDim2.new(1, 0, 0, (config.DisabledTooltip and config.DisabledTooltip ~= "") and 62 or 45),
 			BackgroundColor3 = Colors.Element,
 			Parent = parentContainer
 		})
@@ -443,6 +475,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 		
 		local dragging = false
 		local function update(input)
+			if Library.Options[name].Disabled then return end
 			local barPos = visualBar.AbsolutePosition.X
 			local barSize = visualBar.AbsoluteSize.X
 			local relative = math.clamp((input.Position.X - barPos) / barSize, 0, 1)
@@ -454,6 +487,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 		end
 		
 		hitbox.InputBegan:Connect(function(input)
+			if Library.Options[name].Disabled then return end
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				dragging = true
 				update(input)
@@ -470,17 +504,44 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			end
 		end)
 		
+		Library.Options[name].Disabled = disabled
 		Library.Options[name].Set = function(v)
+			if Library.Options[name].Disabled then return end
 			v = math.clamp(v, min, max)
 			Library.Options[name].Value = v
 			label.Text = name .. ": " .. tostring(v)
 			fill.Size = UDim2.new((v - min) / (max - min), 0, 1, 0)
 			if callback then callback(v) end
 		end
-		return Library.Options[name]
+		local SliderObject = Library.Options[name]
+		local disabledLabel
+		if config.DisabledTooltip and config.DisabledTooltip ~= "" then
+			disabledLabel = Create("TextLabel", {
+				Text = tostring(config.DisabledTooltip), Font = Fonts.Regular, TextSize = 11,
+				TextColor3 = Colors.SubText, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+				BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 45),
+				Size = UDim2.new(1, -20, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+				Visible = disabled, Parent = bg
+			})
+		end
+		SliderObject.SetDisabled = function(state)
+			SliderObject.Disabled = state == true
+			hitbox.Active = not SliderObject.Disabled
+			Tween(bg, { BackgroundColor3 = SliderObject.Disabled and Colors.Stroke or Colors.Element })
+			Tween(label, { TextColor3 = SliderObject.Disabled and Colors.SubText or Colors.Text })
+			Tween(fill, { BackgroundColor3 = SliderObject.Disabled and Colors.SubText or Colors.Accent })
+			if disabledLabel then disabledLabel.Visible = SliderObject.Disabled end
+		end
+		if disabled then SliderObject.SetDisabled(true) end
+		return SliderObject
 	end
 
-	function api:AddButton(name, callback)
+	function api:AddButton(name, callback, config)
+		config = type(config) == "table" and config or {}
+		local disabled = config.Disabled == true
+		local buttonObject = { Disabled = disabled }
+		Library.Buttons = Library.Buttons or {}
+		Library.Buttons[name] = buttonObject
 		local btn = Create("TextButton", {
 			Size = UDim2.new(1, 0, 0, 35),
 			BackgroundColor3 = Colors.Element,
@@ -489,7 +550,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 		})
 		MarkSearchable(btn)
 		Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = btn })
-		Create("TextLabel", {
+		local buttonLabel = Create("TextLabel", {
 			Text = name,
 			Font = Fonts.Medium,
 			TextSize = 14,
@@ -498,9 +559,34 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			Size = UDim2.fromScale(1, 1),
 			Parent = btn
 		})
-		btn.MouseEnter:Connect(function() Tween(btn, { BackgroundColor3 = Colors.Accent }) end)
-		btn.MouseLeave:Connect(function() Tween(btn, { BackgroundColor3 = Colors.Element }) end)
-		btn.MouseButton1Click:Connect(function() if callback then callback() end end)
+		local disabledLabel
+		if config.DisabledTooltip and config.DisabledTooltip ~= "" then
+			disabledLabel = Create("TextLabel", {
+				Text = tostring(config.DisabledTooltip), Font = Fonts.Regular, TextSize = 11,
+				TextColor3 = Colors.SubText, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left,
+				BackgroundTransparency = 1, Size = UDim2.new(1, -20, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				Visible = disabled, Parent = parentContainer
+			})
+		end
+		buttonObject.SetDisabled = function(state)
+			buttonObject.Disabled = state == true
+			btn.Active = not buttonObject.Disabled
+			Tween(btn, { BackgroundColor3 = buttonObject.Disabled and Colors.Stroke or Colors.Element })
+			Tween(buttonLabel, { TextColor3 = buttonObject.Disabled and Colors.SubText or Colors.Text })
+			if disabledLabel then disabledLabel.Visible = buttonObject.Disabled end
+		end
+		if disabled then buttonObject.SetDisabled(true) end
+		btn.MouseEnter:Connect(function()
+			if not buttonObject.Disabled then Tween(btn, { BackgroundColor3 = Colors.Accent }) end
+		end)
+		btn.MouseLeave:Connect(function()
+			Tween(btn, { BackgroundColor3 = buttonObject.Disabled and Colors.Stroke or Colors.Element })
+		end)
+		btn.MouseButton1Click:Connect(function()
+			if not buttonObject.Disabled and callback then callback() end
+		end)
+		return buttonObject
 	end
 
 	function api:AddKeybind(name, keyCode, callback, toggle)
@@ -580,6 +666,7 @@ local function CreateElementFactory(parentContainer, screenGui, main)
 			ScaleType = Enum.ScaleType.Crop,
 			Parent = bg
 		})
+		return bg
 	end
 
 	function api:AddTextBox(name, callback, default)
@@ -1238,23 +1325,54 @@ function Library.new(windowInfo)
 		end
 	end)
 
-	local ServerTab = self:CreateTab({ Name = "Server", Icon = "🖥️" })
+	local ServerTab = self:CreateTab({ Name = "Server", Icon = "lucide:server", BuiltIn = true })
+	self.ServerTab = self.Tabs[#self.Tabs]
+	self.ServerTab.Button.Position = UDim2.new(0, 10, 1, -145)
 	local ServerInfo = ServerTab:AddGroupbox("Server Information")
 	local MarketplaceService = game:GetService("MarketplaceService")
 	local GameNameLabel = ServerInfo:AddLabel("Game Name: Loading...")
-	ServerInfo:AddLabel("Server JobId: " .. game.JobId)
-	ServerInfo:AddLabel("Game Place ID: " .. tostring(game.PlaceId))
+	local JobId = game.JobId
+	local PlaceId = tostring(game.PlaceId)
+	local JobIdLabel = ServerInfo:AddLabel("Server JobId: " .. JobId)
+	local PlaceIdLabel = ServerInfo:AddLabel("Game Place ID: " .. PlaceId)
+	local GameIcon = ServerInfo:AddImage("", 110)
+	local GameIconImage = GameIcon and GameIcon:FindFirstChildWhichIsA("ImageLabel", true)
 
 	task.spawn(function()
 		local Success, ProductInfo = pcall(function()
 			return MarketplaceService:GetProductInfo(game.PlaceId)
 		end)
-		if GameNameLabel.Parent then
-			GameNameLabel.Text = "Game Name: " .. (Success and ProductInfo.Name or "Unknown")
+		if Success and ProductInfo then
+			GameNameLabel.Text = "Game Name: " .. (ProductInfo.Name or "Unknown")
+			local IconAssetId = ProductInfo.IconImageAssetId
+			if GameIconImage and IconAssetId and IconAssetId > 0 then
+				GameIconImage.Image = "rbxassetid://" .. tostring(IconAssetId)
+			end
+		else
+			GameNameLabel.Text = "Game Name: Unknown"
 		end
 	end)
 
 	local ServerActions = ServerTab:AddGroupbox("Server Actions", "Right")
+	local function CopyServerValue(Value)
+		if type(setclipboard) == "function" then
+			local CopySuccess = pcall(setclipboard, Value)
+			if CopySuccess then
+				self:Notify("Copied", "Value copied to clipboard.", 2)
+				return
+			end
+		end
+		self:Notify("Clipboard unavailable", "Your executor does not support setclipboard.", 3)
+	end
+	ServerActions:AddButton("Copy JobId", function()
+		CopyServerValue(JobId)
+	end)
+	ServerActions:AddButton("Copy Game Name", function()
+		CopyServerValue(GameNameLabel.Text:gsub("^Game Name: ", ""))
+	end)
+	ServerActions:AddButton("Copy PlaceId", function()
+		CopyServerValue(PlaceId)
+	end)
 	ServerActions:AddButton("Serverhop", function()
 		task.spawn(function()
 			local Url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true"
@@ -1265,41 +1383,32 @@ function Library.new(windowInfo)
 				return HttpService:GetAsync(Url)
 			end)
 			if not RequestSuccess then
-				warn("Serverhop failed: HTTP request unavailable.")
+				self:Notify("Serverhop failed", "HTTP request unavailable.", 3)
 				return
 			end
-
 			local DecodeSuccess, ServerData = pcall(function()
 				return HttpService:JSONDecode(Response)
 			end)
 			if not DecodeSuccess or type(ServerData) ~= "table" or type(ServerData.data) ~= "table" then
-				warn("Serverhop failed: invalid server response.")
+				self:Notify("Serverhop failed", "Invalid server response.", 3)
 				return
 			end
-
 			local AvailableServers = {}
 			for _, Server in ipairs(ServerData.data) do
-				if Server.id and Server.id ~= game.JobId and Server.playing < Server.maxPlayers then
+				if Server.id and Server.id ~= JobId and Server.playing < Server.maxPlayers then
 					table.insert(AvailableServers, Server.id)
 				end
 			end
 			if #AvailableServers == 0 then
-				warn("Serverhop: no available servers found.")
+				self:Notify("Serverhop", "No other public servers found.", 3)
 				return
 			end
-
-			local TargetServer = AvailableServers[math.random(1, #AvailableServers)]
-			pcall(function()
-				TeleportService:TeleportToPlaceInstance(game.PlaceId, TargetServer, LocalPlayer)
-			end)
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, AvailableServers[math.random(1, #AvailableServers)], LocalPlayer)
 		end)
 	end)
 	ServerActions:AddButton("Rejoin", function()
-		pcall(function()
-			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-		end)
+		TeleportService:TeleportToPlaceInstance(game.PlaceId, JobId, LocalPlayer)
 	end)
-
 	return self
 end
 
@@ -1316,7 +1425,38 @@ function Library:CreateTab(tabInfo)
 	local tabIcon = tabInfo.Icon
 	local labelOffset = 10
 	if type(tabIcon) == "string" and tabIcon ~= "" then
-		if tabIcon:match("^rbxassetid://") or tabIcon:match("^rbxthumb://") or tabIcon:match("^https?://") then
+		if tabIcon == "lucide:server" then
+			local IconFrame = Create("Frame", {
+				Size = UDim2.fromOffset(20, 20),
+				Position = UDim2.new(0, 8, 0.5, -10),
+				BackgroundTransparency = 1,
+				Parent = tabButton
+			})
+			for RowIndex = 1, 2 do
+				local ServerRow = Create("Frame", {
+					Size = UDim2.new(1, 0, 0, 7),
+					Position = UDim2.fromOffset(0, (RowIndex - 1) * 10),
+					BackgroundTransparency = 1,
+					Parent = IconFrame
+				})
+				Create("UICorner", { CornerRadius = UDim.new(0, 2), Parent = ServerRow })
+				Create("UIStroke", { Color = Colors.Text, Thickness = 1.3, Parent = ServerRow })
+				Create("Frame", {
+					Size = UDim2.fromOffset(2, 2),
+					Position = UDim2.fromOffset(3, 2),
+					BackgroundColor3 = Colors.Text,
+					BorderSizePixel = 0,
+					Parent = ServerRow
+				})
+				Create("Frame", {
+					Size = UDim2.new(0, 7, 0, 1),
+					Position = UDim2.new(1, -10, 0.5, 0),
+					BackgroundColor3 = Colors.Text,
+					BorderSizePixel = 0,
+					Parent = ServerRow
+				})
+			end
+		elseif tabIcon:match("^rbxassetid://") or tabIcon:match("^rbxthumb://") or tabIcon:match("^https?://") then
 			Create("ImageLabel", {
 				Image = tabIcon,
 				Size = UDim2.fromOffset(18, 18),
@@ -1400,6 +1540,16 @@ function Library:CreateTab(tabInfo)
 	})
 	local tab = { Button = tabButton, Container = container, Label = tabLabel, Name = tabInfo.Name }
 	table.insert(self.Tabs, tab)
+	if tabInfo.BuiltIn then self.ServerTab = tab end
+	local UserTabIndex = 0
+	for _, ExistingTab in ipairs(self.Tabs) do
+		if ExistingTab == self.ServerTab then
+			ExistingTab.Button.Position = UDim2.new(0, 10, 1, -145)
+		else
+			UserTabIndex += 1
+			ExistingTab.Button.Position = UDim2.fromOffset(10, (UserTabIndex - 1) * 40 + 10)
+		end
+	end
 	local function select()
 		if self.CurrentTab == tab then return end
 		if self.CurrentTab then
