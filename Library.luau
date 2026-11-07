@@ -2,6 +2,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 
 local LocalPlayer = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -1236,6 +1237,69 @@ function Library.new(windowInfo)
 			end
 		end
 	end)
+
+	local ServerTab = self:CreateTab({ Name = "Server", Icon = "🖥️" })
+	local ServerInfo = ServerTab:AddGroupbox("Server Information")
+	local MarketplaceService = game:GetService("MarketplaceService")
+	local GameNameLabel = ServerInfo:AddLabel("Game Name: Loading...")
+	ServerInfo:AddLabel("Server JobId: " .. game.JobId)
+	ServerInfo:AddLabel("Game Place ID: " .. tostring(game.PlaceId))
+
+	task.spawn(function()
+		local Success, ProductInfo = pcall(function()
+			return MarketplaceService:GetProductInfo(game.PlaceId)
+		end)
+		if GameNameLabel.Parent then
+			GameNameLabel.Text = "Game Name: " .. (Success and ProductInfo.Name or "Unknown")
+		end
+	end)
+
+	local ServerActions = ServerTab:AddGroupbox("Server Actions", "Right")
+	ServerActions:AddButton("Serverhop", function()
+		task.spawn(function()
+			local Url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true"
+			local RequestSuccess, Response = pcall(function()
+				if game.HttpGet then
+					return game:HttpGet(Url)
+				end
+				return HttpService:GetAsync(Url)
+			end)
+			if not RequestSuccess then
+				warn("Serverhop failed: HTTP request unavailable.")
+				return
+			end
+
+			local DecodeSuccess, ServerData = pcall(function()
+				return HttpService:JSONDecode(Response)
+			end)
+			if not DecodeSuccess or type(ServerData) ~= "table" or type(ServerData.data) ~= "table" then
+				warn("Serverhop failed: invalid server response.")
+				return
+			end
+
+			local AvailableServers = {}
+			for _, Server in ipairs(ServerData.data) do
+				if Server.id and Server.id ~= game.JobId and Server.playing < Server.maxPlayers then
+					table.insert(AvailableServers, Server.id)
+				end
+			end
+			if #AvailableServers == 0 then
+				warn("Serverhop: no available servers found.")
+				return
+			end
+
+			local TargetServer = AvailableServers[math.random(1, #AvailableServers)]
+			pcall(function()
+				TeleportService:TeleportToPlaceInstance(game.PlaceId, TargetServer, LocalPlayer)
+			end)
+		end)
+	end)
+	ServerActions:AddButton("Rejoin", function()
+		pcall(function()
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+		end)
+	end)
+
 	return self
 end
 
@@ -1249,6 +1313,32 @@ function Library:CreateTab(tabInfo)
 		Parent = self.Sidebar
 	})
 	Create("UICorner", { CornerRadius = UDim.new(0, 6), Parent = tabButton })
+	local tabIcon = tabInfo.Icon
+	local labelOffset = 10
+	if type(tabIcon) == "string" and tabIcon ~= "" then
+		if tabIcon:match("^rbxassetid://") or tabIcon:match("^rbxthumb://") or tabIcon:match("^https?://") then
+			Create("ImageLabel", {
+				Image = tabIcon,
+				Size = UDim2.fromOffset(18, 18),
+				Position = UDim2.new(0, 9, 0.5, -9),
+				BackgroundTransparency = 1,
+				ScaleType = Enum.ScaleType.Fit,
+				Parent = tabButton
+			})
+		else
+			Create("TextLabel", {
+				Text = tabIcon,
+				Font = Fonts.Regular,
+				TextSize = 16,
+				TextColor3 = Colors.Text,
+				BackgroundTransparency = 1,
+				Size = UDim2.fromOffset(22, 35),
+				Position = UDim2.fromOffset(7, 0),
+				Parent = tabButton
+			})
+		end
+		labelOffset = 34
+	end
 	local tabLabel = Create("TextLabel", {
 		Text = tabInfo.Name,
 		Font = Fonts.Medium,
@@ -1256,8 +1346,8 @@ function Library:CreateTab(tabInfo)
 		TextColor3 = Colors.SubText,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(10, 0),
-		Size = UDim2.new(1, -10, 1, 0),
+		Position = UDim2.fromOffset(labelOffset, 0),
+		Size = UDim2.new(1, -labelOffset, 1, 0),
 		Parent = tabButton
 	})
 	local container = Create("ScrollingFrame", {
